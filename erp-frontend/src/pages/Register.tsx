@@ -9,15 +9,19 @@ const Register = () => {
     name: "",
     email: "",
     password: "",
+    role: "",
   });
 
   const [errors, setErrors] = useState({
     name: false,
     email: false,
     password: false,
+    role: false,
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
 
@@ -28,12 +32,13 @@ const Register = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { name, email, password } = form;
+    const { name, email, password, role } = form;
 
     const newErrors = {
       name: name.trim() === "",
       email: email.trim() === "",
       password: password.trim() === "",
+      role: role.trim() === "",
     };
     setErrors(newErrors);
 
@@ -48,7 +53,9 @@ const Register = () => {
       toast.success("✅ Registration successful!", { id: loadingToast });
       navigate("/login");
     } catch (err) {
-      toast.error("❌ Registration failed. Email may already be in use.", { id: loadingToast });
+      toast.error("❌ Registration failed. Email may already be in use.", {
+        id: loadingToast,
+      });
     }
   };
 
@@ -100,6 +107,22 @@ const Register = () => {
               : "border-gray-300 focus:ring-green-400"
           }`}
         />
+
+        <select
+          name="role"
+          value={form.role}
+          onChange={handleChange}
+          className={`w-full p-2 border rounded focus:outline-none focus:ring-2 ${
+            errors.role
+              ? "border-red-500 focus:ring-red-400"
+              : "border-gray-300 focus:ring-green-400"
+          }`}
+        >
+          <option value="">Select Role</option>
+          <option value="Admin">Admin</option>
+          <option value="Manager">Manager</option>
+          <option value="Staff">Staff</option>
+        </select>
 
         <button
           type="submit"
