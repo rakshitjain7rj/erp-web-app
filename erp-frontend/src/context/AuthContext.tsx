@@ -1,7 +1,11 @@
 import { createContext, useState, useEffect, ReactNode } from "react";
 
+interface User {
+  token: string;
+}
+
 interface AuthContextType {
-  user: { token: string } | null;
+  user: User | null;
   login: (token: string) => void;
   logout: () => void;
 }
@@ -9,18 +13,21 @@ interface AuthContextType {
 export const AuthContext = createContext<AuthContextType>({
   user: null,
   login: () => {},
-  logout: () => {}
+  logout: () => {},
 });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<{ token: string } | null>(() => {
+  const [user, setUser] = useState<User | null>(null);
+
+  // Load token from localStorage on initial load
+  useEffect(() => {
     const token = localStorage.getItem("token");
-    return token ? { token } : null;
-  });
+    if (token) setUser({ token });
+  }, []);
 
   const login = (token: string) => {
     localStorage.setItem("token", token);
-    setUser({ token });
+    setUser({ token }); // <- this will trigger rerender
   };
 
   const logout = () => {

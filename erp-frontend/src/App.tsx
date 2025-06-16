@@ -13,7 +13,8 @@ import Dashboard from "./pages/Dashboard";
 import Reports from "./pages/Reports";
 
 const App = () => {
-  const { isAuthenticated } = useContext(AuthContext);
+  const { user } = useContext(AuthContext);
+  const isAuthenticated = !!user;
 
   return (
     <Router>
