@@ -1,10 +1,27 @@
-import { useContext } from "react";
-import { Navigate } from "react-router-dom";
-import { AuthContext } from "../context/AuthContext";
+import { Navigate, useLocation } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
-const PrivateRoute = ({ children }: { children: JSX.Element }) => {
-  const { user } = useContext(AuthContext);
-  return user ? children : <Navigate to="/login" />;
+type Props = {
+  children: JSX.Element;
+  roles?: string[]; // Optional: ['Admin', 'Manager']
+};
+
+const PrivateRoute = ({ children, roles }: Props) => {
+  const { isAuthenticated, user } = useAuth();
+  const location = useLocation();
+
+  // Not logged in → redirect to login, remember where they tried to go
+  if (!isAuthenticated || !user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Logged in but not authorized for this route
+  if (roles && !roles.includes(user.role)) {
+    return <Navigate to="/unauthorized" replace />;
+  }
+
+  // ✅ Authorized
+  return children;
 };
 
 export default PrivateRoute;

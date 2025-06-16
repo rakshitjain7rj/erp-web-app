@@ -1,40 +1,151 @@
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useCallback, useEffect, memo } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import { Menu, X } from "lucide-react";
+import toast from "react-hot-toast";
+import UserProfile from "../components/UserProfile";
+import { AnimatePresence, motion } from "framer-motion";
+
+const navLinks = [
+  { label: "Dashboard", to: "/dashboard" },
+  { label: "Inventory", to: "/inventory" },
+  { label: "BOM", to: "/bom" },
+  { label: "Work Orders", to: "/workorders" },
+  { label: "Costing", to: "/costing" },
+  { label: "Reports", to: "/reports" },
+];
+
+const NavLinkList = memo(({ currentPath, onClick }: { currentPath: string; onClick?: () => void }) => (
+  <>
+    {navLinks.map((link) => {
+      const isActive = currentPath.startsWith(link.to);
+      return (
+        <Link
+          key={link.to}
+          to={link.to}
+          onClick={onClick}
+          className={`transition block md:inline px-4 py-2 rounded focus:outline-none focus:ring-2 ${
+            isActive
+              ? "bg-blue-700 text-white font-semibold"
+              : "hover:text-blue-400 text-gray-200"
+          }`}
+        >
+          {link.label}
+        </Link>
+      );
+    })}
+  </>
+));
 
 const Navbar = () => {
   const navigate = useNavigate();
-  const handleLogout = () => {
-    localStorage.removeItem("token");
+  const location = useLocation();
+  const { logout } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [showNavbar, setShowNavbar] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
+
+  const handleLogout = useCallback(() => {
+    logout();
+    toast.success("👋 Logged out");
     navigate("/login");
-  };
+  }, [logout, navigate]);
+
+  const toggleMenu = useCallback(() => {
+    setMenuOpen((prev) => !prev);
+  }, []);
+
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeMenu();
+    };
+    if (menuOpen) document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [menuOpen, closeMenu]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      setShowNavbar(currentScrollY < lastScrollY || currentScrollY < 50);
+      setLastScrollY(currentScrollY);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [lastScrollY]);
 
   return (
-    <nav className="bg-gray-800 text-white px-6 py-4 flex justify-between items-center">
-      <div className="text-xl font-semibold">ERP System</div>
-      <div className="space-x-4">
-        <Link to="/inventory" className="hover:text-gray-300">
-          Inventory
-        </Link>
-        <Link to="/bom" className="hover:text-gray-300">
-          BOM
-        </Link>
-        <Link to="/workorders" className="hover:text-gray-300">
-          Work Orders
-        </Link>
-        <Link to="/costing" className="hover:text-gray-300">
-          Costing
-        </Link>
-        <Link to="/dashboard" className="hover:text-gray-300">
-        Dashboard
-        </Link>
-        <Link to="/reports" className="hover:text-gray-300">
-        Reports
-        </Link>
+    <motion.nav
+      className="bg-gray-800 text-white px-6 py-4 shadow-md sticky top-0 z-50"
+      role="navigation"
+      aria-label="Main Navigation"
+      initial={{ y: 0 }}
+      animate={{ y: showNavbar ? 0 : -80 }}
+      transition={{ duration: 0.3 }}
+    >
+      <div className="flex justify-between items-center">
+        {/* Logo */}
+        <div className="text-2xl font-bold tracking-tight text-blue-300">
+          ERP System
+        </div>
 
-        <button onClick={handleLogout} className="ml-4 text-red-400 hover:text-red-300">
-          Logout
-        </button>
+        {/* Desktop Navigation */}
+        <div className="hidden md:flex space-x-6 items-center" role="menubar">
+          <NavLinkList currentPath={location.pathname} />
+          <button
+            onClick={handleLogout}
+            className="text-red-400 hover:text-red-300 font-medium transition focus:outline-none focus:ring-2 focus:ring-red-400"
+          >
+            Logout
+          </button>
+          <UserProfile />
+        </div>
+
+        {/* Mobile Menu Toggle */}
+        <div className="md:hidden">
+          <button
+            onClick={toggleMenu}
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={menuOpen}
+            aria-controls="mobile-menu"
+            className="focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+          >
+            {menuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+        </div>
       </div>
-    </nav>
+
+      {/* Mobile Navigation Dropdown with Framer Motion */}
+      <AnimatePresence>
+        {menuOpen && (
+          <motion.div
+            id="mobile-menu"
+            className="md:hidden mt-4 space-y-2"
+            role="menu"
+            aria-label="Mobile Menu"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+          >
+            <NavLinkList currentPath={location.pathname} onClick={closeMenu} />
+            <button
+              onClick={() => {
+                closeMenu();
+                handleLogout();
+              }}
+              className="block w-full text-left py-2 px-4 text-red-400 hover:bg-red-900 hover:text-white transition rounded focus:outline-none focus:ring-2 focus:ring-red-400"
+            >
+              Logout
+            </button>
+            <div className="px-4">
+              <UserProfile />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.nav>
   );
 };
 
