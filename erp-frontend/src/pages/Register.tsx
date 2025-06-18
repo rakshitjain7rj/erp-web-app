@@ -119,9 +119,10 @@ const Register = () => {
           }`}
         >
           <option value="">Select Role</option>
-          <option value="Admin">Admin</option>
-          <option value="Manager">Manager</option>
-          <option value="Staff">Staff</option>
+          <option value="admin">Admin</option>
+          <option value="manager">Manager</option>
+          <option value="storekeeper">Storekeeper</option>
+
         </select>
 
         <button
