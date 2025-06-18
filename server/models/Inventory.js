@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-
+// This model represents the inventory of products in the system.
 const inventorySchema = new mongoose.Schema({
   product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
   quantity: { type: Number, required: true },
