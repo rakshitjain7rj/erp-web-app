@@ -6,25 +6,21 @@ const errorHandler = require('./middleware/errorHandler');
 const morgan = require('morgan');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const { connectPostgres, sequelize } = require('./config/postgres');
 
-// Load env variables
 dotenv.config();
 
-// Import routes
+// Routes
 const authRoutes = require('./routes/authRoutes');
 const workOrderRoutes = require('./routes/workOrderRoutes');
 const inventoryRoutes = require('./routes/inventoryRoutes');
 const bomRoutes = require('./routes/bomRoutes');
 const costingRoutes = require('./routes/costingRoutes');
 const reportRoutes = require('./routes/reportRoutes');
-const dyeingRoutes = require('./routes/dyeingRoutes');
-
-// Rate limiter config
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
 });
+
 
 // Create Express app
 const app = express();
@@ -44,7 +40,8 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/bom', bomRoutes);
 app.use('/api/costings', costingRoutes);
 app.use('/api/reports', reportRoutes);
-app.use('/api/dyeing', dyeingRoutes);
+
+
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URI, {
@@ -54,20 +51,11 @@ mongoose.connect(process.env.MONGO_URI, {
 .then(() => console.log('✅ MongoDB connected'))
 .catch((err) => console.error('❌ MongoDB connection failed:', err));
 
-// ✅ PostgreSQL Connection
-connectPostgres();
-
-(async () => {
-  try {
-    await sequelize.sync(); // Creates table if not exist
-    console.log("✅ PostgreSQL synced with DyeingRecord table");
-  } catch (err) {
-    console.error("❌ Sequelize Sync Error:", err);
-  }
-})();
-
-// Start Server
+// PostgreSQL Connection & Sync
 const PORT = process.env.PORT || 5000;
+
+
+
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
