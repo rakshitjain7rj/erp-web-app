@@ -7,3 +7,4 @@ const inventorySchema = new mongoose.Schema({
 }, { timestamps: true });
 
 module.exports = mongoose.model('Inventory', inventorySchema);
+//coment: This model represents the inventory of products in the system. Each inventory item is linked to a product and has a quantity and location.
