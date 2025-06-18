@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import Layout from "./components/Layout";
@@ -20,122 +20,122 @@ import DyeingOrders from "./pages/DyeingOrders";
 import DyeingSummary from "./pages/DyeingSummary";
 
 const App = () => {
-
-
   const { isAuthenticated } = useAuth();
+  const location = useLocation();
 
+  // Hide navbar on these routes
+  const hideNavbarRoutes = ["/login", "/register", "/signup"];
+  const shouldShowNavbar = isAuthenticated && !hideNavbarRoutes.includes(location.pathname);
 
   return (
-    <>
-      <ThemeProvider>
-        <div className="min-h-screen text-black transition-all duration-300 bg-white dark:bg-gray-950 dark:text-white">
-          {/* 🔔 Toast Notification Provider */}
-          <Toaster
-            position="top-right"
-            toastOptions={{
-              style: {
-                borderRadius: "10px",
-                padding: "12px 16px",
-                background: "#ffffff",
-                color: "#1f2937",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+    <ThemeProvider>
+      <div className="min-h-screen text-black transition-all duration-300 bg-white dark:bg-gray-950 dark:text-white">
+        {/* 🔔 Toast Notification Provider */}
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            style: {
+              borderRadius: "10px",
+              padding: "12px 16px",
+              background: "#ffffff",
+              color: "#1f2937",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+            },
+            success: {
+              iconTheme: {
+                primary: "#10b981",
+                secondary: "#ecfdf5",
               },
-              success: {
-                iconTheme: {
-                  primary: "#10b981",
-                  secondary: "#ecfdf5",
-                },
+            },
+            error: {
+              iconTheme: {
+                primary: "#ef4444",
+                secondary: "#fee2e2",
               },
-              error: {
-                iconTheme: {
-                  primary: "#ef4444",
-                  secondary: "#fee2e2",
-                },
-              },
-            }}
+            },
+          }}
+        />
+
+        {/* ✅ Conditionally render navbar */}
+        {shouldShowNavbar && <Navbar />}
+
+        {/* 🔐 Routes */}
+        <Routes>
+          <Route path="/" element={<Navigate to="/login" />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route path="/unauthorized" element={<Unauthorized />} />
+          <Route path="/products" element={<Product />} />
+          <Route
+            path="/dyeing-orders"
+            element={
+              <PrivateRoute>
+                <DyeingOrders />
+              </PrivateRoute>
+            }
           />
-
-          {/* 🔗 Navbar for authenticated users */}
-          {isAuthenticated && <Navbar />}
-
-          {/* 🔐 Routes */}
-          <Routes>
-            <Route path="/" element={<Navigate to="/login" />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route path="/unauthorized" element={<Unauthorized />} />
-            <Route path="/products" element={<Product />} />
-            <Route
-              path="/dyeing-orders"
-              element={
-                <PrivateRoute>
-                  <DyeingOrders />
-                </PrivateRoute>
-              }
-            />
-            <Route
-  path="/dyeing-summary"
-  element={
-    <PrivateRoute roles={["admin", "manager"]}>
-      <DyeingSummary />
-    </PrivateRoute>
-  }
-/>
-            <Route
-              path="/dashboard"
-              element={
-                <PrivateRoute roles={["admin", "manager"]}>
-                  <Dashboard />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/inventory"
-              element={
-                <PrivateRoute roles={["admin", "manager", "operator"]}>
-                  <Inventory />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/costing"
-              element={
-                <PrivateRoute roles={["admin"]}>
-                  <Costing />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/bom"
-              element={
-                <PrivateRoute roles={["admin", "operator"]}>
-                  <BOM />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/workorders"
-              element={
-                <PrivateRoute roles={["admin", "operator"]}>
-                  <WorkOrders />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/reports"
-              element={
-                <PrivateRoute roles={["admin", "manager"]}>
-                  <Reports />
-                </PrivateRoute>
-              }
-            />
-            {/* 🔁 Fallback */}
-            <Route path="*" element={<Navigate to="/login" />} />
-          </Routes>
-        </div>
-      </ThemeProvider>
-    </>
+          <Route
+            path="/dyeing-summary"
+            element={
+              <PrivateRoute roles={["admin", "manager"]}>
+                <DyeingSummary />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/dashboard"
+            element={
+              <PrivateRoute roles={["admin", "manager"]}>
+                <Dashboard />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/inventory"
+            element={
+              <PrivateRoute roles={["admin", "manager", "operator"]}>
+                <Inventory />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/costing"
+            element={
+              <PrivateRoute roles={["admin"]}>
+                <Costing />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/bom"
+            element={
+              <PrivateRoute roles={["admin", "operator"]}>
+                <BOM />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/workorders"
+            element={
+              <PrivateRoute roles={["admin", "operator"]}>
+                <WorkOrders />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/reports"
+            element={
+              <PrivateRoute roles={["admin", "manager"]}>
+                <Reports />
+              </PrivateRoute>
+            }
+          />
+          {/* 🔁 Fallback */}
+          <Route path="*" element={<Navigate to="/login" />} />
+        </Routes>
+      </div>
+    </ThemeProvider>
   );
 };
 

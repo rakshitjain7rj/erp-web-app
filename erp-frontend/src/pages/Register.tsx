@@ -75,7 +75,7 @@ const Register = () => {
           placeholder="Name"
           value={form.name}
           onChange={handleChange}
-          className={`w-full p-2 border rounded focus:outline-none focus:ring-2 ${
+          className={`w-full p-2 border rounded focus:outline-none focus:ring-2 bg-white dark:bg-gray-700 text-black dark:text-white placeholder-gray-500 dark:placeholder-gray-400 ${
             errors.name
               ? "border-red-500 focus:ring-red-400"
               : "border-gray-300 focus:ring-green-400"
@@ -88,7 +88,7 @@ const Register = () => {
           placeholder="Email"
           value={form.email}
           onChange={handleChange}
-          className={`w-full p-2 border rounded focus:outline-none focus:ring-2 ${
+          className={`w-full p-2 border rounded focus:outline-none focus:ring-2 bg-white dark:bg-gray-700 text-black dark:text-white placeholder-gray-500 dark:placeholder-gray-400 ${
             errors.email
               ? "border-red-500 focus:ring-red-400"
               : "border-gray-300 focus:ring-green-400"
@@ -101,7 +101,7 @@ const Register = () => {
           placeholder="Password"
           value={form.password}
           onChange={handleChange}
-          className={`w-full p-2 border rounded focus:outline-none focus:ring-2 ${
+          className={`w-full p-2 border rounded focus:outline-none focus:ring-2 bg-white dark:bg-gray-700 text-black dark:text-white placeholder-gray-500 dark:placeholder-gray-400 ${
             errors.password
               ? "border-red-500 focus:ring-red-400"
               : "border-gray-300 focus:ring-green-400"
@@ -112,7 +112,7 @@ const Register = () => {
           name="role"
           value={form.role}
           onChange={handleChange}
-          className={`w-full p-2 border rounded focus:outline-none focus:ring-2 ${
+          className={`w-full p-2 border rounded focus:outline-none focus:ring-2 bg-white dark:bg-gray-700 text-black dark:text-white ${
             errors.role
               ? "border-red-500 focus:ring-red-400"
               : "border-gray-300 focus:ring-green-400"
