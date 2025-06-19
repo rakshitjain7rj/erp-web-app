@@ -18,7 +18,7 @@ export const getBOM = async (): Promise<BOMItem[]> => {
  * Create a new BOM item.
  * @param data - The BOM item data without the `id`.
  */
-export const createBOMItem = async (
+export const createBOM = async (
   data: Omit<BOMItem, "id">
 ): Promise<BOMItem | null> => {
   try {

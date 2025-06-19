@@ -1,24 +1,16 @@
 import { useEffect, useState, useMemo, useRef } from "react";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
-  LineChart,
-  Line,
-  CartesianGrid,
+  BarChart, Bar, XAxis, YAxis, Tooltip,
+  ResponsiveContainer, PieChart, Pie, Cell,
+  Legend, LineChart, Line, CartesianGrid
 } from "recharts";
 import toast from "react-hot-toast";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import html2canvas from "html2canvas";
+import { useAuth } from "../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 const COLORS = ["#10b981", "#3b82f6", "#f59e0b"];
 
@@ -27,11 +19,23 @@ type CostChartData = { name: string; value: number };
 type RevenueData = { month: string; revenue: number };
 
 const Reports = () => {
+  const { user } = useAuth();
+  const role = user?.role || "storekeeper";
+  const navigate = useNavigate();
+  const chartRef = useRef<HTMLDivElement>(null);
+
   const [productData, setProductData] = useState<ProductChartData[]>([]);
   const [costData, setCostData] = useState<CostChartData[]>([]);
   const [revenueData, setRevenueData] = useState<RevenueData[]>([]);
   const [filterMonths, setFilterMonths] = useState<number>(6);
-  const chartRef = useRef<HTMLDivElement>(null);
+
+  // ❌ Redirect storekeeper
+  useEffect(() => {
+    if (role === "storekeeper") {
+      toast.error("⛔ You are not authorized to view Reports.");
+      navigate("/dashboard");
+    }
+  }, [role, navigate]);
 
   useEffect(() => {
     fetchChartData();
@@ -85,7 +89,9 @@ const Reports = () => {
   const handleExportExcel = () => {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(productData), "Inventory");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(costData), "Costs");
+    if (role !== "manager") {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(costData), "Costs");
+    }
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(revenueData), "Revenue");
     XLSX.writeFile(wb, "Reports.xlsx");
   };
@@ -94,9 +100,25 @@ const Reports = () => {
     const doc = new jsPDF();
     doc.text("Reports Summary", 14, 20);
 
-    autoTable(doc, { startY: 30, head: [["Product", "Inventory"]], body: productData.map(p => [p.name, p.inventory]) });
-    autoTable(doc, { startY: doc.lastAutoTable.finalY + 10, head: [["Category", "Cost"]], body: costData.map(c => [c.name, c.value]) });
-    autoTable(doc, { startY: doc.lastAutoTable.finalY + 10, head: [["Month", "Revenue"]], body: revenueData.map(r => [r.month, r.revenue]) });
+    autoTable(doc, {
+      startY: 30,
+      head: [["Product", "Inventory"]],
+      body: productData.map((p) => [p.name, p.inventory]),
+    });
+
+    if (role !== "manager") {
+      autoTable(doc, {
+        startY: doc.lastAutoTable.finalY + 10,
+        head: [["Category", "Cost"]],
+        body: costData.map((c) => [c.name, c.value]),
+      });
+    }
+
+    autoTable(doc, {
+      startY: doc.lastAutoTable.finalY + 10,
+      head: [["Month", "Revenue"]],
+      body: revenueData.map((r) => [r.month, r.revenue]),
+    });
 
     doc.save("Reports.pdf");
   };
@@ -115,6 +137,13 @@ const Reports = () => {
     <div className="p-6 space-y-8 text-gray-800 dark:text-gray-100 dark:bg-gray-900">
       <h2 className="text-3xl font-bold text-blue-700 dark:text-blue-400">📈 Reports Overview</h2>
 
+      {role === "manager" && (
+        <div className="p-4 rounded-md bg-yellow-100 border border-yellow-300 text-yellow-800 text-sm">
+          ⚠️ As a <strong>Manager</strong>, you have limited access to financial data.
+        </div>
+      )}
+
+      {/* Export & Filter Controls */}
       <div className="flex gap-4 flex-wrap">
         <button onClick={handleExportExcel} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg">📤 Export to Excel</button>
         <button onClick={handleExportPDF} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg">📄 Export to PDF</button>
@@ -130,6 +159,7 @@ const Reports = () => {
         </select>
       </div>
 
+      {/* Inventory Chart */}
       <div className="bg-white dark:bg-gray-800 shadow rounded-2xl p-6">
         <h3 className="text-xl font-semibold mb-4">📦 Inventory Levels</h3>
         <ResponsiveContainer width="100%" height={300}>
@@ -142,19 +172,23 @@ const Reports = () => {
         </ResponsiveContainer>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 shadow rounded-2xl p-6">
-        <h3 className="text-xl font-semibold mb-4">💰 Cost Breakdown</h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <PieChart>
-            <Pie data={costData} cx="50%" cy="50%" outerRadius={100} dataKey="value" label>
-              {costData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-            </Pie>
-            <Tooltip />
-            <Legend iconType="circle" />
-          </PieChart>
-        </ResponsiveContainer>
-      </div>
+      {/* Cost Chart - Admin only (not manager/storekeeper) */}
+      {role !== "manager" && (
+        <div className="bg-white dark:bg-gray-800 shadow rounded-2xl p-6">
+          <h3 className="text-xl font-semibold mb-4">💰 Cost Breakdown</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie data={costData} cx="50%" cy="50%" outerRadius={100} dataKey="value" label>
+                {costData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+              </Pie>
+              <Tooltip />
+              <Legend iconType="circle" />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
+      {/* Revenue Chart */}
       <div className="bg-white dark:bg-gray-800 shadow rounded-2xl p-6" ref={chartRef}>
         <h3 className="text-xl font-semibold mb-4">📉 Revenue Over Time</h3>
         <ResponsiveContainer width="100%" height={300}>

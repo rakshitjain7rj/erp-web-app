@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { getWorkOrders } from "../types/workOrder";
 import { calculateCost, getCostByWorkOrder } from "../types/costing";
 import toast from "react-hot-toast";
+import { useAuth } from "../context/AuthContext";
+import { Navigate } from "react-router-dom";
 
 type WorkOrder = {
   _id: string;
@@ -19,6 +21,14 @@ type CostData = {
 };
 
 const Costing = () => {
+  const { user } = useAuth();
+
+  // 🔒 Block manager and storekeeper
+  if (user?.role === "manager" || user?.role === "storekeeper") {
+    toast.error("⛔ You are not authorized to access Costing.");
+    return <Navigate to="/unauthorized" replace />;
+  }
+
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [workOrderId, setWorkOrderId] = useState("");
   const [materialCost, setMaterialCost] = useState<number>(0);
@@ -89,7 +99,6 @@ const Costing = () => {
 
       toast.success("✅ Cost calculated and added to list!", { id: toastId });
 
-      // Clear form
       setWorkOrderId("");
       setMaterialCost(0);
       setLaborCost(0);
@@ -107,7 +116,6 @@ const Costing = () => {
         onSubmit={handleSubmit}
         className="bg-white shadow-md rounded-2xl p-6 mb-6 grid grid-cols-1 md:grid-cols-2 gap-4"
       >
-        {/* Work Order Select */}
         <select
           value={workOrderId}
           onChange={(e) => {
@@ -128,7 +136,6 @@ const Costing = () => {
           ))}
         </select>
 
-        {/* Material Cost */}
         <input
           type="number"
           placeholder="Material Cost"
@@ -145,7 +152,6 @@ const Costing = () => {
           }`}
         />
 
-        {/* Labor Cost */}
         <input
           type="number"
           placeholder="Labor Cost"
@@ -169,7 +175,6 @@ const Costing = () => {
         </button>
       </form>
 
-      {/* Cost Summary List View */}
       {costList.length > 0 && (
         <div className="bg-gray-50 shadow rounded-2xl p-6">
           <h3 className="text-xl font-semibold text-blue-800 mb-4">Cost Summary List</h3>

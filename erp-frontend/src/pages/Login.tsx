@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import toast from "react-hot-toast";
 
 const Login = () => {
@@ -27,15 +28,27 @@ const Login = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
+
+    const loading = toast.loading("🔐 Logging in...");
+
     try {
-      if (email === "admin@example.com" && password === "admin") {
-        toast.success("✅ Login successful");
-        navigate("/dashboard");
-      } else {
-        toast.error("❌ Invalid email or password");
-      }
-    } catch (err) {
-      toast.error("⚠️ An unexpected error occurred.");
+      const res = await axios.post("http://localhost:5000/api/auth/login", {
+        email,
+        password,
+      });
+
+      const { token, user } = res.data;
+
+      // Save token and user data to localStorage
+      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(user));
+
+      toast.success("✅ Login successful", { id: loading });
+
+      // Redirect to the dashboard or homepage
+      navigate("/dashboard"); // ✅ Make sure this route exists in App.tsx
+    } catch (err: any) {
+      toast.error("❌ Invalid email or password", { id: loading });
     }
   };
 
@@ -62,7 +75,7 @@ const Login = () => {
                   ? "border-red-500 focus:ring-red-400"
                   : "border-gray-300 dark:border-gray-600 focus:ring-blue-400"
               }`}
-              placeholder="admin@example.com"
+              placeholder="you@example.com"
             />
           </div>
 
@@ -82,7 +95,7 @@ const Login = () => {
                   ? "border-red-500 focus:ring-red-400"
                   : "border-gray-300 dark:border-gray-600 focus:ring-blue-400"
               }`}
-              placeholder="admin"
+              placeholder="Enter password"
             />
           </div>
 

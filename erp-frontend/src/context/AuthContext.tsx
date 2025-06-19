@@ -9,17 +9,19 @@ import {
 type User = {
   token: string;
   role: string;
+  originalRole?: string;
+  name?: string;
+  email?: string;
 };
 
 type AuthContextType = {
   isAuthenticated: boolean;
   user: User | null;
-  login: (token: string, role: string) => void;
+  login: (userData: User) => void;
   logout: () => void;
 };
 
-const TOKEN_KEY = "token";
-const ROLE_KEY = "role";
+const USER_KEY = "user";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -27,27 +29,46 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem(TOKEN_KEY);
-    const role = localStorage.getItem(ROLE_KEY);
-    if (token && role) {
-      setUser({ token, role });
+    const storedUser = localStorage.getItem(USER_KEY);
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (err) {
+        console.error("❌ Invalid user data in localStorage");
+        localStorage.removeItem(USER_KEY);
+      }
     }
   }, []);
 
-  const login = (token: string, role: string) => {
-    localStorage.setItem(TOKEN_KEY, token);
-    localStorage.setItem(ROLE_KEY, role);
-    setUser({ token, role });
+  const login = (userData: User) => {
+    // If originalRole is already set in localStorage, preserve it
+    const stored = localStorage.getItem(USER_KEY);
+    let preservedOriginalRole = userData.role;
+
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        preservedOriginalRole = parsed.originalRole || parsed.role;
+      } catch {
+        preservedOriginalRole = userData.role;
+      }
+    }
+
+    const enrichedUser: User = {
+      ...userData,
+      originalRole: preservedOriginalRole,
+    };
+
+    localStorage.setItem(USER_KEY, JSON.stringify(enrichedUser));
+    setUser(enrichedUser);
   };
 
   const logout = () => {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(ROLE_KEY);
-    localStorage.removeItem("userRole"); // In case it's used elsewhere
+    localStorage.removeItem(USER_KEY);
     setUser(null);
   };
 
-  const value = useMemo(
+  const value = useMemo<AuthContextType>(
     () => ({
       isAuthenticated: !!user,
       user,
@@ -57,9 +78,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     [user]
   );
 
-  return (
-    <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {

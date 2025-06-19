@@ -15,10 +15,19 @@ import { Button } from "../components/ui/Button";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
+import { useAuth } from "../context/AuthContext";
+import { Navigate } from "react-router-dom"; // 🛡️ Import for redirect
 
 const COLORS = ["#facc15", "#22c55e", "#ef4444"];
 
 const DyeingSummary = () => {
+  const { user } = useAuth();
+
+  // ❌ Block Storekeeper from accessing this page
+  if (user?.role === "storekeeper") {
+    return <Navigate to="/unauthorized" replace />;
+  }
+
   const [orders, setOrders] = useState<DyeingOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
@@ -141,7 +150,15 @@ const DyeingSummary = () => {
   );
 };
 
-const SummaryCard = ({ label, value, color }: { label: string; value: number; color: string }) => (
+const SummaryCard = ({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: number;
+  color: string;
+}) => (
   <div className="bg-white p-4 rounded-lg shadow text-center">
     <h2 className="text-lg font-medium">{label}</h2>
     <p className={`text-2xl font-bold ${color}`}>{value}</p>

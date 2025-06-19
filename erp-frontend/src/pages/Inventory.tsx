@@ -6,11 +6,15 @@ import {
 } from "../api/inventoryApi";
 import { InventoryItem } from "../types/inventory";
 import toast from "react-hot-toast";
+import { useAuth } from "../context/AuthContext";
 
 type SortField = "name" | "quantity" | "unitPrice";
 type SortOrder = "asc" | "desc";
 
 const Inventory = () => {
+  const { user } = useAuth();
+  const role = user?.role || "storekeeper";
+
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [form, setForm] = useState<Omit<InventoryItem, "id">>({
     name: "",
@@ -27,8 +31,6 @@ const Inventory = () => {
     location: false,
   });
   const [editingId, setEditingId] = useState<string | null>(null);
-
-  // Search & filter state
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [sortField, setSortField] = useState<SortField>("name");
@@ -72,6 +74,7 @@ const Inventory = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (role === "manager") return;
     if (!validateForm()) return;
 
     const loading = toast.loading(editingId ? "Updating item..." : "Adding item...");
@@ -94,6 +97,7 @@ const Inventory = () => {
   };
 
   const handleEdit = (item: InventoryItem) => {
+    if (role === "manager") return;
     setEditingId(item.id);
     setForm({
       name: item.name,
@@ -104,7 +108,6 @@ const Inventory = () => {
     });
   };
 
-  // Derived items: apply search, filter, and sorting
   const filteredItems = items
     .filter((item) =>
       [item.name, item.category, item.location].some((field) =>
@@ -160,21 +163,53 @@ const Inventory = () => {
         </select>
       </div>
 
-      {/* Inventory Form */}
-      <form
-        onSubmit={handleSubmit}
-        className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8 bg-white p-5 sm:p-6 rounded-xl shadow"
-      >
-        {/* [form inputs same as before] */}
-        {/* ... (unchanged inputs from your code) */}
-        {/* Submit Button */}
-        <button
-          type="submit"
-          className="sm:col-span-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg shadow transition"
+      {/* 🔒 Manager can't edit */}
+      {role === "manager" && (
+        <div className="mb-6 p-4 bg-yellow-100 border border-yellow-400 text-yellow-800 rounded-md text-sm">
+          👀 View-only access: As a <strong>manager</strong>, you can view inventory but cannot add or update items.
+        </div>
+      )}
+
+      {/* Form */}
+      {role !== "manager" && (
+        <form
+          onSubmit={handleSubmit}
+          className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8 bg-white p-5 sm:p-6 rounded-xl shadow"
         >
-          {editingId ? "✏️ Update Item" : "➕ Add Item"}
-        </button>
-      </form>
+          {["name", "category", "quantity", "unitPrice", "location"].map((field) => (
+            <input
+              key={field}
+              type={field === "quantity" || field === "unitPrice" ? "number" : "text"}
+              value={(form as any)[field]}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  [field]:
+                    field === "quantity" || field === "unitPrice"
+                      ? Number(e.target.value)
+                      : e.target.value,
+                })
+              }
+              placeholder={field.charAt(0).toUpperCase() + field.slice(1)}
+              className={`border px-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 ${
+                errors[field as keyof typeof errors]
+                  ? "border-red-500 ring-red-300"
+                  : "focus:ring-blue-400"
+              }`}
+            />
+          ))}
+          <button
+            type="submit"
+            className={`sm:col-span-2 ${
+              role === "manager"
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-blue-600 hover:bg-blue-700"
+            } text-white font-semibold py-2 rounded-lg shadow transition`}
+          >
+            {editingId ? "✏️ Update Item" : "➕ Add Item"}
+          </button>
+        </form>
+      )}
 
       {/* Inventory Table */}
       <div className="overflow-x-auto bg-white rounded-xl shadow">
@@ -204,12 +239,14 @@ const Inventory = () => {
                 <td className="px-4 py-2 border">₹{item.unitPrice}</td>
                 <td className="px-4 py-2 border">{item.location}</td>
                 <td className="px-4 py-2 border">
-                  <button
-                    onClick={() => handleEdit(item)}
-                    className="text-blue-600 hover:underline font-medium"
-                  >
-                    Edit
-                  </button>
+                  {role !== "manager" && (
+                    <button
+                      onClick={() => handleEdit(item)}
+                      className="text-blue-600 hover:underline font-medium"
+                    >
+                      Edit
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
