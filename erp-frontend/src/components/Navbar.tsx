@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, memo } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Moon, Sun } from "lucide-react";
 import toast from "react-hot-toast";
 import UserProfile from "../components/UserProfile";
 import { AnimatePresence, motion } from "framer-motion";
@@ -44,6 +44,11 @@ const Navbar = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showNavbar, setShowNavbar] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
+  const [theme, setTheme] = useState<"light" | "dark">(
+    localStorage.getItem("theme") === "dark" || window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light"
+  );
 
   const handleLogout = useCallback(() => {
     logout();
@@ -51,11 +56,19 @@ const Navbar = () => {
     navigate("/login");
   }, [logout, navigate]);
 
-  const toggleMenu = useCallback(() => {
-    setMenuOpen((prev) => !prev);
-  }, []);
-
+  const toggleMenu = useCallback(() => setMenuOpen((prev) => !prev), []);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
+
+  const toggleTheme = () => {
+    const newTheme = theme === "dark" ? "light" : "dark";
+    setTheme(newTheme);
+    localStorage.setItem("theme", newTheme);
+    document.documentElement.classList.toggle("dark", newTheme === "dark");
+  };
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+  }, [theme]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -93,12 +106,22 @@ const Navbar = () => {
         {/* Desktop Navigation */}
         <div className="hidden md:flex space-x-6 items-center" role="menubar">
           <NavLinkList currentPath={location.pathname} />
+
+          <button
+            onClick={toggleTheme}
+            className="text-white hover:text-yellow-400 transition focus:outline-none focus:ring-2 focus:ring-yellow-500"
+            title="Toggle Theme"
+          >
+            {theme === "dark" ? <Sun size={22} /> : <Moon size={22} />}
+          </button>
+
           <button
             onClick={handleLogout}
             className="text-red-400 hover:text-red-300 font-medium transition focus:outline-none focus:ring-2 focus:ring-red-400"
           >
             Logout
           </button>
+
           <UserProfile />
         </div>
 
@@ -116,7 +139,7 @@ const Navbar = () => {
         </div>
       </div>
 
-      {/* Mobile Navigation Dropdown with Framer Motion */}
+      {/* Mobile Navigation Dropdown */}
       <AnimatePresence>
         {menuOpen && (
           <motion.div
@@ -130,6 +153,18 @@ const Navbar = () => {
             transition={{ duration: 0.2 }}
           >
             <NavLinkList currentPath={location.pathname} onClick={closeMenu} />
+
+            <div className="px-4 flex items-center justify-between">
+              <button
+                onClick={toggleTheme}
+                className="text-white hover:text-yellow-400 transition focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                title="Toggle Theme"
+              >
+                {theme === "dark" ? <Sun size={22} /> : <Moon size={22} />}
+              </button>
+              <UserProfile />
+            </div>
+
             <button
               onClick={() => {
                 closeMenu();
@@ -139,9 +174,6 @@ const Navbar = () => {
             >
               Logout
             </button>
-            <div className="px-4">
-              <UserProfile />
-            </div>
           </motion.div>
         )}
       </AnimatePresence>

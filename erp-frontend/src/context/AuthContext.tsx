@@ -1,5 +1,10 @@
-import { createContext, useContext, useState, useEffect, useMemo } from "react";
-
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useMemo,
+} from "react";
 
 type User = {
   token: string;
@@ -10,10 +15,8 @@ type AuthContextType = {
   isAuthenticated: boolean;
   user: User | null;
   login: (token: string, role: string) => void;
->>>>>>> 74b1734322d51ee5486127b79b126f05524d8303
   logout: () => void;
 };
-
 
 const TOKEN_KEY = "token";
 const ROLE_KEY = "role";
@@ -35,13 +38,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem(ROLE_KEY, role);
     setUser({ token, role });
->>>>>>> 74b1734322d51ee5486127b79b126f05524d8303
   };
 
   const logout = () => {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(ROLE_KEY);
-    localStorage.removeItem("userRole"); // clear role used in UserProfile
+    localStorage.removeItem("userRole"); // In case it's used elsewhere
     setUser(null);
   };
 
@@ -55,7 +57,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     [user]
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  );
 };
 
 export const useAuth = () => {

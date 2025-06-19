@@ -40,3 +40,13 @@
 .read-the-docs {
   color: #888;
 }
+
+input,
+select,
+textarea {
+  @apply bg-white dark:bg-gray-900 text-black dark:text-white;
+}
+body {
+  @apply bg-white text-black dark:bg-gray-900 dark:text-white;
+}
+
