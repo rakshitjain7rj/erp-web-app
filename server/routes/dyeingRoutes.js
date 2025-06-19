@@ -1,6 +1,7 @@
 const express = require('express');
-const router = express.Router();
+const router = express.Router({ mergeParams: true }); // Important for nested routes
 
+// 📦 Controllers
 const {
   createDyeingRecord,
   getAllDyeingRecords,
@@ -8,22 +9,36 @@ const {
   updateArrivalDate
 } = require('../controllers/dyeingController');
 
-const { getDueAlerts } = require('../controllers/dyeingAlertController');
+const {
+  getDyeingSummary
+} = require('../controllers/dyeingSummaryController');
 
-// ✳️ Import nested follow-up routes
-const followUpRoutes = require('./dyeingFollowUpRoutes');
+const {
+  getDueAlerts,
+  getOverdueDyeing
+} = require('../controllers/dyeingAlertController');
+
+const {
+  getFollowUpsByRecordId,
+  createFollowUp
+} = require('../controllers/dyeingFollowUpController');
+
+
+// ✅ Summary route - should be defined before dynamic :id
+router.get('/summary', getDyeingSummary);
+
+// ✅ Alerts routes
+router.get('/alerts/due', getDueAlerts);
+router.get('/alerts/overdue', getOverdueDyeing);
 
 // ✅ Main dyeing record routes
 router.post('/', createDyeingRecord);
 router.get('/', getAllDyeingRecords);
-router.get('/alerts', getDueAlerts);
 router.get('/:id', getDyeingRecordById);
-
-
-// ✅ Nested follow-up routes mounted AFTER /:id so there's no conflict
-router.use('/:dyeingRecordId/followups', followUpRoutes);
-
 router.put('/:id/arrival', updateArrivalDate);
 
+// ✅ Follow-up routes (nested under dyeingRecordId)
+router.get('/:dyeingRecordId/followups', getFollowUpsByRecordId);
+router.post('/:dyeingRecordId/followups', createFollowUp);
 
 module.exports = router;
