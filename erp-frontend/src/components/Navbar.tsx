@@ -1,18 +1,18 @@
 import { useState, useEffect, useRef } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom"; // 🆕 useLocation added
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
 import { FaUserShield, FaSignOutAlt } from "react-icons/fa";
 
 const Navbar = () => {
   const navigate = useNavigate();
+  const location = useLocation(); // 🆕 get current route
   const { isDark, toggleTheme } = useTheme();
   const { user, logout, login } = useAuth();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Preserve originalRole once
   useEffect(() => {
     if (user && !user.originalRole) {
       const updatedUser = { ...user, originalRole: user.role };
@@ -20,7 +20,6 @@ const Navbar = () => {
     }
   }, [user]);
 
-  // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (
@@ -82,15 +81,22 @@ const Navbar = () => {
       links.push({ to: "/settings", label: "Settings" });
     }
 
-    return links.map((link) => (
-      <Link
-        key={link.to}
-        to={link.to}
-        className="text-sm font-medium text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 px-2"
-      >
-        {link.label}
-      </Link>
-    ));
+    return links.map((link) => {
+      const isActive = location.pathname.startsWith(link.to); // 🆕 match route prefix
+      return (
+        <Link
+          key={link.to}
+          to={link.to}
+          className={`text-sm font-medium px-2 transition-all ${
+            isActive
+              ? "text-blue-600 dark:text-blue-400 font-semibold underline underline-offset-4"
+              : "text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400"
+          }`}
+        >
+          {link.label}
+        </Link>
+      );
+    });
   };
 
   return (
@@ -103,7 +109,6 @@ const Navbar = () => {
       </div>
 
       <div className="flex items-center gap-6">
-        {/* Theme Toggle */}
         <button
           onClick={toggleTheme}
           className="text-xl text-yellow-600 dark:text-yellow-300"
@@ -112,7 +117,6 @@ const Navbar = () => {
           {isDark ? "🌙" : "☀️"}
         </button>
 
-        {/* Profile Dropdown */}
         <div className="relative" ref={dropdownRef}>
           <button
             className="flex items-center gap-2 px-3 py-1 rounded-full bg-purple-600 text-white hover:opacity-90"
@@ -124,7 +128,6 @@ const Navbar = () => {
 
           {menuOpen && (
             <div className="absolute right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg w-48 z-50 text-sm overflow-hidden">
-              {/* Role Switch */}
               {getRoleOptions().length > 0 && (
                 <>
                   <p className="px-4 py-2 text-gray-500 dark:text-gray-300 font-medium">
@@ -147,7 +150,6 @@ const Navbar = () => {
                 </>
               )}
 
-              {/* Logout */}
               <button
                 onClick={logout}
                 className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900 flex items-center gap-2"

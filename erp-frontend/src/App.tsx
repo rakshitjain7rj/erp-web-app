@@ -19,8 +19,8 @@ import Reports from "./pages/Reports";
 import DyeingOrders from "./pages/DyeingOrders";
 import DyeingSummary from "./pages/DyeingSummary";
 import Product from "./pages/Product";
-import Users from "./pages/Users";           // ✅ Imported Users Page
-import Settings from "./pages/Settings";     // ✅ Imported Settings Page
+import Users from "./pages/Users";
+import Settings from "./pages/Settings";
 
 import Navbar from "./components/Navbar";
 import { Toaster } from "react-hot-toast";
