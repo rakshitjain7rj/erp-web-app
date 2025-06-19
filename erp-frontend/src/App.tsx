@@ -19,6 +19,8 @@ import Reports from "./pages/Reports";
 import DyeingOrders from "./pages/DyeingOrders";
 import DyeingSummary from "./pages/DyeingSummary";
 import Product from "./pages/Product";
+import Users from "./pages/Users";           // ✅ Imported Users Page
+import Settings from "./pages/Settings";     // ✅ Imported Settings Page
 
 import Navbar from "./components/Navbar";
 import { Toaster } from "react-hot-toast";
@@ -27,7 +29,6 @@ const App = () => {
   const { isAuthenticated } = useAuth();
   const location = useLocation();
 
-  // Hide navbar on login/register/signup pages
   const hideNavbarRoutes = ["/login", "/register", "/signup"];
   const shouldShowNavbar = isAuthenticated && !hideNavbarRoutes.includes(location.pathname);
 
@@ -69,10 +70,10 @@ const App = () => {
           <Route path="/signup" element={<Signup />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
 
-          {/* Public Route */}
+          {/* Public Product Page */}
           <Route path="/products" element={<Product />} />
 
-          {/* Protected Routes with Role-Based Access */}
+          {/* Protected Role-Based Pages */}
           <Route
             path="/dashboard"
             element={
@@ -137,8 +138,24 @@ const App = () => {
               </PrivateRoute>
             }
           />
+          <Route
+            path="/users"
+            element={
+              <PrivateRoute roles={["admin"]}>
+                <Users />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <PrivateRoute roles={["admin"]}>
+                <Settings />
+              </PrivateRoute>
+            }
+          />
 
-          {/* Fallback */}
+          {/* Fallback Route */}
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
       </div>

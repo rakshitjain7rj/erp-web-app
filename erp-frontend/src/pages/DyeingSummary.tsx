@@ -1,52 +1,48 @@
-import { useEffect, useState } from "react";
-import { DyeingOrder } from "../types/dyeing";
-import { isOverdue } from "../lib/utils";
-import {
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts";
-import { format, subDays, isAfter, startOfMonth } from "date-fns";
-import { fetchDyeingOrders } from "../api/dyeingApi";
-import { Button } from "../components/ui/Button";
-import * as XLSX from "xlsx";
-import jsPDF from "jspdf";
-import "jspdf-autotable";
+import React, { useEffect, useState, useMemo } from "react";
+import { format, isAfter, subDays, startOfMonth } from "date-fns";
+import toast from "react-hot-toast";
 import { useAuth } from "../context/AuthContext";
-import { Navigate } from "react-router-dom"; // 🛡️ Import for redirect
 
-const COLORS = ["#facc15", "#22c55e", "#ef4444"];
+type DyeingOrder = {
+  id: string;
+  product: string;
+  sentDate: string;
+  expectedArrival: string;
+  status: "Pending" | "Arrived";
+};
+
+const isOverdue = (expectedDate: string) => {
+  return new Date(expectedDate) < new Date();
+};
 
 const DyeingSummary = () => {
   const { user } = useAuth();
-
-  // ❌ Block Storekeeper from accessing this page
-  if (user?.role === "storekeeper") {
-    return <Navigate to="/unauthorized" replace />;
-  }
+  const role = user?.role;
 
   const [orders, setOrders] = useState<DyeingOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
 
   useEffect(() => {
-    const loadOrders = async () => {
+    const fetchOrders = async () => {
+      const toastId = toast.loading("📦 Fetching dyeing orders...");
       try {
-        const data = await fetchDyeingOrders();
-        setOrders(data);
-      } catch (err) {
-        console.error("Failed to load dyeing orders", err);
+        const res = await fetch("/api/dyeing");
+        const data = await res.json();
+        setOrders(data || []);
+        toast.success("✅ Dyeing orders loaded", { id: toastId });
+      } catch (error) {
+        toast.error("❌ Failed to load dyeing orders", { id: toastId });
       } finally {
         setLoading(false);
       }
     };
-    loadOrders();
+
+    fetchOrders();
   }, []);
 
-  const getFilteredOrders = () => {
+  const filtered = useMemo(() => {
+    if (!Array.isArray(orders)) return [];
     const now = new Date();
     if (filter === "7days") {
       return orders.filter((o) => isAfter(new Date(o.sentDate), subDays(now, 7)));
@@ -54,9 +50,7 @@ const DyeingSummary = () => {
       return orders.filter((o) => isAfter(new Date(o.sentDate), startOfMonth(now)));
     }
     return orders;
-  };
-
-  const filtered = getFilteredOrders();
+  }, [orders, filter]);
 
   const total = filtered.length;
   const pending = filtered.filter((o) => o.status === "Pending").length;
@@ -65,103 +59,89 @@ const DyeingSummary = () => {
     (o) => isOverdue(o.expectedArrival) && o.status !== "Arrived"
   ).length;
 
-  const chartData = [
-    { name: "Pending", value: pending },
-    { name: "Arrived", value: arrived },
-    { name: "Overdue", value: overdue },
-  ];
-
-  const exportToExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(filtered);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "DyeingSummary");
-    XLSX.writeFile(wb, "Dyeing_Summary.xlsx");
-  };
-
-  const exportToPDF = () => {
-    const doc = new jsPDF();
-    doc.text("Dyeing Summary Report", 14, 16);
-    const tableData = filtered.map((o) => [
-      o.name,
-      o.quantity,
-      format(new Date(o.sentDate), "yyyy-MM-dd"),
-      format(new Date(o.expectedArrival), "yyyy-MM-dd"),
-      o.status,
-    ]);
-    doc.autoTable({
-      head: [["Yarn", "Quantity", "Sent Date", "Expected Arrival", "Status"]],
-      body: tableData,
-      startY: 20,
-    });
-    doc.save("Dyeing_Summary.pdf");
-  };
-
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-semibold text-blue-700 mb-4">Dyeing Summary</h1>
+      <h2 className="text-3xl font-bold text-blue-700 mb-4">🎨 Dyeing Summary</h2>
 
-      <div className="mb-4 flex flex-col md:flex-row gap-2 items-start md:items-center justify-between">
-        <div className="space-x-2">
-          <Button variant={filter === "all" ? "default" : "outline"} onClick={() => setFilter("all")}>All</Button>
-          <Button variant={filter === "7days" ? "default" : "outline"} onClick={() => setFilter("7days")}>Last 7 Days</Button>
-          <Button variant={filter === "month" ? "default" : "outline"} onClick={() => setFilter("month")}>This Month</Button>
-        </div>
-        <div className="space-x-2 mt-2 md:mt-0">
-          <Button onClick={exportToExcel} variant="outline">Export Excel</Button>
-          <Button onClick={exportToPDF} variant="outline">Export PDF</Button>
-        </div>
+      <div className="flex items-center gap-4 mb-6">
+        <label className="font-medium">Filter by:</label>
+        <select
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          className="border rounded-md px-3 py-2 bg-white dark:bg-gray-800 dark:text-white"
+        >
+          <option value="all">All</option>
+          <option value="7days">Last 7 Days</option>
+          <option value="month">This Month</option>
+        </select>
       </div>
 
       {loading ? (
-        <div className="text-center text-gray-500 py-10">Loading summary...</div>
+        <p className="text-gray-600 dark:text-gray-300">Loading summary...</p>
       ) : (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <SummaryCard label="Total Entries" value={total} color="text-blue-600" />
-            <SummaryCard label="Pending" value={pending} color="text-yellow-500" />
-            <SummaryCard label="Arrived" value={arrived} color="text-green-600" />
-            <SummaryCard label="Overdue" value={overdue} color="text-red-600" />
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+          <SummaryCard title="Total Orders" count={total} color="bg-blue-100 text-blue-700" />
+          <SummaryCard title="Pending" count={pending} color="bg-yellow-100 text-yellow-700" />
+          <SummaryCard title="Arrived" count={arrived} color="bg-green-100 text-green-700" />
+          <SummaryCard title="Overdue" count={overdue} color="bg-red-100 text-red-700" />
+        </div>
+      )}
 
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-xl font-semibold mb-4">Dyeing Order Status</h2>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  dataKey="value"
-                  data={chartData}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={100}
-                  label
-                >
-                  {chartData.map((entry, index) => (
-                    <Cell key={entry.name} fill={COLORS[index]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </>
+      {/* Table Preview */}
+      {!loading && filtered.length > 0 && (
+        <div className="mt-8 overflow-x-auto">
+          <table className="min-w-full border border-gray-200 text-sm">
+            <thead className="bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white">
+              <tr>
+                <th className="p-3 border">Product</th>
+                <th className="p-3 border">Sent Date</th>
+                <th className="p-3 border">Expected Arrival</th>
+                <th className="p-3 border">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((order) => (
+                <tr key={order.id} className="bg-white dark:bg-gray-900">
+                  <td className="p-3 border">{order.product}</td>
+                  <td className="p-3 border">{format(new Date(order.sentDate), "dd MMM yyyy")}</td>
+                  <td className="p-3 border">
+                    {format(new Date(order.expectedArrival), "dd MMM yyyy")}
+                  </td>
+                  <td className="p-3 border">
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        order.status === "Arrived"
+                          ? "bg-green-200 text-green-800"
+                          : isOverdue(order.expectedArrival)
+                          ? "bg-red-200 text-red-800"
+                          : "bg-yellow-200 text-yellow-800"
+                      }`}
+                    >
+                      {order.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
 };
 
 const SummaryCard = ({
-  label,
-  value,
+  title,
+  count,
   color,
 }: {
-  label: string;
-  value: number;
+  title: string;
+  count: number;
   color: string;
 }) => (
-  <div className="bg-white p-4 rounded-lg shadow text-center">
-    <h2 className="text-lg font-medium">{label}</h2>
-    <p className={`text-2xl font-bold ${color}`}>{value}</p>
+  <div className={`p-5 rounded-xl shadow-sm ${color}`}>
+    <h4 className="text-lg font-semibold">{title}</h4>
+    <p className="text-3xl font-bold mt-2">{count}</p>
   </div>
 );
 

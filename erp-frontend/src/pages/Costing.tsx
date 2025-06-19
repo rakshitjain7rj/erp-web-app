@@ -23,7 +23,6 @@ type CostData = {
 const Costing = () => {
   const { user } = useAuth();
 
-  // 🔒 Block manager and storekeeper
   if (user?.role === "manager" || user?.role === "storekeeper") {
     toast.error("⛔ You are not authorized to access Costing.");
     return <Navigate to="/unauthorized" replace />;
@@ -109,12 +108,13 @@ const Costing = () => {
 
   return (
     <div className="p-6">
-      <h2 className="text-3xl font-bold text-blue-700 mb-6">Costing Overview</h2>
+      <h2 className="text-3xl font-bold text-blue-700 dark:text-blue-400 mb-6">
+        Costing Overview
+      </h2>
 
-      {/* Cost Form */}
       <form
         onSubmit={handleSubmit}
-        className="bg-white shadow-md rounded-2xl p-6 mb-6 grid grid-cols-1 md:grid-cols-2 gap-4"
+        className="bg-white dark:bg-gray-900 shadow-md rounded-2xl p-6 mb-6 grid grid-cols-1 md:grid-cols-2 gap-4"
       >
         <select
           value={workOrderId}
@@ -122,10 +122,10 @@ const Costing = () => {
             setWorkOrderId(e.target.value);
             if (errors.workOrderId) setErrors({ ...errors, workOrderId: false });
           }}
-          className={`p-3 rounded-lg focus:outline-none focus:ring-2 ${
+          className={`p-3 rounded-lg focus:outline-none focus:ring-2 dark:bg-gray-800 dark:text-white ${
             errors.workOrderId
               ? "border-red-500 focus:ring-red-400"
-              : "border border-gray-300 focus:ring-blue-400"
+              : "border border-gray-300 dark:border-gray-600 focus:ring-blue-400"
           }`}
         >
           <option value="">Select Work Order</option>
@@ -142,13 +142,12 @@ const Costing = () => {
           value={materialCost}
           onChange={(e) => {
             setMaterialCost(Number(e.target.value));
-            if (errors.materialCost)
-              setErrors({ ...errors, materialCost: false });
+            if (errors.materialCost) setErrors({ ...errors, materialCost: false });
           }}
-          className={`p-3 rounded-lg focus:outline-none focus:ring-2 ${
+          className={`p-3 rounded-lg focus:outline-none focus:ring-2 dark:bg-gray-800 dark:text-white ${
             errors.materialCost
               ? "border-red-500 focus:ring-red-400"
-              : "border border-gray-300 focus:ring-blue-400"
+              : "border border-gray-300 dark:border-gray-600 focus:ring-blue-400"
           }`}
         />
 
@@ -160,10 +159,10 @@ const Costing = () => {
             setLaborCost(Number(e.target.value));
             if (errors.laborCost) setErrors({ ...errors, laborCost: false });
           }}
-          className={`p-3 rounded-lg focus:outline-none focus:ring-2 ${
+          className={`p-3 rounded-lg focus:outline-none focus:ring-2 dark:bg-gray-800 dark:text-white ${
             errors.laborCost
               ? "border-red-500 focus:ring-red-400"
-              : "border border-gray-300 focus:ring-blue-400"
+              : "border border-gray-300 dark:border-gray-600 focus:ring-blue-400"
           }`}
         />
 
@@ -176,10 +175,12 @@ const Costing = () => {
       </form>
 
       {costList.length > 0 && (
-        <div className="bg-gray-50 shadow rounded-2xl p-6">
-          <h3 className="text-xl font-semibold text-blue-800 mb-4">Cost Summary List</h3>
+        <div className="bg-gray-50 dark:bg-gray-800 shadow rounded-2xl p-6">
+          <h3 className="text-xl font-semibold text-blue-800 dark:text-blue-300 mb-4">
+            Cost Summary List
+          </h3>
           <table className="w-full border-collapse text-sm">
-            <thead className="bg-gray-100 text-gray-600">
+            <thead className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
               <tr>
                 <th className="border px-4 py-2 text-left">Product</th>
                 <th className="border px-4 py-2 text-left">Material Cost</th>
@@ -189,11 +190,14 @@ const Costing = () => {
             </thead>
             <tbody>
               {costList.map((cost) => (
-                <tr key={cost.workOrderId} className="odd:bg-white even:bg-gray-50">
+                <tr
+                  key={cost.workOrderId}
+                  className="odd:bg-white even:bg-gray-50 dark:odd:bg-gray-900 dark:even:bg-gray-800"
+                >
                   <td className="border px-4 py-2">{cost.productName}</td>
                   <td className="border px-4 py-2">₹{cost.materialCost}</td>
                   <td className="border px-4 py-2">₹{cost.laborCost}</td>
-                  <td className="border px-4 py-2 font-bold text-green-700">
+                  <td className="border px-4 py-2 font-bold text-green-700 dark:text-green-400">
                     ₹{cost.totalCost}
                   </td>
                 </tr>

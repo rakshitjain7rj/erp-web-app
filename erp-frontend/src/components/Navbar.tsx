@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
@@ -10,19 +10,35 @@ const Navbar = () => {
   const { user, logout, login } = useAuth();
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Preserve originalRole once
   useEffect(() => {
-    if (!user?.originalRole) {
-      const updatedUser = { ...user, originalRole: user?.role };
+    if (user && !user.originalRole) {
+      const updatedUser = { ...user, originalRole: user.role };
       login(updatedUser);
     }
   }, [user]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const getRoleOptions = () => {
     const originalRole = user?.originalRole || user?.role;
     if (originalRole === "admin") return ["admin", "manager", "storekeeper"];
     if (originalRole === "manager") return ["manager", "storekeeper"];
-    return []; // storekeeper can't switch role
+    return [];
   };
 
   const handleRoleChange = (selectedRole: string) => {
@@ -47,28 +63,20 @@ const Navbar = () => {
 
     if (["admin", "manager", "storekeeper"].includes(role))
       links.push({ to: "/dashboard", label: "Dashboard" });
-
     if (["admin", "manager", "storekeeper"].includes(role))
       links.push({ to: "/inventory", label: "Inventory" });
-
-    if (["admin", "storekeeper", "manager"].includes(role))
+    if (["admin", "manager", "storekeeper"].includes(role))
       links.push({ to: "/bom", label: "BOM" });
-
     if (["admin", "manager", "storekeeper"].includes(role))
       links.push({ to: "/workorders", label: "Work Orders" });
-
     if (role === "admin")
       links.push({ to: "/costing", label: "Costing" });
-
     if (["admin", "manager"].includes(role))
       links.push({ to: "/reports", label: "Reports" });
-
     if (["admin", "manager"].includes(role))
       links.push({ to: "/dyeing-orders", label: "Dyeing Orders" });
-
     if (["admin", "manager"].includes(role))
       links.push({ to: "/dyeing-summary", label: "Dyeing Summary" });
-
     if (role === "admin") {
       links.push({ to: "/users", label: "Users" });
       links.push({ to: "/settings", label: "Settings" });
@@ -95,15 +103,17 @@ const Navbar = () => {
       </div>
 
       <div className="flex items-center gap-6">
+        {/* Theme Toggle */}
         <button
           onClick={toggleTheme}
-          className="text-xl text-yellow-600 dark:text-yellow-400"
+          className="text-xl text-yellow-600 dark:text-yellow-300"
           title="Toggle Theme"
         >
           {isDark ? "🌙" : "☀️"}
         </button>
 
-        <div className="relative">
+        {/* Profile Dropdown */}
+        <div className="relative" ref={dropdownRef}>
           <button
             className="flex items-center gap-2 px-3 py-1 rounded-full bg-purple-600 text-white hover:opacity-90"
             onClick={() => setMenuOpen(!menuOpen)}
@@ -114,6 +124,7 @@ const Navbar = () => {
 
           {menuOpen && (
             <div className="absolute right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg w-48 z-50 text-sm overflow-hidden">
+              {/* Role Switch */}
               {getRoleOptions().length > 0 && (
                 <>
                   <p className="px-4 py-2 text-gray-500 dark:text-gray-300 font-medium">
@@ -136,6 +147,7 @@ const Navbar = () => {
                 </>
               )}
 
+              {/* Logout */}
               <button
                 onClick={logout}
                 className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900 flex items-center gap-2"
