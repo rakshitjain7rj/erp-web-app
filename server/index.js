@@ -10,6 +10,7 @@ const { sequelize, connectPostgres } = require('./config/postgres');
 const DyeingRecord = require('./models/DyeingRecord');
 require('./models/DyeingFollowUp'); // 👈 load this model for sync
 
+
 dotenv.config();
 
 // Routes
@@ -20,8 +21,7 @@ const bomRoutes = require('./routes/bomRoutes');
 const costingRoutes = require('./routes/costingRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const dyeingRoutes = require('./routes/dyeingRoutes');
-const dyeingFollowUpRoutes = require('./routes/dyeingFollowUpRoutes');
-const dyeingSummaryRoutes = require('./routes/dyeingSummaryRoutes');
+
 
 
 const limiter = rateLimit({
@@ -46,7 +46,6 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/bom', bomRoutes);
 app.use('/api/costings', costingRoutes);
 app.use('/api/reports', reportRoutes);
-app.use('/api/dyeing/summary', dyeingSummaryRoutes);
 app.use('/api/dyeing', dyeingRoutes);
 
 
