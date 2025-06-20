@@ -1,36 +1,39 @@
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
-import Layout from "./components/Layout";
 import PrivateRoute from "./components/PrivateRoute";
+
+// Auth Pages
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import Signup from "./pages/Signup";
+import Unauthorized from "./pages/Unauthorized";
+
+// Core Pages
+import Dashboard from "./pages/Dashboard";
 import Inventory from "./pages/Inventory";
 import BOM from "./pages/BOM";
 import WorkOrders from "./pages/WorkOrders";
 import Costing from "./pages/Costing";
-import Navbar from "./components/Navbar";
-import Dashboard from "./pages/Dashboard";
 import Reports from "./pages/Reports";
-import Unauthorized from "./pages/Unauthorized";
-import Signup from "./pages/Signup";
-import Product from "./pages/Product";
-import { Toaster } from "react-hot-toast";
 import DyeingOrders from "./pages/DyeingOrders";
 import DyeingSummary from "./pages/DyeingSummary";
+import Product from "./pages/Product";
+
+import Navbar from "./components/Navbar";
+import { Toaster } from "react-hot-toast";
 
 const App = () => {
   const { isAuthenticated } = useAuth();
   const location = useLocation();
 
-  // Hide navbar on these routes
+  // Hide navbar on login/register/signup pages
   const hideNavbarRoutes = ["/login", "/register", "/signup"];
   const shouldShowNavbar = isAuthenticated && !hideNavbarRoutes.includes(location.pathname);
 
   return (
     <ThemeProvider>
-      <div className="min-h-screen text-black transition-all duration-300 bg-white dark:bg-gray-950 dark:text-white">
-        {/* 🔔 Toast Notification Provider */}
+      <div className="min-h-screen bg-white dark:bg-gray-950 text-black dark:text-white transition-all duration-300">
         <Toaster
           position="top-right"
           toastOptions={{
@@ -56,37 +59,24 @@ const App = () => {
           }}
         />
 
-        {/* ✅ Conditionally render navbar */}
         {shouldShowNavbar && <Navbar />}
 
-        {/* 🔐 Routes */}
         <Routes>
+          {/* Auth Routes */}
           <Route path="/" element={<Navigate to="/login" />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
+
+          {/* Public Route */}
           <Route path="/products" element={<Product />} />
-          <Route
-            path="/dyeing-orders"
-            element={
-              <PrivateRoute>
-                <DyeingOrders />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/dyeing-summary"
-            element={
-              <PrivateRoute roles={["admin", "manager"]}>
-                <DyeingSummary />
-              </PrivateRoute>
-            }
-          />
+
+          {/* Protected Routes with Role-Based Access */}
           <Route
             path="/dashboard"
             element={
-              <PrivateRoute roles={["admin", "manager"]}>
+              <PrivateRoute roles={["admin", "manager", "storekeeper"]}>
                 <Dashboard />
               </PrivateRoute>
             }
@@ -94,8 +84,24 @@ const App = () => {
           <Route
             path="/inventory"
             element={
-              <PrivateRoute roles={["admin", "manager", "operator"]}>
+              <PrivateRoute roles={["admin", "manager", "storekeeper"]}>
                 <Inventory />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/bom"
+            element={
+              <PrivateRoute roles={["admin", "manager", "storekeeper"]}>
+                <BOM />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/workorders"
+            element={
+              <PrivateRoute roles={["admin", "manager", "storekeeper"]}>
+                <WorkOrders />
               </PrivateRoute>
             }
           />
@@ -108,22 +114,6 @@ const App = () => {
             }
           />
           <Route
-            path="/bom"
-            element={
-              <PrivateRoute roles={["admin", "operator"]}>
-                <BOM />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/workorders"
-            element={
-              <PrivateRoute roles={["admin", "operator"]}>
-                <WorkOrders />
-              </PrivateRoute>
-            }
-          />
-          <Route
             path="/reports"
             element={
               <PrivateRoute roles={["admin", "manager"]}>
@@ -131,7 +121,24 @@ const App = () => {
               </PrivateRoute>
             }
           />
-          {/* 🔁 Fallback */}
+          <Route
+            path="/dyeing-orders"
+            element={
+              <PrivateRoute roles={["admin", "manager"]}>
+                <DyeingOrders />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/dyeing-summary"
+            element={
+              <PrivateRoute roles={["admin", "manager"]}>
+                <DyeingSummary />
+              </PrivateRoute>
+            }
+          />
+
+          {/* Fallback */}
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
       </div>

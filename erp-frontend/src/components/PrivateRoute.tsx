@@ -3,24 +3,27 @@ import { useAuth } from "../context/AuthContext";
 
 type Props = {
   children: JSX.Element;
-  roles?: string[]; // Optional: ['Admin', 'Manager']
+  roles?: string[]; // Optional: ['admin', 'manager']
 };
 
 const PrivateRoute = ({ children, roles }: Props) => {
   const { isAuthenticated, user } = useAuth();
   const location = useLocation();
 
-  // Not logged in → redirect to login, remember where they tried to go
+  // 🔐 If user is not logged in, redirect to login
   if (!isAuthenticated || !user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Logged in but not authorized for this route
-  if (roles && !roles.includes(user.role)) {
+  const currentRole = user.role;
+
+  // 🚫 Role restriction check
+  if (roles && !roles.includes(currentRole)) {
+    console.warn(`Access denied for role: ${currentRole} to ${location.pathname}`);
     return <Navigate to="/unauthorized" replace />;
   }
 
-  // ✅ Authorized
+  // ✅ Authorized user with allowed role
   return children;
 };
 

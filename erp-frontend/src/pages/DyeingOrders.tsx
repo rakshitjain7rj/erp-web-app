@@ -7,13 +7,15 @@ import { Button } from "../components/ui/Button";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { updateOrderStatus } from "../api/dyeingApi";
-
+import { useAuth } from "../context/AuthContext";
 
 const DyeingOrders = () => {
   const [orders, setOrders] = useState<DyeingOrder[]>([]);
   const [showOverdueOnly, setShowOverdueOnly] = useState(false);
   const [activeFollowUpOrder, setActiveFollowUpOrder] = useState<DyeingOrder | null>(null);
   const [newNote, setNewNote] = useState("");
+  const { user } = useAuth();
+  const role = user?.role || "storekeeper";
 
   useEffect(() => {
     const mockData: DyeingOrder[] = [
@@ -84,6 +86,9 @@ const DyeingOrders = () => {
     ? orders.filter((order) => isOverdue(order.expectedArrival))
     : orders;
 
+  const canUpdateStatus = role === "admin" || role === "manager";
+  const canAddFollowUp = role === "admin" || role === "manager";
+
   return (
     <div className="p-6">
       <div className="mb-4 flex justify-between items-center">
@@ -105,7 +110,7 @@ const DyeingOrders = () => {
               <th className="p-3">Sent Date</th>
               <th className="p-3">Expected Arrival</th>
               <th className="p-3">Status</th>
-              <th className="p-3">Actions</th>
+              {canUpdateStatus || canAddFollowUp ? <th className="p-3">Actions</th> : null}
             </tr>
           </thead>
           <tbody>
@@ -127,23 +132,29 @@ const DyeingOrders = () => {
                       ? "Overdue"
                       : order.status}
                   </td>
-                  <td className="p-3 space-x-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={order.status === "Arrived"}
-                      onClick={() => handleMarkAsArrived(order.id)}
-                    >
-                      Mark as Arrived
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setActiveFollowUpOrder(order)}
-                    >
-                      Add Follow-up
-                    </Button>
-                  </td>
+                  {(canUpdateStatus || canAddFollowUp) && (
+                    <td className="p-3 space-x-2">
+                      {canUpdateStatus && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={order.status === "Arrived"}
+                          onClick={() => handleMarkAsArrived(order.id)}
+                        >
+                          Mark as Arrived
+                        </Button>
+                      )}
+                      {canAddFollowUp && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setActiveFollowUpOrder(order)}
+                        >
+                          Add Follow-up
+                        </Button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               );
             })}
@@ -157,7 +168,6 @@ const DyeingOrders = () => {
         )}
       </div>
 
-      {/* 🔽 Follow-Up Modal */}
       {activeFollowUpOrder && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-md shadow-lg">

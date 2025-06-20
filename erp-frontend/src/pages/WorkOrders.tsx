@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useAuth } from "../context/AuthContext";
 import {
   getWorkOrders,
   createWorkOrder,
@@ -27,6 +28,9 @@ const statusColors: Record<WorkOrder["status"], string> = {
 };
 
 const WorkOrders = () => {
+  const { user } = useAuth();
+  const role = user?.role || user?.originalRole;
+
   const [orders, setOrders] = useState<WorkOrder[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [form, setForm] = useState({
@@ -95,11 +99,13 @@ const WorkOrders = () => {
   };
 
   const exportToExcel = () => {
-    const worksheet = XLSX.utils.json_to_sheet(filteredOrders.map((order) => ({
-      Product: order.product.name,
-      Quantity: order.quantity,
-      Status: order.status,
-    })));
+    const worksheet = XLSX.utils.json_to_sheet(
+      filteredOrders.map((order) => ({
+        Product: order.product.name,
+        Quantity: order.quantity,
+        Status: order.status,
+      }))
+    );
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "WorkOrders");
     XLSX.writeFile(workbook, "WorkOrders.xlsx");
@@ -121,66 +127,75 @@ const WorkOrders = () => {
     <div className="p-6">
       <h2 className="text-3xl font-bold text-blue-700 mb-6">Work Orders</h2>
 
-      {/* Form */}
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white shadow p-6 rounded-2xl mb-8 grid grid-cols-1 md:grid-cols-3 gap-4"
-      >
-        <select
-          value={form.productId}
-          onChange={(e) => {
-            setForm({ ...form, productId: e.target.value });
-            if (errors.productId) setErrors({ ...errors, productId: false });
-          }}
-          className={`border p-3 rounded-lg focus:outline-none focus:ring-2 ${
-            errors.productId
-              ? "border-red-500 focus:ring-red-400"
-              : "border-gray-300 focus:ring-blue-400"
-          }`}
-        >
-          <option value="">Select Product</option>
-          {products.map((p) => (
-            <option key={p._id} value={p._id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
+      {/* Manager view-only note */}
+      {role === "manager" && (
+        <div className="mb-4 p-4 bg-yellow-100 border border-yellow-300 text-yellow-800 rounded-md text-sm">
+          👀 View-only access: As a <strong>manager</strong>, you can view work orders but cannot create or modify them.
+        </div>
+      )}
 
-        <input
-          type="number"
-          placeholder="Quantity"
-          value={form.quantity}
-          onChange={(e) => {
-            setForm({ ...form, quantity: +e.target.value });
-            if (errors.quantity) setErrors({ ...errors, quantity: false });
-          }}
-          className={`border p-3 rounded-lg focus:outline-none focus:ring-2 ${
-            errors.quantity
-              ? "border-red-500 focus:ring-red-400"
-              : "border-gray-300 focus:ring-blue-400"
-          }`}
-        />
-
-        <select
-          value={form.status}
-          onChange={(e) =>
-            setForm({ ...form, status: e.target.value as WorkOrder["status"] })
-          }
-          className="border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-blue-400"
+      {/* Form visible to Admin & Storekeeper only */}
+      {(role === "admin" || role === "storekeeper") && (
+        <form
+          onSubmit={handleSubmit}
+          className="bg-white shadow p-6 rounded-2xl mb-8 grid grid-cols-1 md:grid-cols-3 gap-4"
         >
-          <option value="Pending">Pending</option>
-          <option value="In Progress">In Progress</option>
-          <option value="Completed">Completed</option>
-          <option value="Cancelled">Cancelled</option>
-        </select>
+          <select
+            value={form.productId}
+            onChange={(e) => {
+              setForm({ ...form, productId: e.target.value });
+              if (errors.productId) setErrors({ ...errors, productId: false });
+            }}
+            className={`border p-3 rounded-lg focus:outline-none focus:ring-2 ${
+              errors.productId
+                ? "border-red-500 focus:ring-red-400"
+                : "border-gray-300 focus:ring-blue-400"
+            }`}
+          >
+            <option value="">Select Product</option>
+            {products.map((p) => (
+              <option key={p._id} value={p._id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
 
-        <button
-          type="submit"
-          className="col-span-1 md:col-span-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg shadow transition"
-        >
-          ➕ Create Work Order
-        </button>
-      </form>
+          <input
+            type="number"
+            placeholder="Quantity"
+            value={form.quantity}
+            onChange={(e) => {
+              setForm({ ...form, quantity: +e.target.value });
+              if (errors.quantity) setErrors({ ...errors, quantity: false });
+            }}
+            className={`border p-3 rounded-lg focus:outline-none focus:ring-2 ${
+              errors.quantity
+                ? "border-red-500 focus:ring-red-400"
+                : "border-gray-300 focus:ring-blue-400"
+            }`}
+          />
+
+          <select
+            value={form.status}
+            onChange={(e) =>
+              setForm({ ...form, status: e.target.value as WorkOrder["status"] })
+            }
+            className="border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-blue-400"
+          >
+            <option value="Pending">Pending</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Completed">Completed</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+
+          <button
+            type="submit"
+            className="col-span-1 md:col-span-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg shadow transition"
+          >
+            ➕ Create Work Order
+          </button>
+        </form>
+      )}
 
       {/* Filters */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
@@ -201,9 +216,7 @@ const WorkOrders = () => {
 
         <select
           value={filters.status}
-          onChange={(e) =>
-            setFilters({ ...filters, status: e.target.value })
-          }
+          onChange={(e) => setFilters({ ...filters, status: e.target.value })}
           className="border p-3 rounded-lg focus:ring-2 focus:ring-blue-400"
         >
           <option value="">All Statuses</option>
