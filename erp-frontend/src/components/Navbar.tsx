@@ -1,28 +1,43 @@
-import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom"; // 🆕 useLocation added
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
 import { FaUserShield, FaSignOutAlt } from "react-icons/fa";
 
 const Navbar = () => {
   const navigate = useNavigate();
+  const location = useLocation(); // 🆕 get current route
   const { isDark, toggleTheme } = useTheme();
   const { user, logout, login } = useAuth();
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!user?.originalRole) {
-      const updatedUser = { ...user, originalRole: user?.role };
+    if (user && !user.originalRole) {
+      const updatedUser = { ...user, originalRole: user.role };
       login(updatedUser);
     }
   }, [user]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const getRoleOptions = () => {
     const originalRole = user?.originalRole || user?.role;
     if (originalRole === "admin") return ["admin", "manager", "storekeeper"];
     if (originalRole === "manager") return ["manager", "storekeeper"];
-    return []; // storekeeper can't switch role
+    return [];
   };
 
   const handleRoleChange = (selectedRole: string) => {
@@ -47,42 +62,41 @@ const Navbar = () => {
 
     if (["admin", "manager", "storekeeper"].includes(role))
       links.push({ to: "/dashboard", label: "Dashboard" });
-
     if (["admin", "manager", "storekeeper"].includes(role))
       links.push({ to: "/inventory", label: "Inventory" });
-
-    if (["admin", "storekeeper", "manager"].includes(role))
+    if (["admin", "manager", "storekeeper"].includes(role))
       links.push({ to: "/bom", label: "BOM" });
-
     if (["admin", "manager", "storekeeper"].includes(role))
       links.push({ to: "/workorders", label: "Work Orders" });
-
     if (role === "admin")
       links.push({ to: "/costing", label: "Costing" });
-
     if (["admin", "manager"].includes(role))
       links.push({ to: "/reports", label: "Reports" });
-
     if (["admin", "manager"].includes(role))
       links.push({ to: "/dyeing-orders", label: "Dyeing Orders" });
-
     if (["admin", "manager"].includes(role))
       links.push({ to: "/dyeing-summary", label: "Dyeing Summary" });
-
     if (role === "admin") {
       links.push({ to: "/users", label: "Users" });
       links.push({ to: "/settings", label: "Settings" });
     }
 
-    return links.map((link) => (
-      <Link
-        key={link.to}
-        to={link.to}
-        className="text-sm font-medium text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 px-2"
-      >
-        {link.label}
-      </Link>
-    ));
+    return links.map((link) => {
+      const isActive = location.pathname.startsWith(link.to); // 🆕 match route prefix
+      return (
+        <Link
+          key={link.to}
+          to={link.to}
+          className={`text-sm font-medium px-2 transition-all ${
+            isActive
+              ? "text-blue-600 dark:text-blue-400 font-semibold underline underline-offset-4"
+              : "text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400"
+          }`}
+        >
+          {link.label}
+        </Link>
+      );
+    });
   };
 
   return (
@@ -97,13 +111,13 @@ const Navbar = () => {
       <div className="flex items-center gap-6">
         <button
           onClick={toggleTheme}
-          className="text-xl text-yellow-600 dark:text-yellow-400"
+          className="text-xl text-yellow-600 dark:text-yellow-300"
           title="Toggle Theme"
         >
           {isDark ? "🌙" : "☀️"}
         </button>
 
-        <div className="relative">
+        <div className="relative" ref={dropdownRef}>
           <button
             className="flex items-center gap-2 px-3 py-1 rounded-full bg-purple-600 text-white hover:opacity-90"
             onClick={() => setMenuOpen(!menuOpen)}

@@ -135,8 +135,8 @@ const Inventory = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-6 sm:px-6">
-      <h2 className="text-2xl sm:text-3xl font-bold text-blue-700 mb-6 text-center sm:text-left">
+    <div className="min-h-screen bg-white dark:bg-gray-950 text-black dark:text-white px-4 py-6 sm:px-6">
+      <h2 className="text-2xl sm:text-3xl font-bold text-blue-700 dark:text-white mb-6 text-center sm:text-left">
         Inventory Management
       </h2>
 
@@ -147,12 +147,12 @@ const Inventory = () => {
           placeholder="🔍 Search by name/category/location"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full sm:w-1/2 border px-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+          className="w-full sm:w-1/2 border px-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder:text-gray-400 dark:placeholder:text-gray-500 bg-white dark:bg-gray-900 text-black dark:text-white"
         />
         <select
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
-          className="w-full sm:w-1/4 border px-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+          className="w-full sm:w-1/4 border px-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white dark:bg-gray-900 text-black dark:text-white"
         >
           <option value="">All Categories</option>
           {[...new Set(items.map((item) => item.category))].map((cat) => (
@@ -163,7 +163,7 @@ const Inventory = () => {
         </select>
       </div>
 
-      {/* 🔒 Manager can't edit */}
+      {/* Manager Warning */}
       {role === "manager" && (
         <div className="mb-6 p-4 bg-yellow-100 border border-yellow-400 text-yellow-800 rounded-md text-sm">
           👀 View-only access: As a <strong>manager</strong>, you can view inventory but cannot add or update items.
@@ -174,7 +174,7 @@ const Inventory = () => {
       {role !== "manager" && (
         <form
           onSubmit={handleSubmit}
-          className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8 bg-white p-5 sm:p-6 rounded-xl shadow"
+          className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8 bg-white dark:bg-gray-900 p-5 sm:p-6 rounded-xl shadow"
         >
           {["name", "category", "quantity", "unitPrice", "location"].map((field) => (
             <input
@@ -191,7 +191,7 @@ const Inventory = () => {
                 })
               }
               placeholder={field.charAt(0).toUpperCase() + field.slice(1)}
-              className={`border px-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 ${
+              className={`border px-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 placeholder:text-gray-400 dark:placeholder:text-gray-500 bg-white dark:bg-gray-900 text-black dark:text-white ${
                 errors[field as keyof typeof errors]
                   ? "border-red-500 ring-red-300"
                   : "focus:ring-blue-400"
@@ -211,10 +211,10 @@ const Inventory = () => {
         </form>
       )}
 
-      {/* Inventory Table */}
-      <div className="overflow-x-auto bg-white rounded-xl shadow">
+      {/* Table */}
+      <div className="overflow-x-auto bg-white dark:bg-gray-900 rounded-xl shadow">
         <table className="min-w-full text-sm text-left border">
-          <thead className="bg-gray-100 text-gray-700">
+          <thead className="bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
             <tr>
               <th className="px-4 py-2 border cursor-pointer" onClick={() => toggleSort("name")}>
                 Name {sortField === "name" && (sortOrder === "asc" ? "↑" : "↓")}
@@ -232,7 +232,7 @@ const Inventory = () => {
           </thead>
           <tbody>
             {filteredItems.map((item) => (
-              <tr key={item.id} className="hover:bg-blue-50 transition">
+              <tr key={item.id} className="hover:bg-blue-50 dark:hover:bg-gray-800 transition">
                 <td className="px-4 py-2 border">{item.name}</td>
                 <td className="px-4 py-2 border">{item.category}</td>
                 <td className="px-4 py-2 border">{item.quantity}</td>
@@ -252,7 +252,7 @@ const Inventory = () => {
             ))}
             {filteredItems.length === 0 && (
               <tr>
-                <td colSpan={6} className="text-center text-gray-500 py-4">
+                <td colSpan={6} className="text-center text-gray-500 py-4 dark:text-gray-400">
                   No items found.
                 </td>
               </tr>

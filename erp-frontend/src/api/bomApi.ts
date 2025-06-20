@@ -1,36 +1,31 @@
-import { BOMItem } from "../types/bom";
+import axios from "axios";
 
-/**
- * Fetch all BOM items from the backend.
- */
-export const getBOM = async (): Promise<BOMItem[]> => {
-  try {
-    const res = await fetch("/api/bom");
-    if (!res.ok) throw new Error("Failed to fetch BOM items");
-    return await res.json();
-  } catch (error) {
-    console.error("Error fetching BOM items:", error);
-    return [];
-  }
+const API = "http://localhost:5000/api/bom";
+
+export const createBOM = async (data: {
+  productId: string;
+  materials: { name: string; quantity: number }[];
+}) => {
+  const token = localStorage.getItem("token");
+  const res = await axios.post(API, data, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.data;
 };
 
-/**
- * Create a new BOM item.
- * @param data - The BOM item data without the `id`.
- */
-export const createBOM = async (
-  data: Omit<BOMItem, "id">
-): Promise<BOMItem | null> => {
-  try {
-    const res = await fetch("/api/bom", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) throw new Error("Failed to create BOM item");
-    return await res.json();
-  } catch (error) {
-    console.error("Error creating BOM item:", error);
-    return null;
-  }
+export const getBOM = async () => {
+  const token = localStorage.getItem("token");
+  const res = await axios.get(API, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.data;
+};
+
+// ✅ This must be correctly placed and exported
+export const deleteBOM = async (id: string) => {
+  const token = localStorage.getItem("token");
+  const res = await axios.delete(`${API}/${id}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.data;
 };

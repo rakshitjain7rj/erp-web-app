@@ -125,20 +125,18 @@ const WorkOrders = () => {
 
   return (
     <div className="p-6">
-      <h2 className="text-3xl font-bold text-blue-700 mb-6">Work Orders</h2>
+      <h2 className="text-3xl font-bold text-blue-700 dark:text-white mb-6">Work Orders</h2>
 
-      {/* Manager view-only note */}
       {role === "manager" && (
         <div className="mb-4 p-4 bg-yellow-100 border border-yellow-300 text-yellow-800 rounded-md text-sm">
           👀 View-only access: As a <strong>manager</strong>, you can view work orders but cannot create or modify them.
         </div>
       )}
 
-      {/* Form visible to Admin & Storekeeper only */}
       {(role === "admin" || role === "storekeeper") && (
         <form
           onSubmit={handleSubmit}
-          className="bg-white shadow p-6 rounded-2xl mb-8 grid grid-cols-1 md:grid-cols-3 gap-4"
+          className="bg-white dark:bg-gray-900 shadow p-6 rounded-2xl mb-8 grid grid-cols-1 md:grid-cols-3 gap-4"
         >
           <select
             value={form.productId}
@@ -146,7 +144,7 @@ const WorkOrders = () => {
               setForm({ ...form, productId: e.target.value });
               if (errors.productId) setErrors({ ...errors, productId: false });
             }}
-            className={`border p-3 rounded-lg focus:outline-none focus:ring-2 ${
+            className={`border p-3 rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-900 text-black dark:text-white ${
               errors.productId
                 ? "border-red-500 focus:ring-red-400"
                 : "border-gray-300 focus:ring-blue-400"
@@ -168,7 +166,7 @@ const WorkOrders = () => {
               setForm({ ...form, quantity: +e.target.value });
               if (errors.quantity) setErrors({ ...errors, quantity: false });
             }}
-            className={`border p-3 rounded-lg focus:outline-none focus:ring-2 ${
+            className={`border p-3 rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-900 text-black dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 ${
               errors.quantity
                 ? "border-red-500 focus:ring-red-400"
                 : "border-gray-300 focus:ring-blue-400"
@@ -180,7 +178,7 @@ const WorkOrders = () => {
             onChange={(e) =>
               setForm({ ...form, status: e.target.value as WorkOrder["status"] })
             }
-            className="border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-blue-400"
+            className="border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-blue-400 bg-white dark:bg-gray-900 text-black dark:text-white"
           >
             <option value="Pending">Pending</option>
             <option value="In Progress">In Progress</option>
@@ -201,10 +199,8 @@ const WorkOrders = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         <select
           value={filters.productId}
-          onChange={(e) =>
-            setFilters({ ...filters, productId: e.target.value })
-          }
-          className="border p-3 rounded-lg focus:ring-2 focus:ring-blue-400"
+          onChange={(e) => setFilters({ ...filters, productId: e.target.value })}
+          className="border p-3 rounded-lg focus:ring-2 focus:ring-blue-400 bg-white dark:bg-gray-900 text-black dark:text-white"
         >
           <option value="">All Products</option>
           {products.map((p) => (
@@ -217,7 +213,7 @@ const WorkOrders = () => {
         <select
           value={filters.status}
           onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-          className="border p-3 rounded-lg focus:ring-2 focus:ring-blue-400"
+          className="border p-3 rounded-lg focus:ring-2 focus:ring-blue-400 bg-white dark:bg-gray-900 text-black dark:text-white"
         >
           <option value="">All Statuses</option>
           <option value="Pending">Pending</option>
@@ -237,7 +233,7 @@ const WorkOrders = () => {
       {/* Table */}
       <div className="overflow-x-auto rounded-2xl shadow">
         <table className="w-full table-auto border text-sm">
-          <thead className="bg-gray-100 text-gray-700">
+          <thead className="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200">
             <tr>
               <th className="px-4 py-2 border">Product</th>
               <th className="px-4 py-2 border">Quantity</th>
@@ -249,7 +245,7 @@ const WorkOrders = () => {
               currentOrders.map((order) => (
                 <tr
                   key={order._id}
-                  className="odd:bg-white even:bg-gray-50 hover:bg-blue-50 transition"
+                  className="odd:bg-white even:bg-gray-50 hover:bg-blue-50 dark:odd:bg-gray-900 dark:even:bg-gray-800 dark:hover:bg-gray-700 transition"
                 >
                   <td className="px-4 py-2 border">{order.product?.name}</td>
                   <td className="px-4 py-2 border">{order.quantity}</td>
@@ -282,7 +278,7 @@ const WorkOrders = () => {
             className={`px-3 py-1 rounded-md ${
               currentPage === page
                 ? "bg-blue-600 text-white"
-                : "bg-gray-200 text-gray-800"
+                : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white"
             }`}
           >
             {page}
