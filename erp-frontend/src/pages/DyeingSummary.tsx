@@ -1,10 +1,11 @@
+// pages/DyeingSummary.tsx
 import React, { useEffect, useState, useMemo } from "react";
-import { format, isAfter, subDays, startOfMonth } from "date-fns";
+import { format, isAfter, subDays, startOfMonth, isValid } from "date-fns";
 import toast from "react-hot-toast";
 import { useAuth } from "../context/AuthContext";
 
 type DyeingOrder = {
-  id: string;
+  id: number | string;
   product: string;
   sentDate: string;
   expectedArrival: string;
@@ -12,7 +13,8 @@ type DyeingOrder = {
 };
 
 const isOverdue = (expectedDate: string) => {
-  return new Date(expectedDate) < new Date();
+  const date = new Date(expectedDate);
+  return isValid(date) && date < new Date();
 };
 
 const DyeingSummary = () => {
@@ -23,26 +25,47 @@ const DyeingSummary = () => {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
 
-  useEffect(() => {
-    const fetchOrders = async () => {
-      const toastId = toast.loading("📦 Fetching dyeing orders...");
-      try {
-        const res = await fetch("/api/dyeing");
-        const data = await res.json();
-        setOrders(data || []);
-        toast.success("✅ Dyeing orders loaded", { id: toastId });
-      } catch (error) {
-        toast.error("❌ Failed to load dyeing orders", { id: toastId });
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchOrders = async () => {
+    const toastId = toast.loading("📦 Fetching dyeing summary...");
+    try {
+      const res = await fetch("/api/dyeing/summary");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const raw = await res.json();
+      console.log("🔥 Raw dyeing summary response:", raw);
 
+      const data: DyeingOrder[] = raw
+        .filter((item: any) => item.sentDate && item.expectedArrivalDate)
+        .map((item: any) => ({
+          id: item.id || Math.random().toString(),
+          product: item.yarnType || "Unknown",
+          sentDate: item.sentDate,
+          expectedArrival: item.expectedArrivalDate,
+          status: item.arrivalDate ? "Arrived" : "Pending",
+        }));
+
+      setOrders(data);
+      toast.success("✅ Dyeing summary loaded", { id: toastId });
+    } catch (error) {
+      console.error("❌ Error fetching dyeing summary:", error);
+      toast.error("❌ Failed to load dyeing summary", { id: toastId });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchOrders();
+
+    const handleRefresh = () => {
+      fetchOrders();
+    };
+    window.addEventListener("refresh-dyeing-summary", handleRefresh);
+    return () => {
+      window.removeEventListener("refresh-dyeing-summary", handleRefresh);
+    };
   }, []);
 
   const filtered = useMemo(() => {
-    if (!Array.isArray(orders)) return [];
     const now = new Date();
     if (filter === "7days") {
       return orders.filter((o) => isAfter(new Date(o.sentDate), subDays(now, 7)));
@@ -87,7 +110,6 @@ const DyeingSummary = () => {
         </div>
       )}
 
-      {/* Table Preview */}
       {!loading && filtered.length > 0 && (
         <div className="mt-8 overflow-x-auto">
           <table className="min-w-full border border-gray-200 text-sm">
@@ -103,9 +125,15 @@ const DyeingSummary = () => {
               {filtered.map((order) => (
                 <tr key={order.id} className="bg-white dark:bg-gray-900">
                   <td className="p-3 border">{order.product}</td>
-                  <td className="p-3 border">{format(new Date(order.sentDate), "dd MMM yyyy")}</td>
                   <td className="p-3 border">
-                    {format(new Date(order.expectedArrival), "dd MMM yyyy")}
+                    {isValid(new Date(order.sentDate))
+                      ? format(new Date(order.sentDate), "dd MMM yyyy")
+                      : "N/A"}
+                  </td>
+                  <td className="p-3 border">
+                    {isValid(new Date(order.expectedArrival))
+                      ? format(new Date(order.expectedArrival), "dd MMM yyyy")
+                      : "N/A"}
                   </td>
                   <td className="p-3 border">
                     <span

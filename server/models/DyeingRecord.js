@@ -1,4 +1,3 @@
-// models/DyeingRecord.js
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/postgres');
 
@@ -20,7 +19,7 @@ const DyeingRecord = sequelize.define('DyeingRecord', {
         msg: 'Sent date must be a valid date'
       },
       notInFuture(value) {
-        if (new Date(value) > new Date()) {
+        if (value && new Date(value) > new Date()) {
           throw new Error('Sent date cannot be in the future');
         }
       }
@@ -28,13 +27,13 @@ const DyeingRecord = sequelize.define('DyeingRecord', {
   },
   expectedArrivalDate: {
     type: DataTypes.DATE,
-    allowNull: false,
+    allowNull: true,
     validate: {
       isDate: {
         msg: 'Expected arrival date must be a valid date'
       },
       isAfterSentDate(value) {
-        if (this.sentDate && new Date(value) <= new Date(this.sentDate)) {
+        if (value && this.sentDate && new Date(value) <= new Date(this.sentDate)) {
           throw new Error('Expected arrival date must be after sent date');
         }
       }
@@ -55,14 +54,13 @@ const DyeingRecord = sequelize.define('DyeingRecord', {
   }
 }, {
   tableName: 'DyeingRecords',
-  timestamps: true,
-  // Add virtual field for isOverdue
-  getterMethods: {
-    isOverdue() {
-      if (this.arrivalDate) return false;
-      return new Date() > new Date(this.expectedArrivalDate);
-    }
-  }
+  timestamps: true
 });
+
+// Optional: add virtual field if needed at query time (instead of Sequelize getterMethods)
+DyeingRecord.prototype.isOverdue = function () {
+  if (this.arrivalDate || !this.expectedArrivalDate) return false;
+  return new Date() > new Date(this.expectedArrivalDate);
+};
 
 module.exports = DyeingRecord;

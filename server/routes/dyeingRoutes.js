@@ -1,50 +1,49 @@
 const express = require('express');
 const router = express.Router({ mergeParams: true });
 
-// 📦 Controllers - UPDATE this import to include deleteDyeingRecord
+// Controllers
 const {
   createDyeingRecord,
   getAllDyeingRecords,
   getDyeingRecordById,
   updateArrivalDate,
   updateExpectedArrivalDate,
-  deleteDyeingRecord // Add this import
+  updateDyeingRecord, // ✅ Add this line
+  deleteDyeingRecord,
+  getDyeingSummary,
 } = require('../controllers/dyeingController');
-
-const {
-  getDyeingSummary
-} = require('../controllers/dyeingSummaryController');
 
 const {
   getDueAlerts,
   getOverdueDyeing,
-  getArrivedDyeing
+  getArrivedDyeing,
 } = require('../controllers/dyeingAlertController');
 
 const {
   getFollowUpsByRecordId,
-  createFollowUp
+  createFollowUp,
 } = require('../controllers/dyeingFollowUpController');
 
-// ✅ Summary route - should be defined before dynamic :id
-router.get('/summary', getDyeingSummary);
+// ===== 📦 Summary Route =====
+router.get('/summary', getDyeingSummary); // ✅ Must stay before "/:id"
 
-// ✅ Alerts routes
+// ===== 🚨 Alert Routes =====
 router.get('/alerts/due', getDueAlerts);
 router.get('/alerts/overdue', getOverdueDyeing);
 router.get('/alerts/arrived', getArrivedDyeing);
 
-// ✅ Main dyeing record routes
+// ===== 📋 Main Dyeing Record Routes =====
 router.post('/', createDyeingRecord);
 router.get('/', getAllDyeingRecords);
 router.get('/:id', getDyeingRecordById);
-router.delete('/:id', deleteDyeingRecord); // ADD THIS LINE
+router.put('/:id', updateDyeingRecord); // ✅ Add this route
+router.delete('/:id', deleteDyeingRecord);
 
-// ✅ Update routes
-router.put('/:id/arrival', updateArrivalDate); // Mark as arrived
-router.put('/:id/expected-arrival', updateExpectedArrivalDate); // Update expected date
+// ===== 📅 Update Routes =====
+router.put('/:id/arrival', updateArrivalDate);
+router.put('/:id/expected-arrival', updateExpectedArrivalDate);
 
-// ✅ Follow-up routes (nested under dyeingRecordId)
+// ===== 💬 Follow-Up Routes =====
 router.get('/:dyeingRecordId/followups', getFollowUpsByRecordId);
 router.post('/:dyeingRecordId/followups', createFollowUp);
 
