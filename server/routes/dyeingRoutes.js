@@ -1,12 +1,14 @@
 const express = require('express');
-const router = express.Router({ mergeParams: true }); // Important for nested routes
+const router = express.Router({ mergeParams: true });
 
-// 📦 Controllers
+// 📦 Controllers - UPDATE this import to include deleteDyeingRecord
 const {
   createDyeingRecord,
   getAllDyeingRecords,
   getDyeingRecordById,
-  updateArrivalDate
+  updateArrivalDate,
+  updateExpectedArrivalDate,
+  deleteDyeingRecord // Add this import
 } = require('../controllers/dyeingController');
 
 const {
@@ -15,7 +17,8 @@ const {
 
 const {
   getDueAlerts,
-  getOverdueDyeing
+  getOverdueDyeing,
+  getArrivedDyeing
 } = require('../controllers/dyeingAlertController');
 
 const {
@@ -23,19 +26,23 @@ const {
   createFollowUp
 } = require('../controllers/dyeingFollowUpController');
 
-
 // ✅ Summary route - should be defined before dynamic :id
 router.get('/summary', getDyeingSummary);
 
 // ✅ Alerts routes
 router.get('/alerts/due', getDueAlerts);
 router.get('/alerts/overdue', getOverdueDyeing);
+router.get('/alerts/arrived', getArrivedDyeing);
 
 // ✅ Main dyeing record routes
 router.post('/', createDyeingRecord);
 router.get('/', getAllDyeingRecords);
 router.get('/:id', getDyeingRecordById);
-router.put('/:id/arrival', updateArrivalDate);
+router.delete('/:id', deleteDyeingRecord); // ADD THIS LINE
+
+// ✅ Update routes
+router.put('/:id/arrival', updateArrivalDate); // Mark as arrived
+router.put('/:id/expected-arrival', updateExpectedArrivalDate); // Update expected date
 
 // ✅ Follow-up routes (nested under dyeingRecordId)
 router.get('/:dyeingRecordId/followups', getFollowUpsByRecordId);

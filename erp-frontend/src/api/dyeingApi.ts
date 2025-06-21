@@ -1,4 +1,4 @@
-// api/dyeingApi.ts - FIXED VERSION
+// api/dyeingApi.ts - UPDATED VERSION WITH EXPECTED ARRIVAL DATE
 import axios from "axios";
 import {
   DyeingRecord,
@@ -41,11 +41,10 @@ api.interceptors.response.use(
   }
 );
 
-// ==================== FOLLOW-UPS - FIXED ====================
+// ==================== FOLLOW-UPS ====================
 
 export const getFollowUpsByRecordId = async (dyeingRecordId: number): Promise<DyeingFollowUp[]> => {
   const response = await api.get(`/${dyeingRecordId}/followups`);
-  // Handle both response structures
   return response.data.data || response.data;
 };
 
@@ -53,17 +52,14 @@ export const createFollowUp = async (
   dyeingRecordId: number, 
   data: CreateFollowUpRequest
 ): Promise<DyeingFollowUp> => {
-  // ✅ FIX: Add followUpDate if not provided
   const payload = {
     ...data,
     followUpDate: data.followUpDate || new Date().toISOString()
   };
   
-  console.log('Creating follow-up with payload:', payload); // Debug log
+  console.log('Creating follow-up with payload:', payload);
   
   const response = await api.post(`/${dyeingRecordId}/followups`, payload);
-  
-  // ✅ FIX: Handle different response structures
   return response.data.data || response.data;
 };
 
@@ -71,7 +67,7 @@ export const deleteFollowUp = async (dyeingRecordId: number, followUpId: number)
   await api.delete(`/${dyeingRecordId}/followups/${followUpId}`);
 };
 
-// ==================== OTHER FUNCTIONS - ALSO UPDATED ====================
+// ==================== DYEING RECORDS ====================
 
 export const getAllDyeingRecords = async (): Promise<DyeingRecord[]> => {
   const response = await api.get('/');
@@ -118,22 +114,41 @@ export const getOverdueDyeing = async (): Promise<DyeingRecord[]> => {
 
 export const markAsArrived = async (id: number): Promise<DyeingRecord> => {
   const now = new Date().toISOString();
-  return await updateArrivalDate(id, { arrivalDate: now });
+  const result = await updateArrivalDate(id, { arrivalDate: now });
+  console.log('API response:', result);
+  return result;
 };
 
 export const getDyeingStatus = (record: DyeingRecord): string => {
   if (record.arrivalDate) {
     return 'Arrived';
   }
-  if (record.isOverdue) {
+  
+  // Check if overdue based on expected arrival date
+  if (isRecordOverdue(record)) {
     return 'Overdue';
   }
+  
   return 'Pending';
 };
 
-export const isRecordOverdue = (sentDate: string): boolean => {
-  const sent = new Date(sentDate);
-  const now = new Date();
-  const daysDiff = Math.floor((now.getTime() - sent.getTime()) / (1000 * 60 * 60 * 24));
-  return daysDiff > 7;
+// Updated to use expectedArrivalDate instead of calculating from sentDate
+export const isRecordOverdue = (record: DyeingRecord): boolean => {
+  // If already arrived, not overdue
+  if (record.arrivalDate) {
+    return false;
+  }
+  
+  // Check if current date has passed the expected arrival date
+  const today = new Date();
+  const expectedDate = new Date(record.expectedArrivalDate);
+  
+  return today > expectedDate;
+};
+
+// Legacy function for backward compatibility - now uses expectedArrivalDate
+export const isRecordOverdueByDate = (expectedArrivalDate: string): boolean => {
+  const today = new Date();
+  const expectedDate = new Date(expectedArrivalDate);
+  return today > expectedDate;
 };

@@ -1,6 +1,6 @@
 // components/CreateDyeingOrderForm.tsx
 import React, { useState } from 'react';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import { toast } from 'sonner';
 import { createDyeingRecord } from '../api/dyeingApi';
 import { CreateDyeingRecordRequest, DyeingRecord } from '../types/dyeing';
@@ -18,9 +18,13 @@ const CreateDyeingOrderForm: React.FC<CreateDyeingOrderFormProps> = ({
   onClose,
   onSuccess
 }) => {
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const defaultExpectedDate = format(addDays(new Date(), 7), 'yyyy-MM-dd'); // Default to 7 days from today
+
   const [formData, setFormData] = useState<CreateDyeingRecordRequest>({
     yarnType: '',
-    sentDate: format(new Date(), 'yyyy-MM-dd'),
+    sentDate: today,
+    expectedArrivalDate: defaultExpectedDate,
     remarks: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -40,6 +44,17 @@ const CreateDyeingOrderForm: React.FC<CreateDyeingOrderFormProps> = ({
       const today = new Date();
       if (sentDate > today) {
         newErrors.sentDate = 'Sent date cannot be in the future';
+      }
+    }
+
+    if (!formData.expectedArrivalDate) {
+      newErrors.expectedArrivalDate = 'Expected arrival date is required';
+    } else {
+      const sentDate = new Date(formData.sentDate);
+      const expectedDate = new Date(formData.expectedArrivalDate);
+      
+      if (expectedDate <= sentDate) {
+        newErrors.expectedArrivalDate = 'Expected arrival date must be after sent date';
       }
     }
 
@@ -73,7 +88,8 @@ const CreateDyeingOrderForm: React.FC<CreateDyeingOrderFormProps> = ({
   const handleClose = () => {
     setFormData({
       yarnType: '',
-      sentDate: format(new Date(), 'yyyy-MM-dd'),
+      sentDate: today,
+      expectedArrivalDate: defaultExpectedDate,
       remarks: ''
     });
     setErrors({});
@@ -89,6 +105,17 @@ const CreateDyeingOrderForm: React.FC<CreateDyeingOrderFormProps> = ({
     // Clear error when user starts typing
     if (errors[name as keyof CreateDyeingRecordRequest]) {
       setErrors(prev => ({ ...prev, [name]: undefined }));
+    }
+
+    // Auto-update expected arrival date when sent date changes
+    if (name === 'sentDate' && value) {
+      const sentDate = new Date(value);
+      const suggestedExpectedDate = format(addDays(sentDate, 7), 'yyyy-MM-dd');
+      setFormData(prev => ({ 
+        ...prev, 
+        [name]: value,
+        expectedArrivalDate: suggestedExpectedDate
+      }));
     }
   };
 
@@ -144,7 +171,7 @@ const CreateDyeingOrderForm: React.FC<CreateDyeingOrderFormProps> = ({
               name="sentDate"
               value={formData.sentDate}
               onChange={handleInputChange}
-              max={format(new Date(), 'yyyy-MM-dd')}
+              max={today}
               className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white dark:border-gray-600 ${
                 errors.sentDate ? 'border-red-500' : 'border-gray-300'
               }`}
@@ -152,6 +179,30 @@ const CreateDyeingOrderForm: React.FC<CreateDyeingOrderFormProps> = ({
             {errors.sentDate && (
               <p className="mt-1 text-sm text-red-600">{errors.sentDate}</p>
             )}
+          </div>
+
+          {/* Expected Arrival Date */}
+          <div>
+            <label htmlFor="expectedArrivalDate" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">
+              Expected Arrival Date <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="date"
+              id="expectedArrivalDate"
+              name="expectedArrivalDate"
+              value={formData.expectedArrivalDate}
+              onChange={handleInputChange}
+              min={formData.sentDate ? format(addDays(new Date(formData.sentDate), 1), 'yyyy-MM-dd') : today}
+              className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white dark:border-gray-600 ${
+                errors.expectedArrivalDate ? 'border-red-500' : 'border-gray-300'
+              }`}
+            />
+            {errors.expectedArrivalDate && (
+              <p className="mt-1 text-sm text-red-600">{errors.expectedArrivalDate}</p>
+            )}
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              When do you expect the dyed yarn to be ready?
+            </p>
           </div>
 
           {/* Remarks */}

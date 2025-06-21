@@ -2,27 +2,20 @@
 export interface DyeingRecord {
   id: number;
   yarnType: string;
-  sentDate: string; // ISO date string
-  arrivalDate?: string | null; // ISO date string, nullable
-  isOverdue: boolean;
-  remarks?: string | null;
+  sentDate: string;
+  expectedArrivalDate: string; // Added this field
+  arrivalDate?: string;
+  isOverdue?: boolean; // This will be calculated on the backend
+  remarks?: string;
   createdAt: string;
   updatedAt: string;
+  followUps?: DyeingFollowUp[];
 }
 
-export interface DyeingFollowUp {
-  id: number;
-  dyeingRecordId: number;
-  followUpDate: string; // ISO date string
-  remarks?: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-// Frontend-specific interfaces
 export interface CreateDyeingRecordRequest {
   yarnType: string;
   sentDate: string;
+  expectedArrivalDate: string; // Added this field
   remarks?: string;
 }
 
@@ -30,26 +23,25 @@ export interface UpdateArrivalRequest {
   arrivalDate: string;
 }
 
+export interface DyeingFollowUp {
+  id: number;
+  dyeingRecordId: number;
+  followUpDate: string;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CreateFollowUpRequest {
-  remarks: string;
+  notes: string;
+  followUpDate?: string;
 }
 
-// Combined interface for frontend display
-export interface DyeingRecordWithFollowUps extends DyeingRecord {
-  followUps?: DyeingFollowUp[];
-}
-
-// Status enum for easier management
-export enum DyeingStatus {
-  PENDING = 'Pending',
-  ARRIVED = 'Arrived',
-  OVERDUE = 'Overdue'
-}
-
-// Summary interface
 export interface DyeingSummary {
-  total: number;
-  pending: number;
-  arrived: number;
-  overdue: number;
+  totalRecords: number;
+  pendingRecords: number;
+  arrivedRecords: number;
+  overdueRecords: number;
+  recentArrivals: DyeingRecord[];
+  upcomingDue: DyeingRecord[];
 }

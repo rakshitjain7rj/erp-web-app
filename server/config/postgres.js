@@ -16,7 +16,7 @@ const sequelize = new Sequelize(process.env.POSTGRES_URI, {
 
 const connectPostgres = async () => {
   try {
-    await sequelize.authenticate();
+    await sequelize.authenticate(); 
     console.log('✅ PostgreSQL connected');
   } catch (err) {
     console.error('❌ PostgreSQL connection error:', err);
