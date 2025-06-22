@@ -1,24 +1,46 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/postgres');
 
-const userSchema = new mongoose.Schema({
+const User = sequelize.define('User', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
   name: {
-    type: String,
-    required: true
+    type: DataTypes.STRING,
+    allowNull: false,
   },
   email: {
-    type: String,
-    required: true,
-    unique: true
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true,
+    validate: {
+      isEmail: true,
+    },
   },
   password: {
-    type: String,
-    required: true
+    type: DataTypes.STRING,
+    allowNull: false,
+    // Hide password by default in queries
+    select: false,
   },
   role: {
-    type: String,
-    enum: ['admin', 'manager', 'storekeeper'], // Roles allowed
-    default: 'storekeeper' // Default role for new users
+    type: DataTypes.ENUM('admin', 'manager', 'storekeeper'),
+    allowNull: false,
+    defaultValue: 'storekeeper',
+  },
+}, {
+  tableName: 'Users',
+  timestamps: true,
+  defaultScope: {
+    attributes: { exclude: ['password'] }
+  },
+  scopes: {
+    withPassword: {
+      attributes: { include: ['password'] }
+    }
   }
 });
 
-module.exports = mongoose.model('User', userSchema);
+module.exports = User;

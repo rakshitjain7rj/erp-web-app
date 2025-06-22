@@ -1,13 +1,19 @@
-const User = require('../models/user');
+const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const asyncHandler = require('express-async-handler');
 
 // Generate JWT Token
 const generateToken = (user) => {
-  return jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
-    expiresIn: '1d',
+  return jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRES_IN || '1d',
   });
+};
+
+// Helper function to create user response object
+const createUserResponse = (user) => {
+  const { password, ...userWithoutPassword } = user.toJSON();
+  return userWithoutPassword;
 };
 
 const authController = {
@@ -15,54 +21,113 @@ const authController = {
   register: asyncHandler(async (req, res) => {
     const { name, email, password, role } = req.body;
 
-    if (!name || !email || !password || !role) {
-      res.status(400);
-      throw new Error('All fields are required');
+    // Input validation
+    if (!name?.trim() || !email?.trim() || !password || !role) {
+      return res.status(400).json({
+        success: false,
+        message: 'All fields are required'
+      });
     }
 
-    const existingUser = await User.findOne({ email });
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid email'
+      });
+    }
+
+    // Password strength validation
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters long'
+      });
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ 
+      where: { email: email.toLowerCase().trim() } 
+    });
+    
     if (existingUser) {
-      res.status(400);
-      throw new Error('User already exists');
+      return res.status(409).json({
+        success: false,
+        message: 'User already exists with this email'
+      });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Hash password
+    const saltRounds = 12;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
 
+    // Create user
     const user = await User.create({
-      name,
-      email,
+      name: name.trim(),
+      email: email.toLowerCase().trim(),
       password: hashedPassword,
       role,
     });
 
+    // Generate token and response
     const token = generateToken(user);
-    res.status(201).json({ token, user });
+    const userResponse = createUserResponse(user);
+
+    res.status(201).json({
+      success: true,
+      message: 'User registered successfully',
+      token,
+      user: userResponse
+    });
   }),
 
   // Login User
   login: asyncHandler(async (req, res) => {
     const { email, password } = req.body;
 
-    if (!email || !password) {
-      res.status(400);
-      throw new Error('Email and password are required');
+    // Input validation
+    if (!email?.trim() || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and password are required'
+      });
     }
 
-    const user = await User.findOne({ email });
-    if (!user) {
-      res.status(400);
-      throw new Error('User not found');
+    // Find user with password included using scope
+    const user = await User.scope('withPassword').findOne({ 
+      where: { email: email.toLowerCase().trim() } 
+    });
+    
+    // Check user existence and password
+    const isValidUser = user && await bcrypt.compare(password, user.password);
+    
+    if (!isValidUser) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password'
+      });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      res.status(400);
-      throw new Error('Invalid credentials');
-    }
-
+    // Generate token and response
     const token = generateToken(user);
-    res.status(200).json({ token, user });
+    const userResponse = createUserResponse(user);
+
+    res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      token,
+      user: userResponse
+    });
   }),
+
+  // Logout (optional - for token blacklisting if implemented)
+  logout: asyncHandler(async (req, res) => {
+    res.status(200).json({
+      success: true,
+      message: 'Logout successful'
+    });
+  })
 };
 
 module.exports = authController;

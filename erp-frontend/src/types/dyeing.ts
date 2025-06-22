@@ -30,6 +30,7 @@ export interface DyeingFollowUp {
   notes: string;
   createdAt: string;
   updatedAt: string;
+  remarks: string; // Optional field for additional remarks
 }
 
 export interface CreateFollowUpRequest {
