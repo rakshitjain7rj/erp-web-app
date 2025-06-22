@@ -1,24 +1,27 @@
 // types/dyeing.ts
+
 export interface DyeingRecord {
   id: number;
   yarnType: string;
   sentDate: string;
-  expectedArrivalDate: string; // Added this field
-  arrivalDate?: string;
-  isOverdue?: boolean; // This will be calculated on the backend
+  expectedArrivalDate: string; // Used to track when the order is expected
+  arrivalDate?: string;        // Set once the order arrives
+  isOverdue?: boolean;         // Calculated on backend or frontend helper
   remarks?: string;
   createdAt: string;
   updatedAt: string;
   followUps?: DyeingFollowUp[];
 }
 
+// Payload used when creating or updating a dyeing record
 export interface CreateDyeingRecordRequest {
   yarnType: string;
   sentDate: string;
-  expectedArrivalDate: string; // Added this field
+  expectedArrivalDate: string;
   remarks?: string;
 }
 
+// Used to update only the arrival date
 export interface UpdateArrivalRequest {
   arrivalDate: string;
 }
@@ -35,14 +38,15 @@ export interface DyeingFollowUp {
 
 export interface CreateFollowUpRequest {
   notes: string;
-  followUpDate?: string;
+  followUpDate?: string; // Optional: default to now if not provided
 }
 
+// Aggregated summary for dashboard or status cards
 export interface DyeingSummary {
   totalRecords: number;
   pendingRecords: number;
   arrivedRecords: number;
   overdueRecords: number;
   recentArrivals: DyeingRecord[];
-  upcomingDue: DyeingRecord[];
+  upcomingDue: DyeingRecord[]; // Orders arriving in the next 3 days
 }

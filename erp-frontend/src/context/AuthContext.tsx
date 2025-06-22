@@ -19,6 +19,7 @@ type AuthContextType = {
   user: User | null;
   login: (userData: User) => void;
   logout: () => void;
+  getAuthHeaders: () => HeadersInit;
 };
 
 const USER_KEY = "user";
@@ -68,12 +69,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setUser(null);
   };
 
+  const getAuthHeaders = (): HeadersInit => {
+    return user?.token
+      ? { Authorization: `Bearer ${user.token}` }
+      : {};
+  };
+
   const value = useMemo<AuthContextType>(
     () => ({
       isAuthenticated: !!user,
       user,
       login,
       logout,
+      getAuthHeaders,
     }),
     [user]
   );

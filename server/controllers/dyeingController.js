@@ -1,165 +1,133 @@
-const asyncHandler = require('express-async-handler');
-const DyeingRecord = require('../models/DyeingRecord');
+const asyncHandler = require("express-async-handler");
+const DyeingRecord = require("../models/DyeingRecord");
 
-// Create a new dyeing record
+// ✅ Create a new dyeing record
 const createDyeingRecord = asyncHandler(async (req, res) => {
-  // Validate required fields
-  const { yarnType, sentDate, expectedArrivalDate } = req.body;
-  
-  if (!yarnType || !sentDate || !expectedArrivalDate) {
-    return res.status(400).json({ 
-      message: 'yarnType, sentDate, and expectedArrivalDate are required' 
-    });
-  }
+  const { yarnType, sentDate, expectedArrivalDate, remarks } = req.body;
 
-  const record = await DyeingRecord.create(req.body);
-  res.status(201).json(record);
+  const newRecord = await DyeingRecord.create({
+    yarnType,
+    sentDate,
+    expectedArrivalDate,
+    remarks,
+  });
+
+  res.status(201).json(newRecord);
 });
 
-// Get all dyeing records with overdue status
+// ✅ Get all dyeing records
 const getAllDyeingRecords = asyncHandler(async (req, res) => {
-  const records = await DyeingRecord.findAll({
-    order: [['createdAt', 'DESC']]
-  });
-  
-  // Add overdue status to each record (calculated manually)
-  const recordsWithStatus = records.map(record => {
-    const today = new Date();
-    const expectedDate = new Date(record.expectedArrivalDate);
-    const hasArrived = record.arrivalDate !== null;
-    const isOverdue = today > expectedDate && !hasArrived;
-    
-    return {
-      ...record.toJSON(),
-      isOverdue
-    };
-  });
-  
-  res.status(200).json(recordsWithStatus);
+  const records = await DyeingRecord.findAll();
+  res.status(200).json(records);
 });
 
-// Get single dyeing record by ID
+// ✅ Get dyeing record by ID
 const getDyeingRecordById = asyncHandler(async (req, res) => {
-  const id = req.params.id;
-  const record = await DyeingRecord.findByPk(id);
-
+  const record = await DyeingRecord.findByPk(req.params.id);
   if (!record) {
-    return res.status(404).json({ error: 'Dyeing record not found' });
+    res.status(404);
+    throw new Error("Dyeing record not found");
   }
-
-  // Add overdue status (calculated manually)
-  const today = new Date();
-  const expectedDate = new Date(record.expectedArrivalDate);
-  const hasArrived = record.arrivalDate !== null;
-  const isOverdue = today > expectedDate && !hasArrived;
-
-  const recordWithStatus = {
-    ...record.toJSON(),
-    isOverdue
-  };
-
-  res.status(200).json(recordWithStatus);
+  res.status(200).json(record);
 });
 
-// Update your updateArrivalDate function in dyeingController.js:
+// ✅ Update a dyeing record (yarnType, sentDate, expectedArrivalDate, remarks)
+const updateDyeingRecord = asyncHandler(async (req, res) => {
+  const { yarnType, sentDate, expectedArrivalDate, remarks } = req.body;
+  const record = await DyeingRecord.findByPk(req.params.id);
 
-const updateArrivalDate = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const { arrivalDate } = req.body;
-
-  if (!arrivalDate) {
-    return res.status(400).json({ message: 'Arrival date is required' });
-  }
-
-  const record = await DyeingRecord.findByPk(id);
   if (!record) {
-    return res.status(404).json({ message: 'Dyeing record not found' });
+    res.status(404);
+    throw new Error("Dyeing record not found");
   }
 
-  // Ensure the date is properly formatted
-  const formattedDate = new Date(arrivalDate).toISOString();
-  record.arrivalDate = formattedDate;
+  record.yarnType = yarnType || record.yarnType;
+  record.sentDate = sentDate || record.sentDate;
+  record.expectedArrivalDate = expectedArrivalDate || record.expectedArrivalDate;
+  record.remarks = remarks || record.remarks;
+
   await record.save();
-
-  // Calculate overdue status for response
-  const today = new Date();
-  const expectedDate = new Date(record.expectedArrivalDate);
-  const hasArrived = record.arrivalDate !== null;
-  const isOverdue = today > expectedDate && !hasArrived;
-
-  // Return the complete updated record - IMPORTANT: match frontend expectations
-  const updatedRecord = {
-    id: record.id,
-    yarnType: record.yarnType,
-    sentDate: record.sentDate,
-    expectedArrivalDate: record.expectedArrivalDate,
-    arrivalDate: record.arrivalDate, // This should now be properly formatted
-    remarks: record.remarks,
-    createdAt: record.createdAt,
-    updatedAt: record.updatedAt,
-    isOverdue
-  };
-
-  // Return just the record object, not wrapped in message + record
-  res.status(200).json(updatedRecord);
+  res.status(200).json(record);
 });
 
-// Update expected arrival date
-const updateExpectedArrivalDate = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const { expectedArrivalDate } = req.body;
+// ✅ Update arrival date
+const updateArrivalDate = asyncHandler(async (req, res) => {
+  const { arrivalDate } = req.body;
+  const record = await DyeingRecord.findByPk(req.params.id);
 
-  if (!expectedArrivalDate) {
-    return res.status(400).json({ message: 'Expected arrival date is required' });
+  if (!record) {
+    res.status(404);
+    throw new Error("Record not found");
   }
 
-  const record = await DyeingRecord.findByPk(id);
+  record.arrivalDate = arrivalDate;
+  await record.save();
+  res.json(record);
+});
+
+// ✅ Update expected arrival date
+const updateExpectedArrivalDate = asyncHandler(async (req, res) => {
+  const { expectedArrivalDate } = req.body;
+  const record = await DyeingRecord.findByPk(req.params.id);
+
   if (!record) {
-    return res.status(404).json({ message: 'Dyeing record not found' });
+    res.status(404);
+    throw new Error("Record not found");
   }
 
   record.expectedArrivalDate = expectedArrivalDate;
   await record.save();
-
-  // Calculate overdue status for response
-  const today = new Date();
-  const expectedDate = new Date(record.expectedArrivalDate);
-  const hasArrived = record.arrivalDate !== null;
-  const isOverdue = today > expectedDate && !hasArrived;
-
-  const updatedRecord = {
-    ...record.toJSON(),
-    isOverdue
-  };
-
-  res.status(200).json({ 
-    message: 'Expected arrival date updated successfully', 
-    record: updatedRecord 
-  });
+  res.json(record);
 });
 
-// Delete a dyeing record
+// ✅ Delete dyeing record
 const deleteDyeingRecord = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-
-  const record = await DyeingRecord.findByPk(id);
+  const record = await DyeingRecord.findByPk(req.params.id);
   if (!record) {
-    return res.status(404).json({ message: 'Dyeing record not found' });
+    res.status(404);
+    throw new Error("Record not found");
   }
-
   await record.destroy();
-  
-  res.status(200).json({ 
-    message: 'Dyeing record deleted successfully' 
-  });
+  res.json({ message: "Record deleted" });
 });
 
+// ✅ GET dyeing summary - used in DyeingSummary.tsx
+const getDyeingSummary = asyncHandler(async (req, res) => {
+  const records = await DyeingRecord.findAll({
+    attributes: [
+      'id',
+      'yarnType',
+      'sentDate',
+      'expectedArrivalDate',
+      'arrivalDate'
+    ],
+    order: [['sentDate', 'DESC']]
+  });
+
+  const summaryData = records.map((record) => {
+    const today = new Date();
+    const expected = record.expectedArrivalDate ? new Date(record.expectedArrivalDate) : null;
+
+    return {
+      id: record.id,
+      product: record.yarnType,
+      sentDate: record.sentDate,
+      expectedArrival: record.expectedArrivalDate,
+      status: record.arrivalDate ? "Arrived" : "Pending",
+      isOverdue: expected && !record.arrivalDate && today > expected,
+    };
+  });
+
+  res.status(200).json(summaryData);
+});
 
 module.exports = {
   createDyeingRecord,
   getAllDyeingRecords,
   getDyeingRecordById,
+  updateDyeingRecord, // ✅ export added
   updateArrivalDate,
   updateExpectedArrivalDate,
-  deleteDyeingRecord
+  deleteDyeingRecord,
+  getDyeingSummary
 };
