@@ -92,8 +92,27 @@ export const deleteDyeingRecord = async (id: number): Promise<void> => {
 };
 
 // ==================== SUMMARY & ALERTS ====================
-export const getDyeingSummary = async (): Promise<DyeingSummary> => {
-  const response = await api.get('/summary');
+export const getDyeingSummary = async (
+  startDate?: string,
+  endDate?: string
+): Promise<DyeingSummary> => {
+  const params: any = {};
+  if (startDate) params.startDate = startDate;
+  if (endDate) params.endDate = endDate;
+
+  const response = await api.get('/summary', { params });
+  return response.data.data || response.data;
+};
+
+export const getDyeingSummaryByParty = async (
+  startDate?: string,
+  endDate?: string
+): Promise<any[]> => {
+  const params: any = {};
+  if (startDate) params.startDate = startDate;
+  if (endDate) params.endDate = endDate;
+
+  const response = await api.get('/summary-by-party', { params });
   return response.data.data || response.data;
 };
 

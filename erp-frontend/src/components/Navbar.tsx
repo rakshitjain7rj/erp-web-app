@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom"; // 🆕 useLocation added
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
-import { FaUserShield, FaSignOutAlt } from "react-icons/fa";
+import { FaUserShield, FaSignOutAlt, FaCog } from "react-icons/fa";
 
 const Navbar = () => {
   const navigate = useNavigate();
-  const location = useLocation(); // 🆕 get current route
+  const location = useLocation();
   const { isDark, toggleTheme } = useTheme();
   const { user, logout, login } = useAuth();
 
@@ -56,9 +56,8 @@ const Navbar = () => {
 
   const renderNavLinks = () => {
     if (!user) return null;
-
     const { role } = user;
-    const links: { to: string; label: string }[] = [];
+    const links: { to: string; label: string; iconOnly?: boolean }[] = [];
 
     if (["admin", "manager", "storekeeper"].includes(role))
       links.push({ to: "/dashboard", label: "Dashboard" });
@@ -68,8 +67,7 @@ const Navbar = () => {
       links.push({ to: "/bom", label: "BOM" });
     if (["admin", "manager", "storekeeper"].includes(role))
       links.push({ to: "/workorders", label: "Work Orders" });
-    if (role === "admin")
-      links.push({ to: "/costing", label: "Costing" });
+    if (role === "admin") links.push({ to: "/costing", label: "Costing" });
     if (["admin", "manager"].includes(role))
       links.push({ to: "/reports", label: "Reports" });
     if (["admin", "manager"].includes(role))
@@ -78,37 +76,44 @@ const Navbar = () => {
       links.push({ to: "/dyeing-summary", label: "Dyeing Summary" });
     if (role === "admin") {
       links.push({ to: "/users", label: "Users" });
-      links.push({ to: "/settings", label: "Settings" });
+      links.push({ to: "/settings", label: "", iconOnly: true }); // Show as icon
     }
 
-    return links.map((link) => {
-      const isActive = location.pathname.startsWith(link.to); // 🆕 match route prefix
-      return (
-        <Link
-          key={link.to}
-          to={link.to}
-          className={`text-sm font-medium px-2 transition-all ${
-            isActive
-              ? "text-blue-600 dark:text-blue-400 font-semibold underline underline-offset-4"
-              : "text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400"
-          }`}
-        >
-          {link.label}
-        </Link>
-      );
-    });
+    return (
+      <div className="flex flex-wrap gap-5 items-center">
+        {links.map((link) => {
+          const isActive = location.pathname.startsWith(link.to);
+          return (
+            <Link
+              key={link.to}
+              to={link.to}
+              className={`flex items-center text-sm font-medium tracking-wide transition-all ${
+                isActive
+                  ? "text-blue-600 dark:text-blue-400 font-semibold underline underline-offset-4"
+                  : "text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400"
+              }`}
+              title={link.label || "Settings"}
+            >
+              {link.iconOnly ? <FaCog className="text-lg" /> : link.label}
+            </Link>
+          );
+        })}
+      </div>
+    );
   };
 
   return (
-    <nav className="bg-white dark:bg-gray-900 px-4 py-3 shadow flex justify-between items-center transition-colors">
-      <div className="flex items-center gap-6">
-        <h1 className="text-xl font-bold text-blue-700 dark:text-white">
+    <nav className="bg-white dark:bg-gray-900 px-6 py-3 shadow flex justify-between items-center transition-colors">
+      {/* Left Section */}
+      <div className="flex items-center gap-10">
+        <h1 className="text-2xl font-bold text-blue-700 dark:text-white whitespace-nowrap">
           ERP System
         </h1>
-        <div className="hidden md:flex gap-4">{renderNavLinks()}</div>
+        <div className="hidden md:flex">{renderNavLinks()}</div>
       </div>
 
-      <div className="flex items-center gap-6">
+      {/* Right Section */}
+      <div className="flex items-center gap-4">
         <button
           onClick={toggleTheme}
           className="text-xl text-yellow-600 dark:text-yellow-300"
@@ -119,15 +124,17 @@ const Navbar = () => {
 
         <div className="relative" ref={dropdownRef}>
           <button
-            className="flex items-center gap-2 px-3 py-1 rounded-full bg-purple-600 text-white hover:opacity-90"
+            className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-purple-600 text-white hover:opacity-90 whitespace-nowrap"
             onClick={() => setMenuOpen(!menuOpen)}
           >
             <span className="font-bold uppercase">{getInitials()}</span>
-            <span className="ml-1 capitalize">{user?.name}</span>
+            <span className="ml-1 capitalize text-sm font-medium">
+              {user?.name}
+            </span>
           </button>
 
           {menuOpen && (
-            <div className="absolute right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg w-48 z-50 text-sm overflow-hidden">
+            <div className="absolute right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg w-52 z-50 text-sm overflow-hidden">
               {getRoleOptions().length > 0 && (
                 <>
                   <p className="px-4 py-2 text-gray-500 dark:text-gray-300 font-medium">

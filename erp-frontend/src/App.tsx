@@ -20,9 +20,7 @@ import DyeingOrders from "./pages/DyeingOrders";
 import Product from "./pages/Product";
 import Users from "./pages/Users";
 import Settings from "./pages/Settings";
-import PartySummary from "./components/PartySummary";
-
-const DyeingSummary = PartySummary;
+import DyeingSummary from "./pages/DyeingSummary"; // ✅ Correct import
 
 import Navbar from "./components/Navbar";
 import { Toaster } from "react-hot-toast";
