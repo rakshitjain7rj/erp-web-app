@@ -113,14 +113,31 @@ export const markAsArrived = async (id: number): Promise<DyeingRecord> => {
   return await updateArrivalDate(id, { arrivalDate: now });
 };
 
+export const markAsReprocessing = async (id: number, reason?: string): Promise<DyeingRecord> => {
+  const response = await api.patch(`/${id}/reprocessing`, {
+    isReprocessing: true,
+    reprocessingDate: new Date().toISOString(),
+    reprocessingReason: reason
+  });
+  return response.data.data || response.data;
+};
+
+export const markReprocessingComplete = async (id: number): Promise<DyeingRecord> => {
+  const response = await api.patch(`/${id}/reprocessing`, {
+    isReprocessing: false
+  });
+  return response.data.data || response.data;
+};
+
 export const getDyeingStatus = (record: DyeingRecord): string => {
   if (record.arrivalDate) return "Arrived";
+  if (record.isReprocessing) return "Reprocessing";
   if (isRecordOverdue(record)) return "Overdue";
   return "Pending";
 };
 
 export const isRecordOverdue = (record: DyeingRecord): boolean => {
-  if (record.arrivalDate) return false;
+  if (record.arrivalDate || record.isReprocessing) return false;
   const today = new Date();
   const expectedDate = new Date(record.expectedArrivalDate);
   return today > expectedDate;

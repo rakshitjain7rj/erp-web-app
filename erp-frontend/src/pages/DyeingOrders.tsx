@@ -12,6 +12,8 @@ import {
   deleteDyeingRecord,
   getDyeingStatus,
   isRecordOverdue,
+  markAsReprocessing,
+  markReprocessingComplete,
 } from "../api/dyeingApi";
 import { DyeingRecord } from "../types/dyeing";
 import {
@@ -42,9 +44,11 @@ const DyeingOrders = () => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showFollowUpModal, setShowFollowUpModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<DyeingRecord | null>(null);
-  const [recordToEdit, setRecordToEdit] = useState<DyeingRecord | null>(null);
-  const [filter, setFilter] = useState<"all" | "pending" | "arrived" | "overdue" | "dueSoon">("all");
+  const [recordToEdit, setRecordToEdit] = useState<DyeingRecord | null>(null);  const [filter, setFilter] = useState<"all" | "pending" | "arrived" | "overdue" | "dueSoon" | "reprocessing">("all");
   const [isDeletingId, setIsDeletingId] = useState<number | null>(null);
+  const [reprocessingReason, setReprocessingReason] = useState("");
+  const [showReprocessingModal, setShowReprocessingModal] = useState(false);
+  const [recordToReprocess, setRecordToReprocess] = useState<DyeingRecord | null>(null);
 
   const { user } = useAuth();
   const role = user?.role || "storekeeper";
@@ -58,10 +62,10 @@ const DyeingOrders = () => {
     try {
       const data = await getAllDyeingRecords();
       setOrders(data);
-      toast.success("Dyeing orders loaded successfully");
-    } catch (error: any) {
+      toast.success("Dyeing orders loaded successfully");    } catch (error: unknown) {
       console.error("Failed to fetch dyeing orders:", error);
-      toast.error(error.response?.data?.message || "Failed to load dyeing orders");
+      const errorMessage = error instanceof Error ? error.message : "Failed to load dyeing orders";
+      toast.error(errorMessage);
       setOrders([]);
     } finally {
       setIsLoading(false);
@@ -73,20 +77,22 @@ const DyeingOrders = () => {
   }, []);
 
   useEffect(() => {
-    let filtered = orders;
-    switch (filter) {
+    let filtered = orders;    switch (filter) {
       case "pending":
-        filtered = orders.filter(o => !o.arrivalDate && !isRecordOverdue(o));
+        filtered = orders.filter(o => !o.arrivalDate && !o.isReprocessing && !isRecordOverdue(o));
         break;
       case "arrived":
         filtered = orders.filter(o => o.arrivalDate);
         break;
       case "overdue":
-        filtered = orders.filter(o => !o.arrivalDate && isRecordOverdue(o));
+        filtered = orders.filter(o => !o.arrivalDate && !o.isReprocessing && isRecordOverdue(o));
+        break;
+      case "reprocessing":
+        filtered = orders.filter(o => o.isReprocessing);
         break;
       case "dueSoon":
         filtered = orders.filter(o => {
-          if (o.arrivalDate || !o.expectedArrivalDate) return false;
+          if (o.arrivalDate || o.isReprocessing || !o.expectedArrivalDate) return false;
           const today = new Date();
           const dueDate = new Date(o.expectedArrivalDate);
           return isBefore(dueDate, addDays(today, 4));
@@ -95,25 +101,28 @@ const DyeingOrders = () => {
     }
     setFilteredOrders(filtered);
   }, [orders, filter]);
-
   const getStatusColor = (record: DyeingRecord): string => {
     const status = getDyeingStatus(record);
     if (status === "Arrived") return "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400";
     if (status === "Overdue") return "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400";
+    if (status === "Reprocessing") return "bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400";
     return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400";
   };
-
-  const getRowBackground = (record: DyeingRecord): string =>
-    getDyeingStatus(record) === "Overdue" ? "bg-red-50 dark:bg-red-900/10" : "";
+  const getRowBackground = (record: DyeingRecord): string => {
+    const status = getDyeingStatus(record);
+    if (status === "Overdue") return "bg-red-50 dark:bg-red-900/20";
+    if (status === "Reprocessing") return "bg-orange-50 dark:bg-orange-900/20";
+    return "";
+  };
 
   const handleMarkAsArrived = async (id: number) => {
     try {
       const updated = await markAsArrived(id);
       setOrders(prev => prev.map(o => o.id === id ? updated : o));
       toast.success("Order marked as arrived");
-      notifySummaryToRefresh();
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to update status");
+      notifySummaryToRefresh();    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to update status";
+      toast.error(errorMessage);
     }
   };
 
@@ -124,11 +133,48 @@ const DyeingOrders = () => {
       await deleteDyeingRecord(id);
       setOrders(prev => prev.filter(o => o.id !== id));
       toast.success("Order deleted");
-      notifySummaryToRefresh();
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to delete order");
+      notifySummaryToRefresh();    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to delete order";
+      toast.error(errorMessage);
     } finally {
       setIsDeletingId(null);
+    }
+  };
+
+  const handleMarkAsReprocessing = async (record: DyeingRecord) => {
+    setRecordToReprocess(record);
+    setShowReprocessingModal(true);
+  };
+
+  const confirmReprocessing = async () => {
+    if (!recordToReprocess) return;
+    try {
+      const updated = await markAsReprocessing(recordToReprocess.id, reprocessingReason);
+      setOrders(prev => prev.map(o => o.id === recordToReprocess.id ? updated : o));
+      toast.success("Order marked for reprocessing");
+      setShowReprocessingModal(false);
+      setReprocessingReason("");
+      setRecordToReprocess(null);
+      notifySummaryToRefresh();
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to mark for reprocessing";
+      toast.error(errorMessage);
+    }
+  };
+  const handleReprocessingComplete = async (id: number) => {
+    if (!window.confirm("Mark reprocessing as complete? This will set the arrival date to today.")) return;
+    
+    try {
+      // First complete the reprocessing
+      await markReprocessingComplete(id);
+      // Then mark as arrived
+      const updated = await markAsArrived(id);
+      setOrders(prev => prev.map(o => o.id === id ? updated : o));
+      toast.success("Reprocessing completed and order marked as arrived");
+      notifySummaryToRefresh();
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to complete reprocessing";
+      toast.error(errorMessage);
     }
   };
 
@@ -152,25 +198,25 @@ const DyeingOrders = () => {
     setShowCreateForm(false);
     notifySummaryToRefresh();
   };
-
   const filterCounts = {
     all: orders.length,
-    pending: orders.filter(o => !o.arrivalDate && !isRecordOverdue(o)).length,
+    pending: orders.filter(o => !o.arrivalDate && !o.isReprocessing && !isRecordOverdue(o)).length,
     arrived: orders.filter(o => o.arrivalDate).length,
-    overdue: orders.filter(o => !o.arrivalDate && isRecordOverdue(o)).length,
+    overdue: orders.filter(o => !o.arrivalDate && !o.isReprocessing && isRecordOverdue(o)).length,
+    reprocessing: orders.filter(o => o.isReprocessing).length,
     dueSoon: orders.filter(o => {
-      if (o.arrivalDate || !o.expectedArrivalDate) return false;
+      if (o.arrivalDate || o.isReprocessing || !o.expectedArrivalDate) return false;
       return isBefore(new Date(o.expectedArrivalDate), addDays(new Date(), 4));
     }).length,
   };
 
   return (
     <div className="p-6">
-      <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
-        <h1 className="text-xl font-bold flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <h1 className="flex items-center gap-2 text-xl font-bold">
           <Package className="text-blue-500" /> Dyeing Orders
         </h1>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex flex-wrap gap-2">
           {canCreateOrders && (
             <Button onClick={() => { setRecordToEdit(null); setShowCreateForm(true); }}>
               <Plus size={14} className="mr-2" /> Create Order
@@ -180,60 +226,116 @@ const DyeingOrders = () => {
           <Button onClick={() => handleExport("pdf")}><FileDown className="mr-2" size={14} /> PDF</Button>
           <Button onClick={() => handleExport("png")}><FileDown className="mr-2" size={14} /> PNG</Button>
         </div>
-      </div>
-
-      <nav className="mb-4 border-b flex gap-4">
-        {["all", "pending", "arrived", "overdue", "dueSoon"].map((key) => (
+      </div>      <nav className="flex gap-4 mb-4 overflow-x-auto border-b border-gray-200 dark:border-gray-700">
+        {["all", "pending", "arrived", "reprocessing", "overdue", "dueSoon"].map((key) => (
           <button
             key={key}
-            className={`pb-2 border-b-2 text-sm font-medium ${filter === key ? "border-blue-500 text-blue-600" : "border-transparent text-gray-500"}`}
-            onClick={() => setFilter(key as any)}
+            className={`pb-2 border-b-2 text-sm font-medium whitespace-nowrap ${
+              filter === key 
+                ? "border-blue-500 text-blue-600 dark:text-blue-400" 
+                : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+            }`}
+            onClick={() => setFilter(key as typeof filter)}
           >
             {key.charAt(0).toUpperCase() + key.slice(1)} ({filterCounts[key as keyof typeof filterCounts]})
           </button>
         ))}
-      </nav>
-
-      <div className="overflow-x-auto rounded-xl shadow">
-        <table id="dyeing-table" className="min-w-full text-sm">
+      </nav><div className="overflow-x-auto bg-white border border-gray-200 shadow-lg dark:bg-gray-800 rounded-xl dark:border-gray-700">        <table id="dyeing-table" className="min-w-full text-sm">
           <thead>
-            <tr className="bg-gray-100">
-              <th className="px-4 py-2 text-left">Yarn</th>
-              <th className="px-4 py-2 text-left">Sent</th>
-              <th className="px-4 py-2 text-left">Expected</th>
-              <th className="px-4 py-2 text-left">Arrival</th>
-              <th className="px-4 py-2 text-left">Status</th>
-              <th className="px-4 py-2 text-left">Remarks</th>
-              <th className="px-4 py-2 text-right">Actions</th>
+            <tr className="border-b border-gray-200 bg-gray-50 dark:bg-gray-700 dark:border-gray-600">
+              <th className="px-4 py-3 font-medium text-left text-gray-900 dark:text-white">Party Name</th>
+              <th className="px-4 py-3 font-medium text-left text-gray-900 dark:text-white">Yarn</th>
+              <th className="px-4 py-3 font-medium text-left text-gray-900 dark:text-white">Quantity</th>
+              <th className="px-4 py-3 font-medium text-left text-gray-900 dark:text-white">Shade</th>
+              <th className="px-4 py-3 font-medium text-left text-gray-900 dark:text-white">Count</th>
+              <th className="px-4 py-3 font-medium text-left text-gray-900 dark:text-white">Lot</th>
+              <th className="px-4 py-3 font-medium text-left text-gray-900 dark:text-white">Dyeing Firm</th>
+              <th className="px-4 py-3 font-medium text-left text-gray-900 dark:text-white">Sent</th>
+              <th className="px-4 py-3 font-medium text-left text-gray-900 dark:text-white">Expected</th>
+              <th className="px-4 py-3 font-medium text-left text-gray-900 dark:text-white">Arrival</th>
+              <th className="px-4 py-3 font-medium text-left text-gray-900 dark:text-white">Status</th>
+              <th className="px-4 py-3 font-medium text-left text-gray-900 dark:text-white">Remarks</th>
+              <th className="px-4 py-3 font-medium text-right text-gray-900 dark:text-white">Actions</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
             {filteredOrders.map(record => (
-              <tr key={record.id} className={`hover:bg-gray-50 ${getRowBackground(record)}`}>
-                <td className="px-4 py-2">{record.yarnType}</td>
-                <td className="px-4 py-2">{formatSafeDate(record.sentDate)}</td>
-                <td className="px-4 py-2">{formatSafeDate(record.expectedArrivalDate)}</td>
-                <td className="px-4 py-2">{record.arrivalDate ? formatSafeDate(record.arrivalDate) : "Not arrived"}</td>
-                <td className="px-4 py-2"><span className={`px-2 py-1 rounded-full ${getStatusColor(record)}`}>{getDyeingStatus(record)}</span></td>
-                <td className="px-4 py-2">{record.remarks || "-"}</td>
-                <td className="px-4 py-2 text-right">
+              <tr key={record.id} className={`hover:bg-gray-50 dark:hover:bg-gray-700 ${getRowBackground(record)}`}>
+                <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{record.partyName}</td>
+                <td className="px-4 py-3 text-gray-900 dark:text-white">{record.yarnType}</td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{record.quantity}</td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{record.shade}</td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{record.count}</td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{record.lot}</td>
+                <td className="px-4 py-3 font-medium text-gray-700 dark:text-gray-300">{record.dyeingFirm}</td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{formatSafeDate(record.sentDate)}</td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{formatSafeDate(record.expectedArrivalDate)}</td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{record.arrivalDate ? formatSafeDate(record.arrivalDate) : "Not arrived"}</td>
+                <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(record)}`}>{getDyeingStatus(record)}</span></td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
+                  <div>
+                    {record.remarks && <div>{record.remarks}</div>}
+                    {record.isReprocessing && record.reprocessingReason && (
+                      <div className="mt-1 text-xs italic text-orange-600 dark:text-orange-400">
+                        Reprocessing: {record.reprocessingReason}
+                      </div>
+                    )}
+                    {record.isReprocessing && !record.reprocessingReason && (
+                      <div className="mt-1 text-xs italic text-orange-600 dark:text-orange-400">
+                        Sent for reprocessing
+                      </div>
+                    )}
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-right">
                   <div className="flex justify-end gap-2">
-                    <button onClick={() => { setRecordToEdit(record); setShowCreateForm(true); }} title="Edit">
+                    <button 
+                      onClick={() => { setRecordToEdit(record); setShowCreateForm(true); }} 
+                      title="Edit"
+                      className="p-1 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                    >
                       <Pencil size={16} />
                     </button>
                     {canManageFollowUps && (
-                      <button onClick={() => { setSelectedRecord(record); setShowFollowUpModal(true); }} title="View Follow-ups"><Eye size={16} /></button>
+                      <button 
+                        onClick={() => { setSelectedRecord(record); setShowFollowUpModal(true); }} 
+                        title="View Follow-ups"
+                        className="p-1 text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300"
+                      >
+                        <Eye size={16} />
+                      </button>
+                    )}                    {canUpdateStatus && !record.arrivalDate && !record.isReprocessing && (
+                      <button 
+                        onClick={() => handleMarkAsArrived(record.id)}
+                        className="px-3 py-1 text-sm text-green-700 border border-green-300 rounded hover:bg-green-50 dark:border-green-600 dark:text-green-400 dark:hover:bg-green-900/20"
+                      >
+                        Mark Arrived
+                      </button>
                     )}
-                    {canUpdateStatus && !record.arrivalDate && (
-                      <Button size="sm" variant="outline" onClick={() => handleMarkAsArrived(record.id)}>Mark Arrived</Button>
+                    {canUpdateStatus && !record.isReprocessing && (
+                      <button 
+                        onClick={() => handleMarkAsReprocessing(record)}
+                        className="px-3 py-1 text-sm text-orange-700 border border-orange-300 rounded hover:bg-orange-50 dark:border-orange-600 dark:text-orange-400 dark:hover:bg-orange-900/20"
+                      >
+                        Reprocess
+                      </button>
+                    )}
+                    {canUpdateStatus && record.isReprocessing && (
+                      <button 
+                        onClick={() => handleReprocessingComplete(record.id)}
+                        className="px-3 py-1 text-sm text-blue-700 border border-blue-300 rounded hover:bg-blue-50 dark:border-blue-600 dark:text-blue-400 dark:hover:bg-blue-900/20"
+                      >
+                        Complete Reprocessing
+                      </button>
                     )}
                     {canDeleteOrders && (
                       <button
                         onClick={() => handleDeleteOrder(record.id)}
                         disabled={isDeletingId === record.id}
-                        className="text-red-600 hover:text-red-900"
+                        className="p-1 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 disabled:opacity-50"
+                        title="Delete"
                       >
-                        {isDeletingId === record.id ? <div className="w-4 h-4 border-b-2 border-red-500 animate-spin rounded-full" /> : <Trash2 size={16} />}
+                        {isDeletingId === record.id ? <div className="w-4 h-4 border-b-2 border-red-500 rounded-full animate-spin" /> : <Trash2 size={16} />}
                       </button>
                     )}
                   </div>
@@ -257,6 +359,35 @@ const DyeingOrders = () => {
         dyeingRecord={selectedRecord}
         onFollowUpAdded={fetchOrders}
       />
+
+      {/* Reprocessing Modal */}      {showReprocessingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="p-6 bg-white rounded-lg dark:bg-gray-800 w-96">
+            <h3 className="mb-4 text-lg font-semibold">Send for Reprocessing</h3>
+            <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
+              This will mark the order for reprocessing. If the order has already arrived, it will be reset to pending status.
+            </p>
+            <div className="mb-4">
+              <label className="block mb-2 text-sm font-medium">Reason (Optional)</label>
+              <textarea
+                value={reprocessingReason}
+                onChange={(e) => setReprocessingReason(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md dark:border-gray-600 dark:bg-gray-700"
+                rows={3}
+                placeholder="Enter reason for reprocessing..."
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button onClick={() => setShowReprocessingModal(false)} variant="outline">
+                Cancel
+              </Button>
+              <Button onClick={confirmReprocessing} className="bg-orange-600 hover:bg-orange-700">
+                Confirm Reprocessing
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -72,10 +72,16 @@ const FollowUpModal: React.FC<FollowUpModalProps> = ({
       setFollowUps(prev => [newFollowUp, ...prev]);
       setNewRemarks('');
       toast.success('Follow-up added successfully');
-      onFollowUpAdded();
-    } catch (error: any) {
+      onFollowUpAdded();    } catch (error: unknown) {
       console.error('Failed to add follow-up:', error);
-      toast.error(error.response?.data?.message || 'Failed to add follow-up');
+      if (error instanceof Error) {
+        toast.error(error.message);
+      } else if (typeof error === 'object' && error !== null && 'response' in error) {
+        const axiosError = error as { response?: { data?: { message?: string } } };
+        toast.error(axiosError.response?.data?.message || 'Failed to add follow-up');
+      } else {
+        toast.error('Failed to add follow-up');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -88,10 +94,16 @@ const FollowUpModal: React.FC<FollowUpModalProps> = ({
     try {
       await deleteFollowUp(dyeingRecord.id, followUpId);
       setFollowUps(prev => prev.filter(f => f.id !== followUpId));
-      toast.success('Follow-up deleted successfully');
-    } catch (error: any) {
+      toast.success('Follow-up deleted successfully');    } catch (error: unknown) {
       console.error('Failed to delete follow-up:', error);
-      toast.error(error.response?.data?.message || 'Failed to delete follow-up');
+      if (error instanceof Error) {
+        toast.error(error.message);
+      } else if (typeof error === 'object' && error !== null && 'response' in error) {
+        const axiosError = error as { response?: { data?: { message?: string } } };
+        toast.error(axiosError.response?.data?.message || 'Failed to delete follow-up');
+      } else {
+        toast.error('Failed to delete follow-up');
+      }
     } finally {
       setIsDeleting(null);
     }
@@ -182,17 +194,21 @@ const FollowUpModal: React.FC<FollowUpModalProps> = ({
                 )}
               </div>
             ) : (
-              <div className="space-y-4">
-                {followUps.map((followUp) => (
+              <div className="space-y-4">                {followUps.map((followUp) => (
                   <div
                     key={followUp.id}
                     className="p-4 border-l-4 border-blue-500 rounded-lg bg-gray-50 dark:bg-gray-800"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <div className="flex items-center mb-2 text-sm text-gray-600 dark:text-gray-400">
-                          <Clock size={16} className="mr-1" />
-                          {format(new Date(followUp.followUpDate), 'MMM dd, yyyy \'at\' HH:mm')}
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                            <Clock size={16} className="mr-1" />
+                            {format(new Date(followUp.followUpDate), 'MMM dd, yyyy \'at\' HH:mm')}
+                          </div>
+                          <div className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                            Added by {followUp.addedByName}
+                          </div>
                         </div>
                         <p className="text-gray-900 whitespace-pre-wrap dark:text-white">
                           {followUp.remarks}
@@ -218,13 +234,14 @@ const FollowUpModal: React.FC<FollowUpModalProps> = ({
               </div>
             )}
           </div>
-        </div>
-
-        {/* Footer */}
+        </div>        {/* Footer */}
         <div className="flex justify-end p-6 border-t border-gray-200 dark:border-gray-700">
-          <Button variant="outline" onClick={handleClose}>
+          <button
+            onClick={handleClose}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
+          >
             Close
-          </Button>
+          </button>
         </div>
       </div>
     </div>

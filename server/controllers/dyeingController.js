@@ -3,13 +3,19 @@ const DyeingRecord = require("../models/DyeingRecord");
 
 // ✅ Create a new dyeing record
 const createDyeingRecord = asyncHandler(async (req, res) => {
-  const { yarnType, sentDate, expectedArrivalDate, remarks } = req.body;
+  const { yarnType, sentDate, expectedArrivalDate, remarks, partyName, quantity, shade, count, lot, dyeingFirm } = req.body;
 
   const newRecord = await DyeingRecord.create({
     yarnType,
     sentDate,
     expectedArrivalDate,
     remarks,
+    partyName,
+    quantity,
+    shade,
+    count,
+    lot,
+    dyeingFirm,
   });
 
   res.status(201).json(newRecord);
@@ -31,9 +37,9 @@ const getDyeingRecordById = asyncHandler(async (req, res) => {
   res.status(200).json(record);
 });
 
-// ✅ Update a dyeing record (yarnType, sentDate, expectedArrivalDate, remarks)
+// ✅ Update a dyeing record (yarnType, sentDate, expectedArrivalDate, remarks, partyName, quantity, shade, count, lot, dyeingFirm)
 const updateDyeingRecord = asyncHandler(async (req, res) => {
-  const { yarnType, sentDate, expectedArrivalDate, remarks } = req.body;
+  const { yarnType, sentDate, expectedArrivalDate, remarks, partyName, quantity, shade, count, lot, dyeingFirm } = req.body;
   const record = await DyeingRecord.findByPk(req.params.id);
 
   if (!record) {
@@ -45,6 +51,12 @@ const updateDyeingRecord = asyncHandler(async (req, res) => {
   record.sentDate = sentDate || record.sentDate;
   record.expectedArrivalDate = expectedArrivalDate || record.expectedArrivalDate;
   record.remarks = remarks || record.remarks;
+  record.partyName = partyName || record.partyName;
+  record.quantity = quantity || record.quantity;
+  record.shade = shade || record.shade;
+  record.count = count || record.count;
+  record.lot = lot || record.lot;
+  record.dyeingFirm = dyeingFirm || record.dyeingFirm;
 
   await record.save();
   res.status(200).json(record);
@@ -99,26 +111,56 @@ const getDyeingSummary = asyncHandler(async (req, res) => {
       'yarnType',
       'sentDate',
       'expectedArrivalDate',
-      'arrivalDate'
+      'arrivalDate',
+      'isReprocessing'
     ],
     order: [['sentDate', 'DESC']]
   });
-
   const summaryData = records.map((record) => {
     const today = new Date();
     const expected = record.expectedArrivalDate ? new Date(record.expectedArrivalDate) : null;
+
+    let status = "Pending";
+    if (record.isReprocessing) {
+      status = "Reprocessing";
+    } else if (record.arrivalDate) {
+      status = "Arrived";
+    }
 
     return {
       id: record.id,
       product: record.yarnType,
       sentDate: record.sentDate,
       expectedArrival: record.expectedArrivalDate,
-      status: record.arrivalDate ? "Arrived" : "Pending",
-      isOverdue: expected && !record.arrivalDate && today > expected,
+      status: status,
+      isOverdue: expected && !record.arrivalDate && !record.isReprocessing && today > expected,
     };
   });
 
   res.status(200).json(summaryData);
+});
+
+// ✅ Mark record for reprocessing
+const markAsReprocessing = asyncHandler(async (req, res) => {
+  const { isReprocessing, reprocessingDate, reprocessingReason } = req.body;
+  const record = await DyeingRecord.findByPk(req.params.id);
+
+  if (!record) {
+    res.status(404);
+    throw new Error("Dyeing record not found");
+  }
+
+  record.isReprocessing = isReprocessing;
+  record.reprocessingDate = reprocessingDate || null;
+  record.reprocessingReason = reprocessingReason || null;
+
+  // If marking for reprocessing, clear the arrival date
+  if (isReprocessing) {
+    record.arrivalDate = null;
+  }
+
+  await record.save();
+  res.status(200).json(record);
 });
 
 module.exports = {
@@ -129,5 +171,6 @@ module.exports = {
   updateArrivalDate,
   updateExpectedArrivalDate,
   deleteDyeingRecord,
-  getDyeingSummary
+  getDyeingSummary,
+  markAsReprocessing
 };

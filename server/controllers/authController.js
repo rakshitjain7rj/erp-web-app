@@ -5,7 +5,12 @@ const asyncHandler = require('express-async-handler');
 
 // Generate JWT Token
 const generateToken = (user) => {
-  return jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, {
+  return jwt.sign({ 
+    id: user.id, 
+    role: user.role, 
+    name: user.name,
+    email: user.email 
+  }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || '1d',
   });
 };

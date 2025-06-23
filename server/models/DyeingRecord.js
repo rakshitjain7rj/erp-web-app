@@ -46,9 +46,82 @@ const DyeingRecord = sequelize.define('DyeingRecord', {
       isDate: {
         msg: 'Arrival date must be a valid date'
       }
+    }  },
+  partyName: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    validate: {
+      notEmpty: {
+        msg: 'Party name is required'
+      }
     }
   },
-  remarks: {
+  quantity: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+    validate: {
+      isDecimal: {
+        msg: 'Quantity must be a valid number'
+      },
+      min: {
+        args: [0.01],
+        msg: 'Quantity must be greater than 0'
+      }
+    }
+  },
+  shade: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    validate: {
+      notEmpty: {
+        msg: 'Shade is required'
+      }
+    }
+  },
+  count: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    validate: {
+      notEmpty: {
+        msg: 'Count is required'
+      }
+    }
+  },  lot: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    validate: {
+      notEmpty: {
+        msg: 'Lot is required'
+      }
+    }
+  },
+  dyeingFirm: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    validate: {
+      notEmpty: {
+        msg: 'Dyeing firm is required'
+      }
+    }
+  },  remarks: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  isReprocessing: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false
+  },
+  reprocessingDate: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    validate: {
+      isDate: {
+        msg: 'Reprocessing date must be a valid date'
+      }
+    }
+  },
+  reprocessingReason: {
     type: DataTypes.TEXT,
     allowNull: true
   }

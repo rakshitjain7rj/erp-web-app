@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router({ mergeParams: true });
+const { auth } = require('../middleware/authMiddleware');
 
 // Controllers
 const {
@@ -11,6 +12,7 @@ const {
   updateDyeingRecord, // ✅ Add this line
   deleteDyeingRecord,
   getDyeingSummary,
+  markAsReprocessing,
 } = require('../controllers/dyeingController');
 
 const {
@@ -22,6 +24,7 @@ const {
 const {
   getFollowUpsByRecordId,
   createFollowUp,
+  deleteFollowUp,
 } = require('../controllers/dyeingFollowUpController');
 
 // ===== 📦 Summary Route =====
@@ -42,9 +45,11 @@ router.delete('/:id', deleteDyeingRecord);
 // ===== 📅 Update Routes =====
 router.put('/:id/arrival', updateArrivalDate);
 router.put('/:id/expected-arrival', updateExpectedArrivalDate);
+router.patch('/:id/reprocessing', markAsReprocessing); // Add reprocessing route
 
 // ===== 💬 Follow-Up Routes =====
 router.get('/:dyeingRecordId/followups', getFollowUpsByRecordId);
-router.post('/:dyeingRecordId/followups', createFollowUp);
+router.post('/:dyeingRecordId/followups', auth, createFollowUp);
+router.delete('/:dyeingRecordId/followups/:followUpId', auth, deleteFollowUp);
 
 module.exports = router;

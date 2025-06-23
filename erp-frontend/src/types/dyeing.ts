@@ -8,6 +8,15 @@ export interface DyeingRecord {
   arrivalDate?: string;        // Set once the order arrives
   isOverdue?: boolean;         // Calculated on backend or frontend helper
   remarks?: string;
+  partyName: string;
+  quantity: number;
+  shade: string;
+  count: string;
+  lot: string;
+  dyeingFirm: string;
+  isReprocessing: boolean;
+  reprocessingDate?: string;
+  reprocessingReason?: string;
   createdAt: string;
   updatedAt: string;
   followUps?: DyeingFollowUp[];
@@ -19,6 +28,12 @@ export interface CreateDyeingRecordRequest {
   sentDate: string;
   expectedArrivalDate: string;
   remarks?: string;
+  partyName: string;
+  quantity: number;
+  shade: string;
+  count: string;
+  lot: string;
+  dyeingFirm: string;
 }
 
 // Used to update only the arrival date
@@ -30,14 +45,15 @@ export interface DyeingFollowUp {
   id: number;
   dyeingRecordId: number;
   followUpDate: string;
-  notes: string;
+  remarks: string;
   createdAt: string;
   updatedAt: string;
-  remarks: string; // Optional field for additional remarks
+  addedBy: number;
+  addedByName: string;
 }
 
 export interface CreateFollowUpRequest {
-  notes: string;
+  remarks: string;
   followUpDate?: string; // Optional: default to now if not provided
 }
 

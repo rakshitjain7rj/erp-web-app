@@ -8,6 +8,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { sequelize, connectPostgres } = require('./config/postgres');
 const DyeingRecord = require('./models/DyeingRecord');
+const User = require('./models/User'); // Load User model
 require('./models/DyeingFollowUp'); // 👈 load this model for sync
 
 
@@ -61,11 +62,39 @@ mongoose.connect(process.env.MONGO_URI)
 // PostgreSQL Connection & Sync
 const PORT = process.env.PORT || 5000;
 connectPostgres()
-  .then(() => {
-    return sequelize.sync({ alter: true }); // Sync all models
+  .then(async () => {
+    console.log('✅ PostgreSQL connected');
+    
+    // First, ensure system user exists
+    const User = require('./models/User');
+    await User.findOrCreate({
+      where: { id: 1 },
+      defaults: {
+        id: 1,
+        name: 'System User',
+        email: 'system@example.com',
+        password: '$2b$10$example',
+        role: 'admin'
+      }
+    });
+    console.log('✅ System user ensured');
+    
+    // Force sync to ensure all columns are added
+    return sequelize.sync({ alter: true, force: false }); // Sync all models
   })
   .then(() => {
     console.log('✅ PostgreSQL tables synced');
+    
+    // Additional check to ensure the DyeingFollowUp table has correct structure
+    return sequelize.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'DyeingFollowUps'
+    `);
+  })
+  .then((results) => {
+    console.log('DyeingFollowUps columns:', results[0].map(row => row.column_name));
+    
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
     });
