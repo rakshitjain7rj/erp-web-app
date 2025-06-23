@@ -1,5 +1,7 @@
 const asyncHandler = require("express-async-handler");
 const DyeingRecord = require("../models/DyeingRecord");
+const { sequelize } = require('../config/postgres');
+
 
 // ✅ Create a new dyeing record
 const createDyeingRecord = asyncHandler(async (req, res) => {
@@ -163,6 +165,28 @@ const markAsReprocessing = asyncHandler(async (req, res) => {
   res.status(200).json(record);
 });
 
+const getDyeingSummaryByParty = asyncHandler(async (req, res) => {
+  const [results] = await sequelize.query(`
+    SELECT
+      "partyName",
+      COUNT(*) AS "totalOrders",
+      SUM("quantity") AS "totalYarn",
+      SUM(CASE 
+        WHEN "isReprocessing" = true THEN "quantity" 
+        WHEN "arrivalDate" IS NULL THEN "quantity" 
+        ELSE 0 
+      END) AS "pendingYarn",
+      SUM(CASE WHEN "isReprocessing" = true THEN "quantity" ELSE 0 END) AS "reprocessingYarn",
+      SUM(CASE WHEN "arrivalDate" IS NOT NULL AND "isReprocessing" = false THEN "quantity" ELSE 0 END) AS "arrivedYarn"
+    FROM "DyeingRecords"
+    GROUP BY "partyName"
+    ORDER BY "partyName";
+  `);
+
+  res.status(200).json(results);
+});
+
+
 module.exports = {
   createDyeingRecord,
   getAllDyeingRecords,
@@ -172,5 +196,6 @@ module.exports = {
   updateExpectedArrivalDate,
   deleteDyeingRecord,
   getDyeingSummary,
-  markAsReprocessing
+  markAsReprocessing,
+  getDyeingSummaryByParty
 };

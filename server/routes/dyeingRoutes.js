@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router({ mergeParams: true });
 const { auth } = require('../middleware/authMiddleware');
 
+
 // Controllers
 const {
   createDyeingRecord,
@@ -13,6 +14,7 @@ const {
   deleteDyeingRecord,
   getDyeingSummary,
   markAsReprocessing,
+  getDyeingSummaryByParty
 } = require('../controllers/dyeingController');
 
 const {
@@ -27,8 +29,10 @@ const {
   deleteFollowUp,
 } = require('../controllers/dyeingFollowUpController');
 
+
 // ===== 📦 Summary Route =====
 router.get('/summary', getDyeingSummary); // ✅ Must stay before "/:id"
+router.get('/summary-by-party', getDyeingSummaryByParty); // ✅ NEW
 
 // ===== 🚨 Alert Routes =====
 router.get('/alerts/due', getDueAlerts);

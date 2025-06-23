@@ -17,10 +17,12 @@ import WorkOrders from "./pages/WorkOrders";
 import Costing from "./pages/Costing";
 import Reports from "./pages/Reports";
 import DyeingOrders from "./pages/DyeingOrders";
-import DyeingSummary from "./pages/DyeingSummary";
 import Product from "./pages/Product";
 import Users from "./pages/Users";
 import Settings from "./pages/Settings";
+import PartySummary from "./components/PartySummary";
+
+const DyeingSummary = PartySummary;
 
 import Navbar from "./components/Navbar";
 import { Toaster } from "react-hot-toast";
@@ -34,7 +36,7 @@ const App = () => {
 
   return (
     <ThemeProvider>
-      <div className="min-h-screen bg-white dark:bg-gray-950 text-black dark:text-white transition-all duration-300">
+      <div className="min-h-screen text-black transition-all duration-300 bg-white dark:bg-gray-950 dark:text-white">
         <Toaster
           position="top-right"
           toastOptions={{
