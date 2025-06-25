@@ -73,6 +73,8 @@ const Navbar = () => {
       links.push({ to: "/dyeing-orders", label: "Dyeing Orders" });
     if (["admin", "manager"].includes(role))
       links.push({ to: "/dyeing-summary", label: "Dyeing Summary" });
+    if (["admin", "manager", "storekeeper"].includes(role))
+      links.push({ to: "/production-jobs", label: "Production Jobs" });
     if (["admin", "manager"].includes(role))
       links.push({ to: "/party-master", label: "Party Master" });
     if (role === "admin") {

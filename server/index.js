@@ -9,19 +9,22 @@ const { sequelize, connectPostgres } = require('./config/postgres');
 const DyeingRecord = require('./models/DyeingRecord');
 const User = require('./models/User'); // Load User model
 require('./models/DyeingFollowUp'); // 👈 load this model for sync
+require('./models/ProductionJob'); // Load ProductionJob model
+require('./models/Machine'); // Load Machine model
 
 
 dotenv.config();
 
 // Routes
 const authRoutes = require('./routes/authRoutes');
-const workOrderRoutes = require('./routes/workOrderRoutes');
-const inventoryRoutes = require('./routes/inventoryRoutes');
-const bomRoutes = require('./routes/bomRoutes');
-const costingRoutes = require('./routes/costingRoutes');
-const reportRoutes = require('./routes/reportRoutes');
+// const workOrderRoutes = require('./routes/workOrderRoutes');
+// const inventoryRoutes = require('./routes/inventoryRoutes');
+// const bomRoutes = require('./routes/bomRoutes');
+// const costingRoutes = require('./routes/costingRoutes');
+// const reportRoutes = require('./routes/reportRoutes');
 const dyeingRoutes = require('./routes/dyeingRoutes');
 const partyRoutes = require('./routes/partyRoutes');
+const productionRoutes = require('./routes/productionRoutes');
 
 
 
@@ -42,13 +45,14 @@ app.use(errorHandler); // Always after all routes & parsers
 // Comment
 // API Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/workorders', workOrderRoutes);
-app.use('/api/inventory', inventoryRoutes);
-app.use('/api/bom', bomRoutes);
-app.use('/api/costings', costingRoutes);
-app.use('/api/reports', reportRoutes);
+// app.use('/api/workorders', workOrderRoutes);
+// app.use('/api/inventory', inventoryRoutes);
+// app.use('/api/bom', bomRoutes);
+// app.use('/api/costings', costingRoutes);
+// app.use('/api/reports', reportRoutes);
 app.use('/api/dyeing', dyeingRoutes);
 app.use('/api/parties', partyRoutes);
+app.use('/api/production', productionRoutes);
 
 
 
