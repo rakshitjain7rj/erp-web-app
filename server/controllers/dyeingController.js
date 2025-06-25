@@ -158,7 +158,7 @@ const getDyeingSummary = asyncHandler(async (req, res) => {
   res.status(200).json(summaryData);
 });
 
-// ✅ Party-wise Dyeing Summary (with date filters)
+// ✅ Party-wise Dyeing Summary (with normalized grouping)
 const getDyeingSummaryByParty = asyncHandler(async (req, res) => {
   const { startDate, endDate } = req.query;
 
@@ -173,7 +173,7 @@ const getDyeingSummaryByParty = asyncHandler(async (req, res) => {
 
   const [results] = await sequelize.query(`
     SELECT
-      "partyName",
+      LOWER(TRIM("partyName")) AS "partyName",
       COUNT(*) AS "totalOrders",
       SUM(CASE WHEN "arrivalDate" IS NULL AND "isReprocessing" = false THEN 1 ELSE 0 END) AS "pendingOrders",
       SUM("quantity") AS "totalYarn",
@@ -186,9 +186,8 @@ const getDyeingSummaryByParty = asyncHandler(async (req, res) => {
       SUM(CASE WHEN "arrivalDate" IS NOT NULL AND "isReprocessing" = false THEN "quantity" ELSE 0 END) AS "arrivedYarn"
     FROM "DyeingRecords"
     ${whereClause}
-    GROUP BY "partyName"
-    ORDER BY "pendingOrders" DESC, "totalOrders" DESC
-    LIMIT 5;
+    GROUP BY LOWER(TRIM("partyName"))
+    ORDER BY "pendingOrders" DESC, "totalOrders" DESC;
   `);
 
   res.status(200).json(results);
