@@ -22,7 +22,7 @@ const User = sequelize.define('User', {
   password: {
     type: DataTypes.STRING,
     allowNull: false,
-    // Hide password by default in queries
+    // Password is excluded by default in queries
     select: false,
   },
   role: {
@@ -30,9 +30,19 @@ const User = sequelize.define('User', {
     allowNull: false,
     defaultValue: 'storekeeper',
   },
+  status: {
+    type: DataTypes.ENUM('active', 'inactive'),
+    allowNull: false,
+    defaultValue: 'active',
+  },
+  loginHistory: {
+    type: DataTypes.JSONB,
+    allowNull: true,
+    defaultValue: [], // Example: [{ timestamp: '...', ip: '...' }]
+  }
 }, {
   tableName: 'Users',
-  timestamps: true,
+  timestamps: true, // Adds createdAt and updatedAt
   defaultScope: {
     attributes: { exclude: ['password'] }
   },
