@@ -6,7 +6,7 @@ import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import * as XLSX from "xlsx";
 import "chart.js/auto";
-import { getDyeingSummary, getDyeingSummaryByParty } from "../api/dyeingApi";
+import { getDyeingSummary } from "../api/dyeingApi";
 
 type DyeingOrder = {
   id: string;
@@ -16,15 +16,6 @@ type DyeingOrder = {
   status: "Pending" | "Arrived" | "Reprocessing";
 };
 
-type PartySummary = {
-  partyName: string;
-  totalOrders: number;
-  totalYarn: number;
-  pendingYarn: number;
-  reprocessingYarn: number;
-  arrivedYarn: number;
-};
-
 const isOverdue = (expectedDate: string) => {
   const date = new Date(expectedDate);
   return isValid(date) && date < new Date();
@@ -32,13 +23,8 @@ const isOverdue = (expectedDate: string) => {
 
 const DyeingSummary = () => {
   const [orders, setOrders] = useState<DyeingOrder[]>([]);
-  const [parties, setParties] = useState<PartySummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "7days" | "month">("all");
-  const [tab, setTab] = useState<"chart" | "party">("chart");
-  const [partySearch, setPartySearch] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 8;
 
   const chartRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLDivElement>(null);
@@ -52,7 +38,6 @@ const DyeingSummary = () => {
     }
     return {};
   };
-
   const fetchOrders = async () => {
     setLoading(true);
     const toastId = toast.loading("📦 Fetching summary...");
@@ -60,13 +45,13 @@ const DyeingSummary = () => {
       const { startDate, endDate } = getDateRange();
       const raw = await getDyeingSummary(startDate, endDate);
       const transformed = raw
-        .filter((i: any) => i.sentDate && i.expectedArrival)
-        .map((i: any) => ({
-          id: String(i.id),
-          product: i.product || "Unknown",
-          sentDate: i.sentDate,
-          expectedArrival: i.expectedArrival,
-          status: i.status as any,
+        .filter((item: Record<string, unknown>) => item.sentDate && item.expectedArrival)
+        .map((item: Record<string, unknown>) => ({
+          id: String(item.id),
+          product: item.product || "Unknown",
+          sentDate: item.sentDate as string,
+          expectedArrival: item.expectedArrival as string,
+          status: item.status as "Pending" | "Arrived" | "Reprocessing",
         }));
       setOrders(transformed);
       toast.success("✅ Summary loaded", { id: toastId });
@@ -76,20 +61,9 @@ const DyeingSummary = () => {
       setLoading(false);
     }
   };
-
-  const fetchParties = async () => {
-    try {
-      const { startDate, endDate } = getDateRange();
-      const list = await getDyeingSummaryByParty(startDate, endDate);
-      setParties(list);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   useEffect(() => {
     fetchOrders();
-    fetchParties();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter]);
 
   const filteredOrders = useMemo(() => orders, [orders]);
@@ -98,14 +72,12 @@ const DyeingSummary = () => {
   const arrived = filteredOrders.filter(o => o.status === "Arrived").length;
   const overdue = filteredOrders.filter(o => isOverdue(o.expectedArrival) && o.status !== "Arrived").length;
 
-  const exportList = (data: any[], sheetName: string, fileName: string) => {
+  const exportList = (data: DyeingOrder[], sheetName: string, fileName: string) => {
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
     XLSX.writeFile(wb, fileName);
-  };
-
-  const exportPDF = (ref: React.RefObject<HTMLDivElement>, name: string) => {
+  };  const exportPDF = (ref: React.RefObject<HTMLDivElement | null>, name: string) => {
     if (!ref.current) return;
     html2canvas(ref.current).then(canvas => {
       const img = canvas.toDataURL("image/png");
@@ -117,56 +89,26 @@ const DyeingSummary = () => {
       pdf.save(name);
     });
   };
-
   const chartData = {
     labels: ["Total", "Pending", "Arrived", "Overdue"],
     datasets: [{ data: [total, pending, arrived, overdue], backgroundColor: ["#60a5fa", "#facc15", "#4ade80", "#f87171"] }]
   };
-
-  const filteredParties = useMemo(() => {
-    return parties.filter(p =>
-      p.partyName.toLowerCase().includes(partySearch.toLowerCase())
-    );
-  }, [partySearch, parties]);
-
-  const totalPages = Math.ceil(filteredParties.length / itemsPerPage);
-  const paginatedParties = filteredParties.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
   return (
     <div className="p-6">
       <h2 className="text-3xl font-bold text-blue-700 mb-4">🎨 Dyeing Summary</h2>
 
-      {/* Tabs */}
-      <div className="mb-4 flex gap-4">
-        {["chart", "party"].map(tabKey => (
-          <button
-            key={tabKey}
-            onClick={() => setTab(tabKey as any)}
-            className={`px-4 py-2 rounded font-medium ${tab === tabKey ? "bg-blue-600 text-white" : "bg-gray-200 dark:bg-gray-700"}`}
-          >
-            {tabKey === "chart" ? "📊 Chart & Orders" : "🧾 Party-wise Summary"}
-          </button>
-        ))}
-      </div>
-
       {/* Filter and Export */}
       <div className="flex flex-wrap gap-4 mb-6 items-center">
-        <label className="font-medium">Filter by:</label>
-        <select
+        <label className="font-medium">Filter by:</label>        <select
           value={filter}
-          onChange={(e) => setFilter(e.target.value as any)}
+          onChange={(e) => setFilter(e.target.value as "all" | "7days" | "month")}
           className="border rounded-md px-3 py-2 bg-white dark:bg-gray-800 dark:text-white"
         >
           <option value="all">All</option>
           <option value="7days">Last 7 Days</option>
           <option value="month">This Month</option>
-        </select>
-
-        <button
-          onClick={() => exportList(tab === "chart" ? filteredOrders : filteredParties, "Data", "DyeingData.xlsx")}
+        </select>        <button
+          onClick={() => exportList(filteredOrders, "Data", "DyeingData.xlsx")}
           className="bg-blue-500 text-white px-3 py-1 rounded"
           title="Export to Excel"
         >📊 Excel</button>
@@ -181,11 +123,10 @@ const DyeingSummary = () => {
           onClick={() => exportPDF(chartRef, "DyeingChart.png")}
           className="bg-green-600 text-white px-3 py-1 rounded"
           title="Export as PNG"
-        >🖼 PNG</button>
-      </div>
+        >🖼 PNG</button>      </div>
 
-      {/* Chart Tab */}
-      {!loading && tab === "chart" && (
+      {/* Chart and Table */}
+      {!loading && (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             {[{ title: "Total", count: total, color: "bg-blue-100 text-blue-700" },
@@ -227,64 +168,7 @@ const DyeingSummary = () => {
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
-        </>
-      )}
-
-      {/* Party Tab */}
-      {!loading && tab === "party" && (
-        <>
-          <input
-            type="text"
-            placeholder="🔍 Search Party Name..."
-            value={partySearch}
-            onChange={(e) => {
-              setPartySearch(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="mb-4 px-3 py-2 border rounded bg-white dark:bg-gray-900 dark:text-white"
-          />
-
-          <div ref={tableRef} className="overflow-x-auto">
-            <table className="min-w-full border text-sm mb-4">
-              <thead className="bg-gray-200 dark:bg-gray-700 dark:text-white">
-                <tr>
-                  <th className="p-2 border">Party Name</th>
-                  <th className="p-2 border">Total Orders</th>
-                  <th className="p-2 border">Total Yarn</th>
-                  <th className="p-2 border">Pending</th>
-                  <th className="p-2 border">Reprocessing</th>
-                  <th className="p-2 border">Arrived</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedParties.map((p) => (
-                  <tr key={p.partyName} className="bg-white dark:bg-gray-900">
-                    <td className="p-2 border">{p.partyName}</td>
-                    <td className="p-2 border">{p.totalOrders}</td>
-                    <td className="p-2 border">{p.totalYarn}</td>
-                    <td className="p-2 border text-yellow-600">{p.pendingYarn}</td>
-                    <td className="p-2 border text-orange-600">{p.reprocessingYarn}</td>
-                    <td className="p-2 border text-green-600">{p.arrivedYarn}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination Controls */}
-          <div className="flex justify-center items-center gap-3 mt-2">
-            {Array.from({ length: totalPages }, (_, i) => (
-              <button
-                key={i + 1}
-                onClick={() => setCurrentPage(i + 1)}
-                className={`px-3 py-1 rounded ${currentPage === i + 1 ? "bg-blue-600 text-white" : "bg-gray-300 dark:bg-gray-700"}`}
-              >
-                {i + 1}
-              </button>
-            ))}
-          </div>
+            </table>          </div>
         </>
       )}
     </div>

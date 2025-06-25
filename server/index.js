@@ -1,5 +1,4 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const errorHandler = require('./middleware/errorHandler');
@@ -22,12 +21,13 @@ const bomRoutes = require('./routes/bomRoutes');
 const costingRoutes = require('./routes/costingRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const dyeingRoutes = require('./routes/dyeingRoutes');
+const partyRoutes = require('./routes/partyRoutes');
 
 
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 1000, // Increased limit
 });
 
 const app = express();
@@ -37,7 +37,7 @@ app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
 app.use(helmet());
-app.use(limiter);
+// app.use(limiter); // Temporarily disabled for testing
 app.use(errorHandler); // Always after all routes & parsers
 // Comment
 // API Routes
@@ -48,16 +48,12 @@ app.use('/api/bom', bomRoutes);
 app.use('/api/costings', costingRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/dyeing', dyeingRoutes);
+app.use('/api/parties', partyRoutes);
 
 
 
 // Error Handler
 app.use(errorHandler);
-
-// MongoDB Connection
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('✅ MongoDB connected'))
-  .catch((err) => console.error('❌ MongoDB connection failed:', err));
 
 // PostgreSQL Connection & Sync
 const PORT = process.env.PORT || 5000;

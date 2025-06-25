@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Users, Package, Clock, RotateCcw, CheckCircle, Search, Edit3, Eye, MoreVertical } from 'lucide-react';
-import { getAllPartiesSummary } from '../api/partyApi';
+import { Users, Package, Clock, RotateCcw, CheckCircle, Search, Edit3, Eye, MoreVertical, Plus } from 'lucide-react';
+import { getAllPartiesSummary, getPartyStatistics } from '../api/partyApi';
 
 type PartySummary = {
   partyName: string;
@@ -10,6 +10,15 @@ type PartySummary = {
   pendingYarn: number;
   reprocessingYarn: number;
   arrivedYarn: number;
+  lastOrderDate?: string;
+  firstOrderDate?: string;
+};
+
+type PartyStatistics = {
+  totalParties: number;
+  partiesWithPending: number;
+  partiesWithReprocessing: number;
+  partiesWithCompleted: number;
 };
 
 // Error Boundary Component
@@ -25,8 +34,9 @@ class ErrorBoundary extends React.Component<
   static getDerivedStateFromError(error: Error) {
     return { hasError: true, error };
   }
+  
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('PartySummary Error:', error, errorInfo);
+    console.error('PartyMaster Error:', error, errorInfo);
   }
 
   render() {
@@ -37,7 +47,7 @@ class ErrorBoundary extends React.Component<
             <div className="flex items-center gap-3 text-red-700 dark:text-red-400">
               <Users className="w-6 h-6" />
               <div>
-                <h3 className="text-lg font-medium">Error Loading Party Summary</h3>
+                <h3 className="text-lg font-medium">Error Loading Party Master</h3>
                 <p className="mt-1 text-sm">Please refresh the page or contact support if the issue persists.</p>
                 <button 
                   onClick={() => window.location.reload()}
@@ -56,50 +66,83 @@ class ErrorBoundary extends React.Component<
   }
 }
 
-const PartySummary = () => {
+const PartyMaster = () => {
   const [summary, setSummary] = useState<PartySummary[]>([]);
   const [filteredSummary, setFilteredSummary] = useState<PartySummary[]>([]);
+  const [statistics, setStatistics] = useState<PartyStatistics | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortField, setSortField] = useState<keyof PartySummary>('partyName');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  useEffect(() => {
-    const fetchSummary = async () => {
-      setLoading(true);
-      try {
-        const data = await getAllPartiesSummary();
-        console.log('API Response:', data); // Debug log
+  const [debugInfo, setDebugInfo] = useState<string>('Starting...');useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);      try {
+        console.log('🔍 Fetching party data...');
+        console.log('🌐 API BASE URL:', import.meta.env.VITE_API_URL || 'http://localhost:5000/api');
+        setDebugInfo('Fetching party data...');
+        
+        // Test direct fetch first
+        console.log('🧪 Testing direct fetch...');
+        setDebugInfo('Testing direct fetch to /api/parties/summary...');
+        const directResponse = await fetch('http://localhost:5000/api/parties/summary');
+        console.log('📡 Direct fetch status:', directResponse.status);
+        setDebugInfo(`Direct fetch status: ${directResponse.status}`);
+        
+        if (!directResponse.ok) {
+          throw new Error(`Direct fetch failed: ${directResponse.status}`);
+        }
+        
+        const directData = await directResponse.json();
+        console.log('✅ Direct fetch data:', directData);
+        setDebugInfo(`Direct fetch success: ${directData.length} parties`);
+        
+        // Now test through API functions
+        const [summaryData, statsData] = await Promise.all([
+          getAllPartiesSummary(),
+          getPartyStatistics()
+        ]);
+        
+        console.log('✅ Party Summary Data:', summaryData);
+        console.log('✅ Party Statistics:', statsData);
+        console.log('📊 Summary Array Length:', Array.isArray(summaryData) ? summaryData.length : 'Not an array');
+        setDebugInfo(`API calls success: ${Array.isArray(summaryData) ? summaryData.length : 0} parties`);
         
         // Validate and normalize the data
-        const normalizedData = Array.isArray(data) ? data.map(party => ({
+        const normalizedData = Array.isArray(summaryData) ? summaryData.map(party => ({
           partyName: party.partyName || 'Unknown Party',
           totalOrders: Number(party.totalOrders) || 0,
           totalYarn: Number(party.totalYarn) || 0,
           pendingYarn: Number(party.pendingYarn) || 0,
           reprocessingYarn: Number(party.reprocessingYarn) || 0,
           arrivedYarn: Number(party.arrivedYarn) || 0,
-        })) : [];
-        
-        setSummary(normalizedData);
+          lastOrderDate: party.lastOrderDate,
+          firstOrderDate: party.firstOrderDate,
+        })) : [];        setSummary(normalizedData);
         setFilteredSummary(normalizedData);
-        toast.success("Party summary loaded successfully");
-      } catch (error) {
-        console.error('Error fetching party summary:', error);
-        toast.error("Failed to load party summary");
+        setStatistics(statsData);
+        
+        console.log('✅ Final state set - Summary length:', normalizedData.length);
+        console.log('✅ Filtered summary length:', normalizedData.length);
+        setDebugInfo(`SUCCESS: Loaded ${normalizedData.length} parties from API`);
+        
+        toast.success("Party Master data loaded successfully");      } catch (error) {
+        console.error('❌ Error fetching party data:', error);
+        if (error instanceof Error) {
+          console.error('❌ Error details:', error.message);
+          setDebugInfo(`Error: ${error.message}`);
+        }
+        toast.error("Failed to load party data");
         setSummary([]);
         setFilteredSummary([]);
+        setStatistics(null);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchSummary();
-
-    // Listen for refresh events from other components
-    const handleRefresh = () => fetchSummary();
-    window.addEventListener('refresh-dyeing-summary', handleRefresh);
-    return () => window.removeEventListener('refresh-dyeing-summary', handleRefresh);
+    fetchData();
   }, []);
+
   // Filter and sort data
   useEffect(() => {
     const filtered = summary.filter(party =>
@@ -133,6 +176,7 @@ const PartySummary = () => {
       setSortDirection('asc');
     }
   };
+
   // Calculate totals with safe number handling
   const totals = summary.reduce((acc, party) => ({
     totalOrders: acc.totalOrders + (party.totalOrders || 0),
@@ -165,8 +209,8 @@ const PartySummary = () => {
     return (
       <div className="flex items-center justify-center min-h-64">
         <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
-          <div className="w-8 h-8 border-b-2 border-blue-500 rounded-full animate-spin"></div>
-          <span className="text-lg">Loading party summary...</span>
+          <div className="w-8 h-8 border-b-2 border-purple-500 rounded-full animate-spin"></div>
+          <span className="text-lg">Loading Party Master...</span>
         </div>
       </div>
     );
@@ -174,7 +218,15 @@ const PartySummary = () => {
 
   return (
     <div className="min-h-screen p-4 transition-colors duration-200 bg-gray-50 dark:bg-gray-900 sm:p-6">
-      <div className="mx-auto max-w-7xl">        {/* Header Section */}
+      <div className="mx-auto max-w-7xl">
+        {/* Debug Info */}
+        <div className="mb-4 p-3 bg-yellow-100 border border-yellow-300 rounded-lg dark:bg-yellow-900/20 dark:border-yellow-800">
+          <p className="text-sm text-yellow-800 dark:text-yellow-200">
+            <strong>Debug:</strong> {debugInfo}
+          </p>
+        </div>
+
+        {/* Header Section */}
         <div className="relative mb-8 overflow-hidden bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-700 rounded-2xl">
           <div className="absolute inset-0 bg-black/20"></div>
           <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent"></div>
@@ -193,8 +245,16 @@ const PartySummary = () => {
                 <div className="px-4 py-2 rounded-lg shadow-md bg-white/20 backdrop-blur-sm">
                   <span className="text-sm font-medium text-white">Active Parties: {summary.length}</span>
                 </div>
-                <button className="px-4 py-2 text-white transition-all duration-200 border rounded-lg shadow-md bg-white/20 backdrop-blur-sm border-white/30 hover:bg-white/30">
-                  + Add Party
+                <button 
+                  onClick={() => {
+                    toast.info("Add Party", {
+                      description: "Party registration feature coming soon!"
+                    });
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 text-white transition-all duration-200 border rounded-lg shadow-md bg-white/20 backdrop-blur-sm border-white/30 hover:bg-white/30"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Party
                 </button>
               </div>
             </div>
@@ -313,12 +373,14 @@ const PartySummary = () => {
               </div>
             </div>
           </div>
-        </div>        {/* Enhanced Search and Filter Section */}
+        </div>
+
+        {/* Enhanced Search and Filter Section */}
         <div className="mb-8 overflow-hidden bg-white border-0 shadow-lg rounded-2xl dark:bg-gray-800">
           <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 dark:border-gray-700">
             <h3 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
               <Search className="w-5 h-5 text-purple-600" />
-              Party Search & Filters
+              Party Search & Management
             </h3>
           </div>
           <div className="p-6">
@@ -382,45 +444,61 @@ const PartySummary = () => {
                   </th>
                   <th className="px-6 py-4 text-xs font-medium tracking-wider text-center text-gray-500 uppercase dark:text-gray-300">
                     Reprocessing
-                  </th>                  <th className="px-6 py-4 text-xs font-medium tracking-wider text-center text-gray-500 uppercase dark:text-gray-300">
-                    Arrived
+                  </th>
+                  <th className="px-6 py-4 text-xs font-medium tracking-wider text-center text-gray-500 uppercase dark:text-gray-300">
+                    Completed
                   </th>
                   <th className="px-6 py-4 text-xs font-medium tracking-wider text-center text-gray-500 uppercase dark:text-gray-300">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-800 dark:divide-gray-700">
-                {filteredSummary.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center">                      <div className="flex flex-col items-center gap-3">
-                        <div className="p-4 rounded-full bg-gradient-to-br from-purple-100 to-blue-100 dark:from-purple-900/30 dark:to-blue-900/30">
-                          <Users className="w-12 h-12 text-purple-600 dark:text-purple-400" />
+              <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-800 dark:divide-gray-700">                {filteredSummary.length === 0 ? (
+                  loading ? (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-12 text-center">
+                        <div className="flex items-center justify-center gap-3">
+                          <div className="w-8 h-8 border-b-2 border-blue-500 rounded-full animate-spin"></div>
+                          <span className="text-lg">Loading parties...</span>
                         </div>
-                        <div className="text-center">
-                          <p className="text-lg font-medium text-gray-900 dark:text-white">No parties found</p>
-                          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                            {searchTerm ? "Try adjusting your search terms" : "No parties have been registered yet"}
-                          </p>
-                          {!searchTerm && (
-                            <button 
-                              onClick={() => {
-                                toast.info("Add Party feature", {
-                                  description: "Party registration feature coming soon!"
-                                });
-                              }}
-                              className="px-4 py-2 mt-4 text-white transition-all duration-200 rounded-lg shadow-md bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                            >
-                              Add First Party
-                            </button>
-                          )}
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-12 text-center">
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="p-4 rounded-full bg-gradient-to-br from-purple-100 to-blue-100 dark:from-purple-900/30 dark:to-blue-900/30">
+                            <Users className="w-12 h-12 text-purple-600 dark:text-purple-400" />
+                          </div>
+                          <div className="text-center">
+                            <p className="text-lg font-medium text-gray-900 dark:text-white">No parties found</p>
+                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                              {searchTerm ? "Try adjusting your search terms" : "No parties have been registered yet"}
+                            </p>
+                            <p className="mt-2 text-xs text-gray-400">
+                              Debug: {debugInfo}
+                            </p>
+                            {!searchTerm && (
+                              <button 
+                                onClick={() => {
+                                  toast.info("Add Party feature", {
+                                    description: "Party registration feature coming soon!"
+                                  });
+                                }}
+                                className="px-4 py-2 mt-4 text-white transition-all duration-200 rounded-lg shadow-md bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                              >
+                                Add First Party
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                  </tr>
+                      </td>
+                    </tr>
+                  )
                 ) : (
                   filteredSummary.map((party) => (
-                    <tr key={party.partyName} className="transition-colors duration-200 hover:bg-gray-50 dark:hover:bg-gray-700/50">                      <td className="px-6 py-4 whitespace-nowrap">
+                    <tr key={party.partyName} className="transition-colors duration-200 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-3">
                           <div className="flex items-center justify-center w-10 h-10 rounded-full shadow-sm bg-gradient-to-r from-purple-100 to-blue-100 dark:from-purple-900/30 dark:to-blue-900/30">
                             <span className="text-sm font-semibold text-purple-600 dark:text-purple-400">
@@ -454,21 +532,23 @@ const PartySummary = () => {
                         <span className="inline-flex items-center px-3 py-1 text-xs font-medium text-blue-800 bg-blue-100 rounded-full dark:bg-blue-900/30 dark:text-blue-400">
                           {party.totalOrders}
                         </span>
-                      </td>                      <td className="px-6 py-4 text-sm font-medium text-center text-gray-900 dark:text-white">
-                        {formatNumber(party.totalYarn)}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-medium text-center text-gray-900 dark:text-white">
+                        {formatNumber(party.totalYarn)} kg
                       </td>
                       <td className="px-6 py-4 text-sm text-center">
                         <span className="inline-flex items-center px-3 py-1 text-xs font-medium text-yellow-800 bg-yellow-100 rounded-full dark:bg-yellow-900/30 dark:text-yellow-400">
-                          {formatNumber(party.pendingYarn)}
+                          {formatNumber(party.pendingYarn)} kg
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-center">
                         <span className="inline-flex items-center px-3 py-1 text-xs font-medium text-orange-800 bg-orange-100 rounded-full dark:bg-orange-900/30 dark:text-orange-400">
-                          {formatNumber(party.reprocessingYarn)}
+                          {formatNumber(party.reprocessingYarn)} kg
                         </span>
-                      </td>                      <td className="px-6 py-4 text-sm text-center">
+                      </td>
+                      <td className="px-6 py-4 text-sm text-center">
                         <span className="inline-flex items-center px-3 py-1 text-xs font-medium text-green-800 bg-green-100 rounded-full dark:bg-green-900/30 dark:text-green-400">
-                          {formatNumber(party.arrivedYarn)}
+                          {formatNumber(party.arrivedYarn)} kg
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-center">
@@ -513,15 +593,17 @@ const PartySummary = () => {
                 )}
               </tbody>
             </table>
-          </div>        </div>
+          </div>
+        </div>
       </div>
-    </div>  );
+    </div>
+  );
 };
 
-const PartySummaryWithErrorBoundary = () => (
+const PartyMasterWithErrorBoundary = () => (
   <ErrorBoundary>
-    <PartySummary />
+    <PartyMaster />
   </ErrorBoundary>
 );
 
-export default PartySummaryWithErrorBoundary;
+export default PartyMasterWithErrorBoundary;
