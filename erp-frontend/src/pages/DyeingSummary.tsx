@@ -40,8 +40,8 @@ const DyeingSummary = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
 
-  const chartRef = useRef<HTMLDivElement>(null);
-  const tableRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<HTMLDivElement | null>(null);
+  const tableRef = useRef<HTMLDivElement | null>(null);
 
   const getDateRange = () => {
     const now = new Date();
@@ -59,14 +59,14 @@ const DyeingSummary = () => {
     try {
       const { startDate, endDate } = getDateRange();
       const raw = await getDyeingSummary(startDate, endDate);
-      const transformed = raw
+      const transformed: DyeingOrder[] = raw
         .filter((i: any) => i.sentDate && i.expectedArrival)
         .map((i: any) => ({
           id: String(i.id),
           product: i.product || "Unknown",
           sentDate: i.sentDate,
           expectedArrival: i.expectedArrival,
-          status: i.status as any,
+          status: i.status,
         }));
       setOrders(transformed);
       toast.success("✅ Summary loaded", { id: toastId });
@@ -144,7 +144,7 @@ const DyeingSummary = () => {
         {["chart", "party"].map(tabKey => (
           <button
             key={tabKey}
-            onClick={() => setTab(tabKey as any)}
+            onClick={() => setTab(tabKey as "chart" | "party")}
             className={`px-4 py-2 rounded font-medium ${tab === tabKey ? "bg-blue-600 text-white" : "bg-gray-200 dark:bg-gray-700"}`}
           >
             {tabKey === "chart" ? "📊 Chart & Orders" : "🧾 Party-wise Summary"}
@@ -184,7 +184,7 @@ const DyeingSummary = () => {
         >🖼 PNG</button>
       </div>
 
-      {/* Chart Tab */}
+      {/* CHART SECTION */}
       {!loading && tab === "chart" && (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -232,7 +232,7 @@ const DyeingSummary = () => {
         </>
       )}
 
-      {/* Party Tab */}
+      {/* PARTY TAB */}
       {!loading && tab === "party" && (
         <>
           <input
@@ -273,7 +273,6 @@ const DyeingSummary = () => {
             </table>
           </div>
 
-          {/* Pagination Controls */}
           <div className="flex justify-center items-center gap-3 mt-2">
             {Array.from({ length: totalPages }, (_, i) => (
               <button
