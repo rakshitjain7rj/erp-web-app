@@ -18,7 +18,7 @@ const Navbar = () => {
       const updatedUser = { ...user, originalRole: user.role };
       login(updatedUser);
     }
-  }, [user]);
+  }, [user, login]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -69,11 +69,12 @@ const Navbar = () => {
       links.push({ to: "/workorders", label: "Work Orders" });
     if (role === "admin") links.push({ to: "/costing", label: "Costing" });
     if (["admin", "manager"].includes(role))
-      links.push({ to: "/reports", label: "Reports" });
-    if (["admin", "manager"].includes(role))
+      links.push({ to: "/reports", label: "Reports" });    if (["admin", "manager"].includes(role))
       links.push({ to: "/dyeing-orders", label: "Dyeing Orders" });
     if (["admin", "manager"].includes(role))
       links.push({ to: "/dyeing-summary", label: "Dyeing Summary" });
+    if (["admin", "manager"].includes(role))
+      links.push({ to: "/party-master", label: "Party Master" });
     if (role === "admin") {
       links.push({ to: "/users", label: "Users" });
       links.push({ to: "/settings", label: "", iconOnly: true }); // Show as icon

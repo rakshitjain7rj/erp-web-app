@@ -10,10 +10,8 @@ const {
   updateArrivalDate,
   updateExpectedArrivalDate,
   updateDyeingRecord,
-  deleteDyeingRecord,
-  getDyeingSummary,
+  deleteDyeingRecord,  getDyeingSummary,
   markAsReprocessing,
-  getDyeingSummaryByParty
 } = require('../controllers/dyeingController');
 
 const {
@@ -31,7 +29,6 @@ const {
 // ===== 📦 Summary Routes =====
 // ✅ These already support query params like ?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
 router.get('/summary', getDyeingSummary);
-router.get('/summary-by-party', getDyeingSummaryByParty);
 
 // ===== 🚨 Alert Routes =====
 router.get('/alerts/due', getDueAlerts);

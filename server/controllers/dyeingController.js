@@ -158,42 +158,6 @@ const getDyeingSummary = asyncHandler(async (req, res) => {
   res.status(200).json(summaryData);
 });
 
-// ✅ Party-wise Dyeing Summary (with date filters)
-const getDyeingSummaryByParty = asyncHandler(async (req, res) => {
-  const { startDate, endDate } = req.query;
-
-  let whereClause = '';
-  if (startDate && endDate) {
-    whereClause = `WHERE "sentDate" BETWEEN '${startDate}' AND '${endDate}'`;
-  } else if (startDate) {
-    whereClause = `WHERE "sentDate" >= '${startDate}'`;
-  } else if (endDate) {
-    whereClause = `WHERE "sentDate" <= '${endDate}'`;
-  }
-
-  const [results] = await sequelize.query(`
-    SELECT
-      "partyName",
-      COUNT(*) AS "totalOrders",
-      SUM(CASE WHEN "arrivalDate" IS NULL AND "isReprocessing" = false THEN 1 ELSE 0 END) AS "pendingOrders",
-      SUM("quantity") AS "totalYarn",
-      SUM(CASE 
-        WHEN "isReprocessing" = true THEN "quantity" 
-        WHEN "arrivalDate" IS NULL THEN "quantity" 
-        ELSE 0 
-      END) AS "pendingYarn",
-      SUM(CASE WHEN "isReprocessing" = true THEN "quantity" ELSE 0 END) AS "reprocessingYarn",
-      SUM(CASE WHEN "arrivalDate" IS NOT NULL AND "isReprocessing" = false THEN "quantity" ELSE 0 END) AS "arrivedYarn"
-    FROM "DyeingRecords"
-    ${whereClause}
-    GROUP BY "partyName"
-    ORDER BY "pendingOrders" DESC, "totalOrders" DESC
-    LIMIT 5;
-  `);
-
-  res.status(200).json(results);
-});
-
 // ✅ Mark for reprocessing
 const markAsReprocessing = asyncHandler(async (req, res) => {
   const { isReprocessing, reprocessingDate, reprocessingReason } = req.body;
@@ -222,8 +186,6 @@ module.exports = {
   updateDyeingRecord,
   updateArrivalDate,
   updateExpectedArrivalDate,
-  deleteDyeingRecord,
-  getDyeingSummary,
+  deleteDyeingRecord,  getDyeingSummary,
   markAsReprocessing,
-  getDyeingSummaryByParty,
 };

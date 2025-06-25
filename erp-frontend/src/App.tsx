@@ -21,6 +21,10 @@ import Product from "./pages/Product";
 import Users from "./pages/Users";
 import Settings from "./pages/Settings";
 import DyeingSummary from "./pages/DyeingSummary"; // ✅ Correct import
+import PartyMaster from "./pages/PartyMaster";
+import ApiTest from "./components/ApiTest";
+import SimplePartyTest from "./components/SimplePartyTest";
+import RawDataTest from "./components/RawDataTest";
 
 import Navbar from "./components/Navbar";
 import { Toaster } from "react-hot-toast";
@@ -68,10 +72,11 @@ const App = () => {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/signup" element={<Signup />} />
-          <Route path="/unauthorized" element={<Unauthorized />} />
-
-          {/* Public Product Page */}
+          <Route path="/unauthorized" element={<Unauthorized />} />          {/* Public Product Page */}
           <Route path="/products" element={<Product />} />
+          <Route path="/party-test" element={<PartyMaster />} />
+          <Route path="/simple-test" element={<SimplePartyTest />} />
+          <Route path="/raw-test" element={<RawDataTest />} />
 
           {/* Protected Role-Based Pages */}
           <Route
@@ -129,12 +134,18 @@ const App = () => {
                 <DyeingOrders />
               </PrivateRoute>
             }
-          />
-          <Route
+          />          <Route
             path="/dyeing-summary"
             element={
               <PrivateRoute roles={["admin", "manager"]}>
                 <DyeingSummary />
+              </PrivateRoute>
+            }
+          />          <Route
+            path="/party-master"
+            element={
+              <PrivateRoute roles={["admin", "manager"]}>
+                <PartyMaster />
               </PrivateRoute>
             }
           />
@@ -154,6 +165,8 @@ const App = () => {
               </PrivateRoute>
             }
           />
+
+          <Route path="/api-test" element={<ApiTest />} />
 
           {/* Fallback Route */}
           <Route path="*" element={<Navigate to="/login" />} />
