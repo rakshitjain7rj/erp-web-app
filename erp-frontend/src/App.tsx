@@ -22,6 +22,7 @@ import Users from "./pages/Users";
 import Settings from "./pages/Settings";
 import DyeingSummary from "./pages/DyeingSummary"; // ✅ Correct import
 import PartyMaster from "./pages/PartyMaster";
+import ProductionJobs from "./pages/ProductionJobs";
 import ApiTest from "./components/ApiTest";
 import SimplePartyTest from "./components/SimplePartyTest";
 import RawDataTest from "./components/RawDataTest";
@@ -82,7 +83,7 @@ const App = () => {
           <Route
             path="/dashboard"
             element={
-              <PrivateRoute roles={["admin", "manager", "storekeeper"]}>
+              <PrivateRoute roles={["admin", "manager", "storekeeper", "operator"]}>
                 <Dashboard />
               </PrivateRoute>
             }
@@ -146,6 +147,14 @@ const App = () => {
             element={
               <PrivateRoute roles={["admin", "manager"]}>
                 <PartyMaster />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/production-jobs"
+            element={
+              <PrivateRoute roles={["admin", "manager", "operator"]}>
+                <ProductionJobs />
               </PrivateRoute>
             }
           />
