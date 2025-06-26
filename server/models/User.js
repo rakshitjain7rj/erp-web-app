@@ -24,17 +24,16 @@ const User = sequelize.define('User', {
     allowNull: false,
     // Password is excluded by default in queries
     select: false,
-  },
-  role: {
+  },  role: {
     type: DataTypes.ENUM('admin', 'manager', 'storekeeper'),
     allowNull: false,
     defaultValue: 'storekeeper',
   },
-  status: {
-    type: DataTypes.ENUM('active', 'inactive'),
-    allowNull: false,
-    defaultValue: 'active',
-  },
+  // status: {
+  //   type: DataTypes.ENUM('active', 'inactive'),
+  //   allowNull: false,
+  //   defaultValue: 'active',
+  // },
   loginHistory: {
     type: DataTypes.JSONB,
     allowNull: true,

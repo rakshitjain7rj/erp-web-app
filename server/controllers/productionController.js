@@ -8,14 +8,15 @@ const { Op } = require('sequelize');
 // ✅ Create a new production job
 const createProductionJob = asyncHandler(async (req, res) => {
   const {
-    productName, quantity, unit, machineId, assignedTo,
+    productName, productType, quantity, unit, machineId, assignedTo,
     priority, dueDate, estimatedHours, partyName,
     dyeingOrderId, notes,
     // Detailed job card fields
     theoreticalEfficiency,
     qualityTargets,
     shiftAssignments,
-    initialUtilityReadings
+    initialUtilityReadings,
+    processParameters
   } = req.body;
 
   // Generate unique job ID
@@ -23,30 +24,71 @@ const createProductionJob = asyncHandler(async (req, res) => {
 
   const newJob = await ProductionJob.create({
     jobId,
-    productName,
+    productType: productName || productType,
     quantity,
     unit: unit || 'kg',
     machineId,
-    assignedTo,
+    workerId: assignedTo,
     priority: priority || 'medium',
-    dueDate,
+    dueDate: dueDate ? new Date(dueDate) : null,
     estimatedHours,
     partyName,
     dyeingOrderId,
     notes,
-    // Store detailed parameters as JSON
-    theoreticalEfficiency: theoreticalEfficiency ? JSON.stringify(theoreticalEfficiency) : null,
-    qualityTargets: qualityTargets ? JSON.stringify(qualityTargets) : null,
-    shiftAssignments: shiftAssignments ? JSON.stringify(shiftAssignments) : null,
-    initialUtilityReadings: initialUtilityReadings ? JSON.stringify(initialUtilityReadings) : null,
-    createdBy: req.user?.id || 1,
-    createdByName: req.user?.name || 'System User'
+    // Store detailed parameters as JSONB
+    theoreticalEfficiency,
+    qualityTargets,
+    shiftAssignments: shiftAssignments || [],
+    initialUtilityReadings,
+    processParameters: processParameters || {}
+  });
+
+  // Include machine details in response
+  const jobWithMachine = await ProductionJob.findByPk(newJob.id, {
+    include: [{
+      model: Machine,
+      as: 'machine'
+    }]
   });
 
   res.status(201).json({
     success: true,
     message: 'Production job created successfully',
-    data: newJob
+    data: jobWithMachine
+  });
+});
+
+// ✅ Create detailed production job
+const createDetailedProductionJob = asyncHandler(async (req, res) => {
+  const jobData = req.body;
+  
+  // Generate unique job ID
+  const jobId = await ProductionJob.generateNextJobId();
+
+  const newJob = await ProductionJob.create({
+    ...jobData,
+    jobId,
+    productType: jobData.productName || jobData.productType,
+    unit: jobData.unit || 'kg',
+    priority: jobData.priority || 'medium',
+    dueDate: jobData.dueDate ? new Date(jobData.dueDate) : null,
+    shiftAssignments: jobData.shiftAssignments || [],
+    processParameters: jobData.processParameters || {},
+    qualityControlData: {}
+  });
+
+  // Include machine details
+  const jobWithMachine = await ProductionJob.findByPk(newJob.id, {
+    include: [{
+      model: Machine,
+      as: 'machine'
+    }]
+  });
+
+  res.status(201).json({
+    success: true,
+    message: 'Detailed production job created successfully',
+    data: jobWithMachine
   });
 });
 
@@ -57,10 +99,12 @@ const getAllProductionJobs = asyncHandler(async (req, res) => {
     machineId, 
     workerId, 
     partyName, 
+    priority,
     startDate, 
     endDate,
+    search,
     page = 1,
-    limit = 50
+    limit = 20
   } = req.query;
 
   const whereClause = {};
@@ -68,7 +112,16 @@ const getAllProductionJobs = asyncHandler(async (req, res) => {
   if (status) whereClause.status = status;
   if (machineId) whereClause.machineId = machineId;
   if (workerId) whereClause.workerId = workerId;
+  if (priority) whereClause.priority = priority;
   if (partyName) whereClause.partyName = { [Op.iLike]: `%${partyName}%` };
+  
+  if (search) {
+    whereClause[Op.or] = [
+      { jobId: { [Op.iLike]: `%${search}%` } },
+      { productType: { [Op.iLike]: `%${search}%` } },
+      { partyName: { [Op.iLike]: `%${search}%` } }
+    ];
+  }
   
   if (startDate || endDate) {
     whereClause.createdAt = {};
@@ -78,35 +131,47 @@ const getAllProductionJobs = asyncHandler(async (req, res) => {
 
   const offset = (page - 1) * limit;
 
-  const { rows: jobs, count: totalJobs } = await ProductionJob.findAndCountAll({
+  const { rows: data, count: total } = await ProductionJob.findAndCountAll({
     where: whereClause,
+    include: [{
+      model: Machine,
+      as: 'machine'
+    }],
     order: [['createdAt', 'DESC']],
     limit: parseInt(limit),
     offset: parseInt(offset)
   });
 
   res.status(200).json({
-    jobs,
-    pagination: {
-      currentPage: parseInt(page),
-      totalPages: Math.ceil(totalJobs / limit),
-      totalJobs,
-      hasNext: page * limit < totalJobs,
-      hasPrev: page > 1
+    success: true,
+    data: {
+      data,
+      total,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      totalPages: Math.ceil(total / limit)
     }
   });
 });
 
 // ✅ Get production job by ID
 const getProductionJobById = asyncHandler(async (req, res) => {
-  const job = await ProductionJob.findByPk(req.params.id);
+  const job = await ProductionJob.findByPk(req.params.id, {
+    include: [{
+      model: Machine,
+      as: 'machine'
+    }]
+  });
   
   if (!job) {
     res.status(404);
     throw new Error("Production job not found");
   }
   
-  res.status(200).json(job);
+  res.status(200).json({
+    success: true,
+    data: job
+  });
 });
 
 // ✅ Update production job
@@ -119,11 +184,11 @@ const updateProductionJob = asyncHandler(async (req, res) => {
   }
 
   const allowedUpdates = [
-    'productType', 'quantity', 'unit', 'machineId', 'workerName', 'workerId',
-    'status', 'priority', 'scheduledStartDate', 'actualStartDate',
-    'expectedCompletionDate', 'actualCompletionDate', 'partyName',
-    'yarnType', 'shade', 'count', 'qualityGrade', 'defectPercentage',
-    'productionNotes', 'qualityNotes'
+    'productType', 'quantity', 'unit', 'machineId', 'workerId',
+    'status', 'priority', 'startDate', 'endDate', 'dueDate',
+    'estimatedHours', 'actualHours', 'partyName', 'dyeingOrderId',
+    'notes', 'theoreticalEfficiency', 'qualityTargets', 
+    'shiftAssignments', 'processParameters', 'qualityControlData'
   ];
 
   allowedUpdates.forEach(field => {
@@ -133,12 +198,24 @@ const updateProductionJob = asyncHandler(async (req, res) => {
   });
 
   await job.save();
-  res.status(200).json(job);
+  
+  // Return with machine details
+  const updatedJob = await ProductionJob.findByPk(job.id, {
+    include: [{
+      model: Machine,
+      as: 'machine'
+    }]
+  });
+  
+  res.status(200).json({
+    success: true,
+    data: updatedJob
+  });
 });
 
-// ✅ Update job status
+// ✅ Update job status with additional actions
 const updateJobStatus = asyncHandler(async (req, res) => {
-  const { status, actualStartDate, actualCompletionDate, qualityGrade, qualityNotes } = req.body;
+  const { status, actualHours, finalUtilityReadings, qualityControlData, notes } = req.body;
   
   const job = await ProductionJob.findByPk(req.params.id);
   
@@ -149,19 +226,121 @@ const updateJobStatus = asyncHandler(async (req, res) => {
 
   job.status = status;
   
-  // Auto-set dates based on status
-  if (status === 'In Progress' && !job.actualStartDate) {
-    job.actualStartDate = actualStartDate || new Date();
+  // Auto-set dates and additional data based on status
+  if (status === 'in_progress' && !job.startDate) {
+    job.startDate = new Date();
   }
   
-  if (status === 'Completed') {
-    job.actualCompletionDate = actualCompletionDate || new Date();
-    if (qualityGrade) job.qualityGrade = qualityGrade;
-    if (qualityNotes) job.qualityNotes = qualityNotes;
+  if (status === 'completed') {
+    job.endDate = new Date();
+    if (actualHours) job.actualHours = actualHours;
+    if (finalUtilityReadings) job.finalUtilityReadings = finalUtilityReadings;
+    if (qualityControlData) job.qualityControlData = qualityControlData;
+    if (notes) job.notes = notes;
+    
+    // Calculate overall efficiency if hourly data exists
+    if (job.hourlyEfficiency && job.hourlyEfficiency.length > 0) {
+      const totalEfficiency = job.hourlyEfficiency.reduce((sum, hour) => sum + hour.efficiencyPercent, 0);
+      job.overallEfficiency = totalEfficiency / job.hourlyEfficiency.length;
+      
+      const totalDowntime = job.hourlyEfficiency.reduce((sum, hour) => sum + (hour.downtimeMinutes || 0), 0);
+      job.totalDowntime = totalDowntime;
+    }
   }
 
   await job.save();
-  res.status(200).json(job);
+  
+  const updatedJob = await ProductionJob.findByPk(job.id, {
+    include: [{
+      model: Machine,
+      as: 'machine'
+    }]
+  });
+  
+  res.status(200).json({
+    success: true,
+    data: updatedJob
+  });
+});
+
+// ✅ Start production job
+const startProductionJob = asyncHandler(async (req, res) => {
+  const job = await ProductionJob.findByPk(req.params.id);
+  
+  if (!job) {
+    res.status(404);
+    throw new Error("Production job not found");
+  }
+
+  if (job.status !== 'pending') {
+    res.status(400);
+    throw new Error("Job can only be started from pending status");
+  }
+
+  job.status = 'in_progress';
+  job.startDate = new Date();
+  
+  await job.save();
+  
+  const updatedJob = await ProductionJob.findByPk(job.id, {
+    include: [{
+      model: Machine,
+      as: 'machine'
+    }]
+  });
+  
+  res.status(200).json({
+    success: true,
+    data: updatedJob
+  });
+});
+
+// ✅ Complete production job
+const completeProductionJob = asyncHandler(async (req, res) => {
+  const { actualHours, finalUtilityReadings, qualityControlData, notes } = req.body;
+  
+  const job = await ProductionJob.findByPk(req.params.id);
+  
+  if (!job) {
+    res.status(404);
+    throw new Error("Production job not found");
+  }
+
+  if (job.status !== 'in_progress') {
+    res.status(400);
+    throw new Error("Job can only be completed from in-progress status");
+  }
+
+  job.status = 'completed';
+  job.endDate = new Date();
+  
+  if (actualHours) job.actualHours = actualHours;
+  if (finalUtilityReadings) job.finalUtilityReadings = finalUtilityReadings;
+  if (qualityControlData) job.qualityControlData = qualityControlData;
+  if (notes) job.notes = (job.notes || '') + (notes ? '\n' + notes : '');
+  
+  // Calculate metrics if hourly data exists
+  if (job.hourlyEfficiency && job.hourlyEfficiency.length > 0) {
+    const totalEfficiency = job.hourlyEfficiency.reduce((sum, hour) => sum + hour.efficiencyPercent, 0);
+    job.overallEfficiency = totalEfficiency / job.hourlyEfficiency.length;
+    
+    const totalDowntime = job.hourlyEfficiency.reduce((sum, hour) => sum + (hour.downtimeMinutes || 0), 0);
+    job.totalDowntime = totalDowntime;
+  }
+
+  await job.save();
+  
+  const updatedJob = await ProductionJob.findByPk(job.id, {
+    include: [{
+      model: Machine,
+      as: 'machine'
+    }]
+  });
+  
+  res.status(200).json({
+    success: true,
+    data: updatedJob
+  });
 });
 
 // ✅ Delete production job
@@ -174,168 +353,311 @@ const deleteProductionJob = asyncHandler(async (req, res) => {
   }
 
   await job.destroy();
-  res.status(200).json({ message: "Production job deleted successfully" });
+  res.status(200).json({ 
+    success: true,
+    message: "Production job deleted successfully" 
+  });
 });
 
-// ✅ Get production dashboard summary
-const getProductionSummary = asyncHandler(async (req, res) => {
-  const { startDate, endDate } = req.query;
+// ✅ Add hourly efficiency entry
+const addHourlyEfficiency = asyncHandler(async (req, res) => {
+  const { hour, actualProduction, targetProduction, downtimeMinutes, qualityIssues, notes } = req.body;
+  
+  const job = await ProductionJob.findByPk(req.params.id);
+  
+  if (!job) {
+    res.status(404);
+    throw new Error("Production job not found");
+  }
+
+  const efficiencyPercent = targetProduction > 0 ? (actualProduction / targetProduction) * 100 : 0;
+  
+  const newEfficiencyEntry = {
+    hour,
+    actualProduction,
+    targetProduction,
+    efficiencyPercent: Math.round(efficiencyPercent * 100) / 100,
+    downtimeMinutes: downtimeMinutes || 0,
+    qualityIssues: qualityIssues || 0,
+    notes: notes || '',
+    timestamp: new Date()
+  };
+
+  // Initialize array if null
+  if (!job.hourlyEfficiency) {
+    job.hourlyEfficiency = [];
+  }
+
+  // Find existing entry for this hour or add new one
+  const existingIndex = job.hourlyEfficiency.findIndex(entry => entry.hour === hour);
+  if (existingIndex >= 0) {
+    job.hourlyEfficiency[existingIndex] = newEfficiencyEntry;
+  } else {
+    job.hourlyEfficiency.push(newEfficiencyEntry);
+  }
+
+  // Sort by hour
+  job.hourlyEfficiency.sort((a, b) => a.hour - b.hour);
+
+  await job.save();
+  
+  res.status(200).json({
+    success: true,
+    data: job
+  });
+});
+
+// ✅ Add utility reading
+const addUtilityReading = asyncHandler(async (req, res) => {
+  const readingData = req.body;
+  
+  const job = await ProductionJob.findByPk(req.params.id);
+  
+  if (!job) {
+    res.status(404);
+    throw new Error("Production job not found");
+  }
+
+  const newReading = {
+    timestamp: readingData.timestamp || new Date(),
+    ...readingData
+  };
+
+  // Initialize array if null
+  if (!job.hourlyUtilityReadings) {
+    job.hourlyUtilityReadings = [];
+  }
+
+  job.hourlyUtilityReadings.push(newReading);
+
+  await job.save();
+  
+  res.status(200).json({
+    success: true,
+    data: job
+  });
+});
+
+// ✅ Get production job statistics
+const getProductionStats = asyncHandler(async (req, res) => {
+  const { startDate, endDate, machineId, status } = req.query;
   
   const whereClause = {};
+  
   if (startDate || endDate) {
     whereClause.createdAt = {};
     if (startDate) whereClause.createdAt[Op.gte] = new Date(startDate);
     if (endDate) whereClause.createdAt[Op.lte] = new Date(endDate);
   }
+  
+  if (machineId) whereClause.machineId = machineId;
+  if (status) whereClause.status = status;
 
-  // Get counts by status
-  const statusCounts = await ProductionJob.findAll({
-    where: whereClause,
-    attributes: [
-      'status',
-      [sequelize.fn('COUNT', sequelize.col('id')), 'count']
-    ],
-    group: ['status'],
-    raw: true
+  // Get basic counts
+  const totalJobs = await ProductionJob.count({ where: whereClause });
+  const activeJobs = await ProductionJob.count({ 
+    where: { ...whereClause, status: 'in_progress' } 
+  });
+  const completedJobs = await ProductionJob.count({ 
+    where: { ...whereClause, status: 'completed' } 
+  });
+  const pendingJobs = await ProductionJob.count({ 
+    where: { ...whereClause, status: 'pending' } 
   });
 
-  // Get machine utilization
-  const machineUtilization = await ProductionJob.findAll({
-    where: {
-      ...whereClause,
-      machineId: { [Op.not]: null },
-      status: { [Op.in]: ['In Progress', 'Completed'] }
+  // Calculate average efficiency
+  const completedWithEfficiency = await ProductionJob.findAll({
+    where: { 
+      ...whereClause, 
+      status: 'completed',
+      overallEfficiency: { [Op.not]: null }
     },
-    attributes: [
-      'machineId',
-      [sequelize.fn('COUNT', sequelize.col('id')), 'jobCount'],
-      [sequelize.fn('SUM', sequelize.col('quantity')), 'totalQuantity']
-    ],
-    group: ['machineId'],
-    raw: true
+    attributes: ['overallEfficiency']
   });
 
-  // Get worker productivity
-  const workerProductivity = await ProductionJob.findAll({
-    where: {
+  const averageEfficiency = completedWithEfficiency.length > 0
+    ? completedWithEfficiency.reduce((sum, job) => sum + parseFloat(job.overallEfficiency), 0) / completedWithEfficiency.length
+    : 0;
+
+  // Calculate total downtime
+  const jobsWithDowntime = await ProductionJob.findAll({
+    where: { 
       ...whereClause,
-      workerId: { [Op.not]: null },
-      status: 'Completed'
+      totalDowntime: { [Op.not]: null }
     },
-    attributes: [
-      'workerId',
-      'workerName',
-      [sequelize.fn('COUNT', sequelize.col('id')), 'completedJobs'],
-      [sequelize.fn('SUM', sequelize.col('quantity')), 'totalProduced']
-    ],
-    group: ['workerId', 'workerName'],
-    raw: true
+    attributes: ['totalDowntime']
   });
 
-  // Get overdue jobs
-  const today = new Date();
-  const overdueJobs = await ProductionJob.findAll({
-    where: {
-      ...whereClause,
-      status: { [Op.notIn]: ['Completed'] },
-      expectedCompletionDate: { [Op.lt]: today }
-    },
-    order: [['expectedCompletionDate', 'ASC']],
-    limit: 10
-  });
+  const totalDowntime = jobsWithDowntime.reduce((sum, job) => sum + parseInt(job.totalDowntime), 0);
 
   res.status(200).json({
-    statusCounts,
-    machineUtilization,
-    workerProductivity,
-    overdueJobs
+    success: true,
+    data: {
+      totalJobs,
+      activeJobs,
+      completedJobs,
+      pendingJobs,
+      averageEfficiency: Math.round(averageEfficiency * 100) / 100,
+      totalDowntime
+    }
   });
-});
-
-// ✅ Get production jobs by party
-const getJobsByParty = asyncHandler(async (req, res) => {
-  const { partyName } = req.params;
-  
-  const jobs = await ProductionJob.findAll({
-    where: {
-      partyName: { [Op.iLike]: `%${partyName}%` }
-    },
-    order: [['createdAt', 'DESC']]
-  });
-
-  res.status(200).json(jobs);
-});
-
-// ✅ Create job from dyeing order
-const createJobFromDyeingOrder = asyncHandler(async (req, res) => {
-  const { dyeingOrderId } = req.params;
-  const { productType, machineId, workerName, workerId, scheduledStartDate, expectedCompletionDate } = req.body;
-  
-  const dyeingOrder = await DyeingRecord.findByPk(dyeingOrderId);
-  
-  if (!dyeingOrder) {
-    res.status(404);
-    throw new Error("Dyeing order not found");
-  }
-
-  // Generate unique job ID
-  const jobId = await ProductionJob.generateNextJobId();
-
-  const newJob = await ProductionJob.create({
-    jobId,
-    productType: productType || `${dyeingOrder.yarnType} Production`,
-    quantity: dyeingOrder.quantity,
-    unit: 'kg',
-    machineId,
-    workerName,
-    workerId,
-    scheduledStartDate,
-    expectedCompletionDate,
-    partyName: dyeingOrder.partyName,
-    dyeingOrderId: dyeingOrder.id,
-    yarnType: dyeingOrder.yarnType,
-    shade: dyeingOrder.shade,
-    count: dyeingOrder.count,
-    createdBy: req.user?.id || 1,
-    createdByName: req.user?.name || 'System User'
-  });
-  res.status(201).json(newJob);
 });
 
 // ✅ Get all machines
 const getMachines = asyncHandler(async (req, res) => {
+  const { type, status } = req.query;
+  
+  const whereClause = {};
+  if (type) whereClause.type = type;
+  if (status) whereClause.status = status;
+
   const machines = await Machine.findAll({
-    order: [['machineName', 'ASC']]
+    where: whereClause,
+    order: [['name', 'ASC']]
   });
-  res.status(200).json(machines);
+  
+  res.status(200).json({
+    success: true,
+    data: machines
+  });
+});
+
+// ✅ Get machine by ID
+const getMachineById = asyncHandler(async (req, res) => {
+  const machine = await Machine.findByPk(req.params.id);
+  
+  if (!machine) {
+    res.status(404);
+    throw new Error("Machine not found");
+  }
+  
+  res.status(200).json({
+    success: true,
+    data: machine
+  });
 });
 
 // ✅ Create a new machine
 const createMachine = asyncHandler(async (req, res) => {
-  const { name, type, status, capacity, location, operatorId } = req.body;
+  const { machineId, name, type, status, capacity, location, specifications } = req.body;
   
   const newMachine = await Machine.create({
-    machineName: name,
-    machineType: type,
-    status: status || 'Active',
+    machineId,
+    name,
+    type: type || 'other',
+    status: status || 'active',
     capacity,
     location,
-    operatorId
+    specifications: specifications || {}
   });
   
-  res.status(201).json(newMachine);
+  res.status(201).json({
+    success: true,
+    data: newMachine
+  });
+});
+
+// ✅ Update machine
+const updateMachine = asyncHandler(async (req, res) => {
+  const machine = await Machine.findByPk(req.params.id);
+  
+  if (!machine) {
+    res.status(404);
+    throw new Error("Machine not found");
+  }
+
+  const allowedUpdates = ['machineId', 'name', 'type', 'status', 'capacity', 'location', 'specifications'];
+  
+  allowedUpdates.forEach(field => {
+    if (req.body[field] !== undefined) {
+      machine[field] = req.body[field];
+    }
+  });
+
+  await machine.save();
+  
+  res.status(200).json({
+    success: true,
+    data: machine
+  });
+});
+
+// ✅ Delete machine
+const deleteMachine = asyncHandler(async (req, res) => {
+  const machine = await Machine.findByPk(req.params.id);
+  
+  if (!machine) {
+    res.status(404);
+    throw new Error("Machine not found");
+  }
+
+  // Check if machine has active jobs
+  const activeJobs = await ProductionJob.count({
+    where: {
+      machineId: req.params.id,
+      status: ['pending', 'in_progress']
+    }
+  });
+
+  if (activeJobs > 0) {
+    res.status(400);
+    throw new Error("Cannot delete machine with active production jobs");
+  }
+
+  await machine.destroy();
+  
+  res.status(200).json({
+    success: true,
+    message: "Machine deleted successfully"
+  });
+});
+
+// ✅ Get machines by type
+const getMachinesByType = asyncHandler(async (req, res) => {
+  const { type } = req.params;
+  
+  const machines = await Machine.findAll({
+    where: { type },
+    order: [['name', 'ASC']]
+  });
+  
+  res.status(200).json({
+    success: true,
+    data: machines
+  });
+});
+
+// ✅ Get active machines
+const getActiveMachines = asyncHandler(async (req, res) => {
+  const machines = await Machine.findAll({
+    where: { status: 'active' },
+    order: [['name', 'ASC']]
+  });
+  
+  res.status(200).json({
+    success: true,
+    data: machines
+  });
 });
 
 module.exports = {
   createProductionJob,
+  createDetailedProductionJob,
   getAllProductionJobs,
   getProductionJobById,
   updateProductionJob,
   updateJobStatus,
+  startProductionJob,
+  completeProductionJob,
   deleteProductionJob,
-  getProductionSummary,
-  getJobsByParty,
-  createJobFromDyeingOrder,
+  addHourlyEfficiency,
+  addUtilityReading,
+  getProductionStats,
   getMachines,
-  createMachine
+  getMachineById,
+  createMachine,
+  updateMachine,
+  deleteMachine,
+  getMachinesByType,
+  getActiveMachines
 };

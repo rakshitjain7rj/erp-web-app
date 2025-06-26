@@ -1,232 +1,259 @@
-const { DataTypes } = require('sequelize');
+const { DataTypes, Model } = require('sequelize');
 const { sequelize } = require('../config/postgres');
 
-const ProductionJob = sequelize.define('ProductionJob', {
+class ProductionJob extends Model {
+  static associate(models) {
+    // A production job belongs to a machine
+    ProductionJob.belongsTo(models.Machine, {
+      foreignKey: 'machineId',
+      as: 'machine'
+    });
+  }
+
+  // Generate next job ID
+  static async generateNextJobId() {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const prefix = `PJ${year}${month}`;
+    
+    const lastJob = await ProductionJob.findOne({
+      where: {
+        jobId: {
+          [sequelize.Sequelize.Op.like]: `${prefix}%`
+        }
+      },
+      order: [['jobId', 'DESC']]
+    });
+
+    let nextNumber = 1;
+    if (lastJob) {
+      const lastNumber = parseInt(lastJob.jobId.slice(-4));
+      nextNumber = lastNumber + 1;
+    }
+
+    return `${prefix}${String(nextNumber).padStart(4, '0')}`;
+  }
+}
+
+ProductionJob.init({
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
   jobId: {
-    type: DataTypes.STRING,
+    type: DataTypes.STRING(50),
     allowNull: false,
     unique: true,
-    // Auto-generated format: JB-001, JB-002, etc.
-  },
-  
-  // Product Information
-  productType: {
-    type: DataTypes.STRING,
-    allowNull: false,
     validate: {
-      notEmpty: {
-        msg: 'Product type is required'
-      }
+      notEmpty: true
     }
   },
-  
-  // Production Details
+  productType: {
+    type: DataTypes.STRING(100),
+    allowNull: false,
+    validate: {
+      notEmpty: true,
+      len: [1, 100]
+    }
+  },
   quantity: {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: false,
     validate: {
-      isDecimal: {
-        msg: 'Quantity must be a valid number'
-      },
-      min: {
-        args: [0.01],
-        msg: 'Quantity must be greater than 0'
-      }
+      min: 0.01
     }
   },
-  
   unit: {
-    type: DataTypes.STRING,
+    type: DataTypes.STRING(20),
     allowNull: false,
-    defaultValue: 'kg'
+    defaultValue: 'kg',
+    validate: {
+      notEmpty: true
+    }
   },
-  
-  // Assignment Information
   machineId: {
-    type: DataTypes.STRING,
-    allowNull: true,
-    // References machine master (to be created)
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'machines',
+      key: 'id'
+    }
   },
-  
-  workerName: {
-    type: DataTypes.STRING,
-    allowNull: true,
-  },
-  
   workerId: {
     type: DataTypes.INTEGER,
     allowNull: true,
-    // References User model for workers
+    references: {
+      model: 'users',
+      key: 'id'
+    }
   },
-  
-  // Status Management
   status: {
-    type: DataTypes.ENUM('Pending', 'In Progress', 'Completed', 'On Hold', 'Quality Check'),
+    type: DataTypes.ENUM('pending', 'in_progress', 'completed', 'cancelled'),
     allowNull: false,
-    defaultValue: 'Pending'
+    defaultValue: 'pending'
   },
-  
   priority: {
-    type: DataTypes.ENUM('Low', 'Medium', 'High', 'Urgent'),
+    type: DataTypes.ENUM('low', 'medium', 'high', 'urgent'),
     allowNull: false,
-    defaultValue: 'Medium'
+    defaultValue: 'medium'
   },
-  
-  // Date Management
-  scheduledStartDate: {
+  startDate: {
     type: DataTypes.DATE,
-    allowNull: true,
+    allowNull: true
   },
-  
-  actualStartDate: {
+  endDate: {
     type: DataTypes.DATE,
-    allowNull: true,
+    allowNull: true
   },
-  
-  expectedCompletionDate: {
+  dueDate: {
     type: DataTypes.DATE,
-    allowNull: true,
+    allowNull: true
   },
-  
-  actualCompletionDate: {
-    type: DataTypes.DATE,
+  estimatedHours: {
+    type: DataTypes.DECIMAL(8, 2),
     allowNull: true,
+    validate: {
+      min: 0
+    }
   },
-  
-  // Integration with existing systems
+  actualHours: {
+    type: DataTypes.DECIMAL(8, 2),
+    allowNull: true,
+    validate: {
+      min: 0
+    }
+  },
   partyName: {
-    type: DataTypes.STRING,
-    allowNull: true,
-    // Links to Party Master
+    type: DataTypes.STRING(100),
+    allowNull: true
   },
-  
   dyeingOrderId: {
     type: DataTypes.INTEGER,
-    allowNull: true,
-    // Links to DyeingRecord if this job is related to dyeing
+    allowNull: true
   },
-  
-  // Additional Production Details
-  yarnType: {
-    type: DataTypes.STRING,
-    allowNull: true,
-  },
-  
-  shade: {
-    type: DataTypes.STRING,
-    allowNull: true,
-  },
-  
-  count: {
-    type: DataTypes.STRING,
-    allowNull: true,
-  },
-  
-  // Quality and Tracking
-  qualityGrade: {
-    type: DataTypes.ENUM('A', 'B', 'C', 'Rejected'),
-    allowNull: true,
-  },
-  
-  defectPercentage: {
-    type: DataTypes.DECIMAL(5, 2),
-    allowNull: true,
-    defaultValue: 0.00
-  },
-  
-  // Notes and Documentation
-  productionNotes: {
+  notes: {
     type: DataTypes.TEXT,
-    allowNull: true,
+    allowNull: true
   },
   
-  qualityNotes: {
-    type: DataTypes.TEXT,
-    allowNull: true,
-  },
-  
-  // Created by information
-  createdBy: {
-    type: DataTypes.INTEGER,
-    allowNull: true,
-    defaultValue: 1,
-  },
-    createdByName: {
-    type: DataTypes.STRING,
-    allowNull: true,
-    defaultValue: 'System User',
-  },
-  
-  // Extended fields for comprehensive job card system
+  // Detailed Job Card Fields
   theoreticalEfficiency: {
-    type: DataTypes.TEXT, // JSON string containing theoretical parameters
+    type: DataTypes.JSONB,
     allowNull: true,
-    comment: 'JSON data: numberOfThreads, yarnWeight10Min, idealPerformance12Hours, benchmarkEfficiency, machineSpeed'
+    defaultValue: null,
+    comment: 'Theoretical efficiency targets and benchmarks'
   },
-  
   qualityTargets: {
-    type: DataTypes.TEXT, // JSON string containing quality parameters
+    type: DataTypes.JSONB,
     allowNull: true,
-    comment: 'JSON data: targetYarnCount, minStrength, maxUnevenness, maxHairiness'
+    defaultValue: null,
+    comment: 'Quality targets and specifications'
   },
-  
   shiftAssignments: {
-    type: DataTypes.TEXT, // JSON string containing shift data
+    type: DataTypes.JSONB,
     allowNull: true,
-    comment: 'JSON data: Array of shift assignments with supervisors and operators'
+    defaultValue: [],
+    comment: 'Shift assignments and operator details'
   },
-  
   initialUtilityReadings: {
-    type: DataTypes.TEXT, // JSON string containing initial utility readings
+    type: DataTypes.JSONB,
     allowNull: true,
-    comment: 'JSON data: Initial utility readings at job start'
+    defaultValue: null,
+    comment: 'Initial utility readings at job start'
   },
-  
+  finalUtilityReadings: {
+    type: DataTypes.JSONB,
+    allowNull: true,
+    defaultValue: null,
+    comment: 'Final utility readings at job completion'
+  },
+  hourlyUtilityReadings: {
+    type: DataTypes.JSONB,
+    allowNull: true,
+    defaultValue: [],
+    comment: 'Hourly utility readings during production'
+  },
   hourlyEfficiency: {
-    type: DataTypes.TEXT, // JSON string containing hourly efficiency data
+    type: DataTypes.JSONB,
     allowNull: true,
-    comment: 'JSON data: Hourly efficiency tracking data'
+    defaultValue: [],
+    comment: 'Hourly efficiency tracking data'
   },
-  
-  dailyUtilityReadings: {
-    type: DataTypes.TEXT, // JSON string containing daily utility readings
-    allowNull: true,
-    comment: 'JSON data: Daily utility readings at 8AM and 8PM'
-  },
-  
-  actualEfficiency: {
+  overallEfficiency: {
     type: DataTypes.DECIMAL(5, 2),
     allowNull: true,
-    comment: 'Calculated actual efficiency percentage'
+    validate: {
+      min: 0,
+      max: 100
+    },
+    comment: 'Overall efficiency percentage'
   },
-  
-  efficiencyVariance: {
-    type: DataTypes.DECIMAL(5, 2),
-    allowNull: true,
-    comment: 'Difference from benchmark efficiency'
-  },
-  
   totalDowntime: {
     type: DataTypes.INTEGER,
     allowNull: true,
+    defaultValue: 0,
+    validate: {
+      min: 0
+    },
     comment: 'Total downtime in minutes'
   },
-  
-  qualityActual: {
-    type: DataTypes.TEXT, // JSON string containing actual quality measurements
+  qualityScore: {
+    type: DataTypes.DECIMAL(5, 2),
     allowNull: true,
-    comment: 'JSON data: Actual quality measurements vs targets'
+    validate: {
+      min: 0,
+      max: 100
+    },
+    comment: 'Quality score percentage'
+  },
+  costPerUnit: {
+    type: DataTypes.DECIMAL(10, 4),
+    allowNull: true,
+    validate: {
+      min: 0
+    },
+    comment: 'Cost per unit produced'
+  },
+  processParameters: {
+    type: DataTypes.JSONB,
+    allowNull: true,
+    defaultValue: {},
+    comment: 'Process parameters and settings'
+  },
+  qualityControlData: {
+    type: DataTypes.JSONB,
+    allowNull: true,
+    defaultValue: {},
+    comment: 'Quality control test results and data'
   },
   
+  createdAt: {
+    type: DataTypes.DATE,
+    allowNull: false,
+    defaultValue: DataTypes.NOW
+  },
+  updatedAt: {
+    type: DataTypes.DATE,
+    allowNull: false,
+    defaultValue: DataTypes.NOW
+  }
 }, {
-  tableName: 'ProductionJobs',
+  sequelize,
+  modelName: 'ProductionJob',
+  tableName: 'production_jobs',
   timestamps: true,
   indexes: [
     {
+      unique: true,
       fields: ['jobId']
     },
     {
       fields: ['status']
+    },
+    {
+      fields: ['priority']
     },
     {
       fields: ['machineId']
@@ -235,44 +262,12 @@ const ProductionJob = sequelize.define('ProductionJob', {
       fields: ['workerId']
     },
     {
-      fields: ['partyName']
-    },
-    {
-      fields: ['dyeingOrderId']
+      fields: ['dueDate']
     },
     {
       fields: ['createdAt']
     }
   ]
 });
-
-// Instance methods
-ProductionJob.prototype.isOverdue = function () {
-  if (this.status === 'Completed' || !this.expectedCompletionDate) return false;
-  return new Date() > new Date(this.expectedCompletionDate);
-};
-
-ProductionJob.prototype.getDurationDays = function () {
-  if (!this.actualStartDate) return null;
-  const endDate = this.actualCompletionDate || new Date();
-  const startDate = new Date(this.actualStartDate);
-  return Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
-};
-
-// Class method to generate next job ID
-ProductionJob.generateNextJobId = async function() {
-  const lastJob = await ProductionJob.findOne({
-    order: [['createdAt', 'DESC']],
-    attributes: ['jobId']
-  });
-  
-  if (!lastJob) {
-    return 'JB-001';
-  }
-  
-  const lastNumber = parseInt(lastJob.jobId.split('-')[1]);
-  const nextNumber = lastNumber + 1;
-  return `JB-${nextNumber.toString().padStart(3, '0')}`;
-};
 
 module.exports = ProductionJob;

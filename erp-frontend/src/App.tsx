@@ -83,7 +83,7 @@ const App = () => {
           <Route
             path="/dashboard"
             element={
-              <PrivateRoute roles={["admin", "manager", "storekeeper"]}>
+              <PrivateRoute roles={["admin", "manager", "storekeeper", "operator"]}>
                 <Dashboard />
               </PrivateRoute>
             }
@@ -153,7 +153,7 @@ const App = () => {
           <Route
             path="/production-jobs"
             element={
-              <PrivateRoute roles={["admin", "manager", "storekeeper"]}>
+              <PrivateRoute roles={["admin", "manager", "operator"]}>
                 <ProductionJobs />
               </PrivateRoute>
             }

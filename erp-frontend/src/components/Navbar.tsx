@@ -35,8 +35,9 @@ const Navbar = () => {
 
   const getRoleOptions = () => {
     const originalRole = user?.originalRole || user?.role;
-    if (originalRole === "admin") return ["admin", "manager", "storekeeper"];
-    if (originalRole === "manager") return ["manager", "storekeeper"];
+    if (originalRole === "admin") return ["admin", "manager", "storekeeper", "operator"];
+    if (originalRole === "manager") return ["manager", "storekeeper", "operator"];
+    if (originalRole === "operator") return ["operator"];
     return [];
   };
 
@@ -73,10 +74,10 @@ const Navbar = () => {
       links.push({ to: "/dyeing-orders", label: "Dyeing Orders" });
     if (["admin", "manager"].includes(role))
       links.push({ to: "/dyeing-summary", label: "Dyeing Summary" });
-    if (["admin", "manager", "storekeeper"].includes(role))
-      links.push({ to: "/production-jobs", label: "Production Jobs" });
     if (["admin", "manager"].includes(role))
       links.push({ to: "/party-master", label: "Party Master" });
+    if (["admin", "manager", "operator"].includes(role))
+      links.push({ to: "/production-jobs", label: "Production Jobs" });
     if (role === "admin") {
       links.push({ to: "/users", label: "Users" });
       links.push({ to: "/settings", label: "", iconOnly: true }); // Show as icon

@@ -1,91 +1,90 @@
-const { DataTypes } = require('sequelize');
+const { DataTypes, Model } = require('sequelize');
 const { sequelize } = require('../config/postgres');
 
-const Machine = sequelize.define('Machine', {
+class Machine extends Model {
+  static associate(models) {
+    // A machine can have many production jobs
+    Machine.hasMany(models.ProductionJob, {
+      foreignKey: 'machineId',
+      as: 'productionJobs'
+    });
+  }
+}
+
+Machine.init({
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
   machineId: {
-    type: DataTypes.STRING,
+    type: DataTypes.STRING(50),
     allowNull: false,
     unique: true,
-    // Format: M-01, M-02, etc.
-  },
-  
-  machineName: {
-    type: DataTypes.STRING,
-    allowNull: false,
     validate: {
-      notEmpty: {
-        msg: 'Machine name is required'
-      }
+      notEmpty: true,
+      len: [1, 50]
     }
   },
-  
-  machineType: {
-    type: DataTypes.STRING,
+  name: {
+    type: DataTypes.STRING(100),
     allowNull: false,
-    // e.g., 'Spinning', 'Weaving', 'Dyeing', 'Quality Control'
+    validate: {
+      notEmpty: true,
+      len: [1, 100]
+    }
   },
-  
+  type: {
+    type: DataTypes.ENUM('dyeing', 'spinning', 'weaving', 'finishing', 'other'),
+    allowNull: false,
+    defaultValue: 'other'
+  },
+  location: {
+    type: DataTypes.STRING(100),
+    allowNull: true
+  },
   capacity: {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: true,
-    // Capacity per hour/day in kg or units
+    validate: {
+      min: 0
+    }
   },
-  
-  capacityUnit: {
-    type: DataTypes.STRING,
-    allowNull: true,
-    defaultValue: 'kg/hour'
-  },
-  
   status: {
-    type: DataTypes.ENUM('Active', 'Maintenance', 'Breakdown', 'Idle'),
+    type: DataTypes.ENUM('active', 'maintenance', 'inactive'),
     allowNull: false,
-    defaultValue: 'Active'
+    defaultValue: 'active'
   },
-  
-  location: {
-    type: DataTypes.STRING,
-    allowNull: true,
-  },
-  
-  installationDate: {
-    type: DataTypes.DATE,
-    allowNull: true,
-  },
-  
-  lastMaintenanceDate: {
-    type: DataTypes.DATE,
-    allowNull: true,
-  },
-  
-  nextMaintenanceDate: {
-    type: DataTypes.DATE,
-    allowNull: true,
-  },
-  
   specifications: {
-    type: DataTypes.JSON,
+    type: DataTypes.JSONB,
     allowNull: true,
-    // Store technical specifications as JSON
+    defaultValue: {}
   },
-  
-  notes: {
-    type: DataTypes.TEXT,
-    allowNull: true,
+  createdAt: {
+    type: DataTypes.DATE,
+    allowNull: false,
+    defaultValue: DataTypes.NOW
   },
-  
+  updatedAt: {
+    type: DataTypes.DATE,
+    allowNull: false,
+    defaultValue: DataTypes.NOW
+  }
 }, {
-  tableName: 'Machines',
+  sequelize,
+  modelName: 'Machine',
+  tableName: 'machines',
   timestamps: true,
   indexes: [
     {
+      unique: true,
       fields: ['machineId']
     },
     {
-      fields: ['status']
+      fields: ['type']
     },
     {
-      fields: ['machineType']
+      fields: ['status']
     }
   ]
 });

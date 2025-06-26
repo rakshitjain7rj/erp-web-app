@@ -26,8 +26,8 @@ const DyeingSummary = () => {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "7days" | "month">("all");
 
-  const chartRef = useRef<HTMLDivElement | null>(null);
-  const tableRef = useRef<HTMLDivElement | null>(null);
+  const chartRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<HTMLDivElement>(null);
 
   const getDateRange = () => {
     const now = new Date();
@@ -45,13 +45,13 @@ const DyeingSummary = () => {
       const { startDate, endDate } = getDateRange();
       const raw = await getDyeingSummary(startDate, endDate);
       const transformed = raw
-        .filter((i: any) => i.sentDate && i.expectedArrival)
-        .map((i: any) => ({
-          id: String(i.id),
-          product: i.product || "Unknown",
-          sentDate: i.sentDate,
-          expectedArrival: i.expectedArrival,
-          status: i.status as any,
+        .filter((item: Record<string, unknown>) => item.sentDate && item.expectedArrival)
+        .map((item: Record<string, unknown>) => ({
+          id: String(item.id),
+          product: item.product || "Unknown",
+          sentDate: item.sentDate as string,
+          expectedArrival: item.expectedArrival as string,
+          status: item.status as "Pending" | "Arrived" | "Reprocessing",
         }));
       setOrders(transformed);
       toast.success("✅ Summary loaded", { id: toastId });
@@ -97,19 +97,6 @@ const DyeingSummary = () => {
     <div className="p-6">
       <h2 className="text-3xl font-bold text-blue-700 mb-4">🎨 Dyeing Summary</h2>
 
-      {/* Tabs */}
-      <div className="mb-4 flex gap-4">
-        {["chart", "party"].map(tabKey => (
-          <button
-            key={tabKey}
-            onClick={() => setTab(tabKey as any)}
-            className={`px-4 py-2 rounded font-medium ${tab === tabKey ? "bg-blue-600 text-white" : "bg-gray-200 dark:bg-gray-700"}`}
-          >
-            {tabKey === "chart" ? "📊 Chart & Orders" : "🧾 Party-wise Summary"}
-          </button>
-        ))}
-      </div>
-
       {/* Filter and Export */}
       <div className="flex flex-wrap gap-4 mb-6 items-center">
         <label className="font-medium">Filter by:</label>        <select
@@ -138,8 +125,8 @@ const DyeingSummary = () => {
           title="Export as PNG"
         >🖼 PNG</button>      </div>
 
-      {/* Chart Tab */}
-      {!loading && tab === "chart" && (
+      {/* Chart and Table */}
+      {!loading && (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             {[{ title: "Total", count: total, color: "bg-blue-100 text-blue-700" },
@@ -181,64 +168,7 @@ const DyeingSummary = () => {
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
-        </>
-      )}
-
-      {/* Party Tab */}
-      {!loading && tab === "party" && (
-        <>
-          <input
-            type="text"
-            placeholder="🔍 Search Party Name..."
-            value={partySearch}
-            onChange={(e) => {
-              setPartySearch(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="mb-4 px-3 py-2 border rounded bg-white dark:bg-gray-900 dark:text-white"
-          />
-
-          <div ref={tableRef} className="overflow-x-auto">
-            <table className="min-w-full border text-sm mb-4">
-              <thead className="bg-gray-200 dark:bg-gray-700 dark:text-white">
-                <tr>
-                  <th className="p-2 border">Party Name</th>
-                  <th className="p-2 border">Total Orders</th>
-                  <th className="p-2 border">Total Yarn</th>
-                  <th className="p-2 border">Pending</th>
-                  <th className="p-2 border">Reprocessing</th>
-                  <th className="p-2 border">Arrived</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedParties.map((p) => (
-                  <tr key={p.partyName} className="bg-white dark:bg-gray-900">
-                    <td className="p-2 border">{p.partyName}</td>
-                    <td className="p-2 border">{p.totalOrders}</td>
-                    <td className="p-2 border">{p.totalYarn}</td>
-                    <td className="p-2 border text-yellow-600">{p.pendingYarn}</td>
-                    <td className="p-2 border text-orange-600">{p.reprocessingYarn}</td>
-                    <td className="p-2 border text-green-600">{p.arrivedYarn}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination Controls */}
-          <div className="flex justify-center items-center gap-3 mt-2">
-            {Array.from({ length: totalPages }, (_, i) => (
-              <button
-                key={i + 1}
-                onClick={() => setCurrentPage(i + 1)}
-                className={`px-3 py-1 rounded ${currentPage === i + 1 ? "bg-blue-600 text-white" : "bg-gray-300 dark:bg-gray-700"}`}
-              >
-                {i + 1}
-              </button>
-            ))}
-          </div>
+            </table>          </div>
         </>
       )}
     </div>
