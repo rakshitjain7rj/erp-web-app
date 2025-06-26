@@ -105,12 +105,21 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
   useEffect(() => {
     const loadMachines = async () => {
       try {
+        console.log('Loading machines...');
         const response = await machineApi.getAll();
+        console.log('Machines API response:', response);
+        
         if (response.success && response.data) {
+          console.log('Machines data:', response.data);
+          console.log('Is machines data an array?', Array.isArray(response.data));
           setMachines(response.data);
+        } else {
+          console.error('Invalid response structure:', response);
+          setMachines([]);
         }
       } catch (error) {
         console.error('Failed to load machines:', error);
+        setMachines([]);
       }
     };
     
@@ -340,11 +349,16 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
                     className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100"
                   >
                     <option value="">Select Machine</option>
-                    {machines.map((machine) => (
-                      <option key={machine.id} value={machine.id}>
-                        {machine.machineId} - {machine.name}
-                      </option>
-                    ))}
+                    {(() => {
+                      console.log('About to render machines, current machines state:', machines);
+                      console.log('Type of machines:', typeof machines);
+                      console.log('Is machines an array?', Array.isArray(machines));
+                      return Array.isArray(machines) && machines.map((machine) => (
+                        <option key={machine.id} value={machine.id}>
+                          {machine.machineId} - {machine.name}
+                        </option>
+                      ));
+                    })()}
                   </select>
                 </div>
                 

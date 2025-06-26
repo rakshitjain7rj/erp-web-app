@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import toast from "react-hot-toast";
+import { API_ENDPOINTS } from "../config/api";
 
 const Register = () => {
   const navigate = useNavigate();
@@ -49,7 +50,7 @@ const Register = () => {
 
     const loadingToast = toast.loading("🔄 Registering...");
     try {
-      await axios.post("http://localhost:5000/api/auth/register", form);
+      await axios.post(API_ENDPOINTS.AUTH.REGISTER, form);
       toast.success("✅ Registration successful!", { id: loadingToast });
       navigate("/login");
     } catch (err) {
