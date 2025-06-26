@@ -88,7 +88,7 @@ ProductionJob.init({
       model: 'users',
       key: 'id'
     }
-  },
+  },  
   status: {
     type: DataTypes.ENUM('pending', 'in_progress', 'completed', 'cancelled'),
     allowNull: false,

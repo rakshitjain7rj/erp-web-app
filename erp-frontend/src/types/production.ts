@@ -170,3 +170,116 @@ export interface PaginatedResponse<T> {
   limit: number;
   totalPages: number;
 }
+
+// Yarn Manufacturing Specific Types
+
+export interface YarnHourlyEfficiencyData {
+  hour: string; // "08:00", "09:00", etc.
+  targetProduction: number; // kg
+  actualProduction: number; // kg
+  efficiency: number; // percentage
+  downtime: number; // minutes
+  downtimeReason?: string;
+  operatorId?: string;
+  operatorName?: string;
+  qualityIssues?: string;
+  machineSpeed?: number; // RPM
+  yarnBreaks?: number;
+  notes?: string;
+}
+
+export interface YarnUtilityReadings {
+  timestamp: string;
+  electricity: number; // kWh
+  water: number; // liters
+  steam: number; // kg
+  gas?: number; // cubic meters
+  readingType: 'start' | 'end' | 'hourly';
+  meterReading?: string;
+  costPerUnit?: number;
+}
+
+export interface YarnTheoreticalParameters {
+  machineId: number;
+  numberOfThreads: number;
+  machineSpeed: number; // RPM or m/min
+  yarnWeight10Min: number; // kg per 10 minutes
+  ideal12HourTarget: number; // kg for 12 hours
+  benchmarkEfficiency: number; // default 85%
+  theoreticalHourlyRate: number; // kg/hour
+  lastUpdated: string;
+  updatedBy?: string;
+}
+
+export interface YarnQualityParameters {
+  tensileStrength?: number;
+  yarnCount?: number;
+  twist?: number;
+  moisture?: number;
+  elongation?: number;
+  irregularity?: number;
+  targetGrade: 'A' | 'B' | 'C';
+  actualGrade?: 'A' | 'B' | 'C';
+  defectRate?: number;
+  colorFastness?: number;
+  testResults?: Record<string, number>;
+}
+
+export interface YarnShiftData {
+  shift: 'A' | 'B' | 'C';
+  shiftLabel?: string; // "Morning (6AM-2PM)"
+  supervisor: string;
+  supervisorId?: string;
+  operators: string[];
+  operatorIds?: string[];
+  startTime: string;
+  endTime: string;
+  actualStartTime?: string;
+  actualEndTime?: string;
+  shiftNotes?: string;
+}
+
+export interface YarnPerformanceAnalysis {
+  efficiencyVariance: number; // actual vs theoretical
+  productionVariance: number; // actual vs target production
+  qualityVariance: number; // actual vs target quality
+  overallPerformance: number; // combined score
+  utilityEfficiency: number; // cost per kg
+  downtimePercentage: number;
+  recommendations?: string[];
+}
+
+// Enhanced Production Job Card for Yarn Manufacturing
+export interface YarnProductionJobCard extends ProductionJob {
+  // Daily data collection
+  hourlyEfficiency: YarnHourlyEfficiencyData[];
+  utilityReadings: YarnUtilityReadings[];
+  qualityData: YarnQualityParameters;
+  
+  // Weekly theoretical parameters
+  theoreticalParams: YarnTheoreticalParameters;
+  
+  // Analysis results
+  actualVsTheoretical: YarnPerformanceAnalysis;
+  
+  // Shift data
+  shiftData: YarnShiftData;
+  
+  // Production summary
+  totalActualProduction: number;
+  totalTargetProduction: number;
+  totalDowntime: number;
+  averageEfficiency: number;
+  totalUtilityCost: number;
+  
+  // Quality summary
+  qualityScore: number;
+  defectCount: number;
+  reworkRequired: boolean;
+  
+  // Completion data
+  completedBy?: string;
+  supervisorApproval?: boolean;
+  approvedBy?: string;
+  approvalDate?: string;
+}

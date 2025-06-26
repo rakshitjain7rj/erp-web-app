@@ -19,8 +19,10 @@ import { productionApi } from '../api/productionApi';
 import {
   ProductionJob,
   ProductionJobFilters,
-  ProductionJobStats
+  ProductionJobStats,
+  YarnProductionJobCard
 } from '../types/production';
+import YarnJobCardForm from '../components/YarnJobCardForm';
 
 const ProductionJobs: React.FC = () => {
   const navigate = useNavigate();
@@ -38,6 +40,7 @@ const ProductionJobs: React.FC = () => {
   // Modal states
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [showYarnJobForm, setShowYarnJobForm] = useState(false);
 
   const reloadData = async () => {
     try {
@@ -137,16 +140,59 @@ const ProductionJobs: React.FC = () => {
     fetchStats();
   }, [filters, searchTerm, currentPage]);
 
-  const handleStatusUpdate = async (jobId: number, newStatus: ProductionJob['status']) => {
+  const handleYarnJobSubmit = async (jobData: YarnProductionJobCard) => {
     try {
-      const response = await productionApi.updateStatus(jobId, newStatus);
+      // Transform YarnProductionJobCard to ProductionJobFormData
+      const formData = {
+        productName: jobData.productType,
+        productType: jobData.productType,
+        quantity: jobData.quantity,
+        unit: jobData.unit,
+        machineId: jobData.machineId,
+        assignedTo: jobData.workerId,
+        priority: jobData.priority,
+        dueDate: jobData.dueDate,
+        estimatedHours: jobData.estimatedHours,
+        partyName: jobData.partyName,
+        dyeingOrderId: jobData.dyeingOrderId,
+        notes: jobData.notes,
+        // Map yarn-specific data to detailed job card fields
+        theoreticalEfficiency: jobData.theoreticalParams ? {
+          targetEfficiencyPercent: jobData.theoreticalParams.benchmarkEfficiency,
+          standardProductionRate: jobData.theoreticalParams.theoreticalHourlyRate,
+          idealCycleTime: 60, // Default value
+          qualityTargetPercent: 95 // Default value
+        } : undefined,
+        shiftAssignments: jobData.shiftData ? [{
+          shiftNumber: jobData.shiftData.shift === 'A' ? 1 : jobData.shiftData.shift === 'B' ? 2 : 3,
+          startTime: jobData.shiftData.startTime,
+          endTime: jobData.shiftData.endTime,
+          supervisorName: jobData.shiftData.supervisor,
+          operatorName: jobData.shiftData.operators[0] || ''
+        }] : [],
+        initialUtilityReadings: jobData.utilityReadings?.[0] ? {
+          timestamp: jobData.utilityReadings[0].timestamp,
+          powerConsumption: jobData.utilityReadings[0].electricity,
+          waterConsumption: jobData.utilityReadings[0].water,
+          steamConsumption: jobData.utilityReadings[0].steam
+        } : undefined,
+        processParameters: jobData.theoreticalParams ? {
+          numberOfThreads: jobData.theoreticalParams.numberOfThreads.toString(),
+          machineSpeed: jobData.theoreticalParams.machineSpeed.toString(),
+          yarnWeight10Min: jobData.theoreticalParams.yarnWeight10Min.toString(),
+          ideal12HourTarget: jobData.theoreticalParams.ideal12HourTarget.toString()
+        } : undefined
+      };
+
+      const response = await productionApi.createDetailed(formData);
       if (response.success) {
+        setShowYarnJobForm(false);
         reloadData();
       } else {
-        setError(response.error || 'Failed to update job status');
+        setError(response.error || 'Failed to create yarn job card');
       }
     } catch (err) {
-      setError('Error updating job status');
+      setError('Error creating yarn job card');
       console.error('Error:', err);
     }
   };
@@ -231,11 +277,11 @@ const ProductionJobs: React.FC = () => {
               <p className="text-blue-100 mt-1">Manage and track production jobs</p>
             </div>
             <button
-              onClick={() => setShowCreateForm(true)}
+              onClick={() => setShowYarnJobForm(true)}
               className="bg-white text-blue-600 px-4 py-2 rounded-lg font-medium hover:bg-blue-50 transition-colors flex items-center gap-2"
             >
               <Plus className="h-5 w-5" />
-              New Job
+              New Yarn Job Card
             </button>
           </div>
         </div>
@@ -563,6 +609,16 @@ const ProductionJobs: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Yarn Job Card Form Modal */}
+      {showYarnJobForm && (
+        <YarnJobCardForm
+          isOpen={showYarnJobForm}
+          onClose={() => setShowYarnJobForm(false)}
+          onSave={handleYarnJobSubmit}
+          editingJob={null}
+        />
+      )}
 
       {/* Create Job Modal Placeholder */}
       {showCreateForm && (
