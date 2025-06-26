@@ -16,6 +16,15 @@ type DyeingOrder = {
   status: "Pending" | "Arrived" | "Reprocessing";
 };
 
+type PartySummary = {
+  partyName: string;
+  totalOrders: number;
+  totalYarn: number;
+  pendingYarn: number;
+  reprocessingYarn: number;
+  arrivedYarn: number;
+};
+
 const isOverdue = (expectedDate: string) => {
   const date = new Date(expectedDate);
   return isValid(date) && date < new Date();
@@ -25,6 +34,12 @@ const DyeingSummary = () => {
   const [orders, setOrders] = useState<DyeingOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "7days" | "month">("all");
+
+  const [tab, setTab] = useState<"chart" | "party">("chart");
+  const [partySearch, setPartySearch] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [paginatedParties, setPaginatedParties] = useState<PartySummary[]>([]);
 
   const chartRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLDivElement>(null);
@@ -38,6 +53,7 @@ const DyeingSummary = () => {
     }
     return {};
   };
+
   const fetchOrders = async () => {
     setLoading(true);
     const toastId = toast.loading("📦 Fetching summary...");
@@ -61,9 +77,10 @@ const DyeingSummary = () => {
       setLoading(false);
     }
   };
+
   useEffect(() => {
     fetchOrders();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter]);
 
   const filteredOrders = useMemo(() => orders, [orders]);
@@ -77,7 +94,9 @@ const DyeingSummary = () => {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
     XLSX.writeFile(wb, fileName);
-  };  const exportPDF = (ref: React.RefObject<HTMLDivElement | null>, name: string) => {
+  };
+
+  const exportPDF = (ref: React.RefObject<HTMLDivElement | null>, name: string) => {
     if (!ref.current) return;
     html2canvas(ref.current).then(canvas => {
       const img = canvas.toDataURL("image/png");
@@ -89,17 +108,38 @@ const DyeingSummary = () => {
       pdf.save(name);
     });
   };
+
   const chartData = {
     labels: ["Total", "Pending", "Arrived", "Overdue"],
-    datasets: [{ data: [total, pending, arrived, overdue], backgroundColor: ["#60a5fa", "#facc15", "#4ade80", "#f87171"] }]
+    datasets: [
+      {
+        data: [total, pending, arrived, overdue],
+        backgroundColor: ["#60a5fa", "#facc15", "#4ade80", "#f87171"]
+      }
+    ]
   };
+
   return (
     <div className="p-6">
       <h2 className="text-3xl font-bold text-blue-700 mb-4">🎨 Dyeing Summary</h2>
 
+      {/* Tabs */}
+      <div className="mb-4 flex gap-4">
+        {["chart", "party"].map(tabKey => (
+          <button
+            key={tabKey}
+            onClick={() => setTab(tabKey as any)}
+            className={`px-4 py-2 rounded font-medium ${tab === tabKey ? "bg-blue-600 text-white" : "bg-gray-200 dark:bg-gray-700"}`}
+          >
+            {tabKey === "chart" ? "📊 Chart & Orders" : "🧾 Party-wise Summary"}
+          </button>
+        ))}
+      </div>
+
       {/* Filter and Export */}
       <div className="flex flex-wrap gap-4 mb-6 items-center">
-        <label className="font-medium">Filter by:</label>        <select
+        <label className="font-medium">Filter by:</label>
+        <select
           value={filter}
           onChange={(e) => setFilter(e.target.value as "all" | "7days" | "month")}
           className="border rounded-md px-3 py-2 bg-white dark:bg-gray-800 dark:text-white"
@@ -107,29 +147,33 @@ const DyeingSummary = () => {
           <option value="all">All</option>
           <option value="7days">Last 7 Days</option>
           <option value="month">This Month</option>
-        </select>        <button
+        </select>
+        <button
           onClick={() => exportList(filteredOrders, "Data", "DyeingData.xlsx")}
           className="bg-blue-500 text-white px-3 py-1 rounded"
-          title="Export to Excel"
-        >📊 Excel</button>
-
+        >
+          📊 Excel
+        </button>
         <button
           onClick={() => exportPDF(tableRef, "DyeingData.pdf")}
           className="bg-red-500 text-white px-3 py-1 rounded"
-          title="Export to PDF"
-        >🧾 PDF</button>
-
+        >
+          🧾 PDF
+        </button>
         <button
           onClick={() => exportPDF(chartRef, "DyeingChart.png")}
           className="bg-green-600 text-white px-3 py-1 rounded"
-          title="Export as PNG"
-        >🖼 PNG</button>      </div>
+        >
+          🖼 PNG
+        </button>
+      </div>
 
       {/* Chart and Table */}
       {!loading && (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            {[{ title: "Total", count: total, color: "bg-blue-100 text-blue-700" },
+            {[
+              { title: "Total", count: total, color: "bg-blue-100 text-blue-700" },
               { title: "Pending", count: pending, color: "bg-yellow-100 text-yellow-700" },
               { title: "Arrived", count: arrived, color: "bg-green-100 text-green-700" },
               { title: "Overdue", count: overdue, color: "bg-red-100 text-red-700" }
