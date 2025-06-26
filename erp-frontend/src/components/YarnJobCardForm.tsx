@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { X, Save, Plus, Trash2, Clock, Settings, BarChart3, Users, Activity, Calculator } from 'lucide-react';
-import { productionApi } from '../api/productionApi';
+import React, { useState, useEffect, useCallback } from 'react';
+import { X, Save, Plus, Trash2, Clock, Settings, Users, Activity, Calculator } from 'lucide-react';
+import { machineApi } from '../api/productionApi';
 import { 
   YarnProductionJobCard, 
   YarnHourlyEfficiencyData, 
   YarnUtilityReadings,
-  Machine 
+  Machine
 } from '../types/production';
 
 interface Props {
@@ -17,16 +17,27 @@ interface Props {
 
 const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob }) => {
   const [currentStep, setCurrentStep] = useState(1);
+  const [machines, setMachines] = useState<Machine[]>([]);
+  
+  // Main job data
   const [jobCard, setJobCard] = useState<Partial<YarnProductionJobCard>>({
-    productType: '',
+    productType: 'Cotton Yarn',
     quantity: 0,
     unit: 'kg',
     priority: 'medium',
     status: 'pending',
+    machineId: 0,
+    workerId: 0,
+    startDate: new Date().toISOString().split('T')[0],
+    dueDate: new Date().toISOString().split('T')[0],
     hourlyEfficiency: [],
-    utilityReadings: [],
+    utilityReadings: [
+      { timestamp: '08:00', readingType: 'start' as const, electricity: 0, steam: 0, water: 0 },
+      { timestamp: '20:00', readingType: 'end' as const, electricity: 0, steam: 0, water: 0 }
+    ],
     qualityData: {
-      targetGrade: 'A'
+      targetGrade: 'A' as const,
+      defectRate: 0
     },
     theoreticalParams: {
       machineId: 0,
@@ -39,40 +50,63 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
       lastUpdated: new Date().toISOString()
     },
     shiftData: {
-      shift: 'A',
-      shiftLabel: 'Morning (6AM-2PM)',
+      shift: 'A' as const,
+      shiftLabel: 'Day Shift (6AM-6PM)',
       supervisor: '',
       operators: [],
-      startTime: '',
-      endTime: ''
-    },
-    actualVsTheoretical: {
-      efficiencyVariance: 0,
-      productionVariance: 0,
-      qualityVariance: 0,
-      overallPerformance: 0,
-      utilityEfficiency: 0,
-      downtimePercentage: 0
+      startTime: '06:00',
+      endTime: '18:00'
     }
   });
 
-  const [machines, setMachines] = useState<Machine[]>([]);
   const [calculatedTargets, setCalculatedTargets] = useState({
     hourlyTarget: 0,
     efficiency85Target: 0,
     targetPerThread: 0
   });
 
-  useEffect(() => {
-    if (editingJob) {
-      setJobCard(editingJob);
-    }
+  const calculateMetrics = useCallback(() => {
+    if (!jobCard.hourlyEfficiency || !jobCard.theoreticalParams) return;
+
+    const totalProduced = jobCard.hourlyEfficiency.reduce((sum, entry) => sum + entry.actualProduction, 0);
+    const totalTarget = jobCard.hourlyEfficiency.reduce((sum, entry) => sum + entry.targetProduction, 0);
+    const avgEfficiency = jobCard.hourlyEfficiency.length > 0 
+      ? jobCard.hourlyEfficiency.reduce((sum, entry) => sum + entry.efficiency, 0) / jobCard.hourlyEfficiency.length
+      : 0;
+
+    // Update job card with calculated values
+    setJobCard(prev => ({
+      ...prev,
+      totalActualProduction: totalProduced,
+      totalTargetProduction: totalTarget,
+      averageEfficiency: avgEfficiency,
+      totalDowntime: jobCard.hourlyEfficiency?.reduce((sum, entry) => sum + entry.downtime, 0) || 0,
+      qualityScore: 95 // Default quality score
+    }));
+  }, [jobCard.hourlyEfficiency, jobCard.theoreticalParams]);
+
+  const updateCalculatedTargets = useCallback(() => {
+    if (!jobCard.theoreticalParams) return;
     
-    // Load machines
+    const hourlyTarget = jobCard.theoreticalParams.theoreticalHourlyRate || 
+                        (jobCard.theoreticalParams.ideal12HourTarget / 12);
+    const efficiency85Target = hourlyTarget * 0.85;
+    const targetPerThread = jobCard.theoreticalParams.numberOfThreads > 0 
+      ? hourlyTarget / jobCard.theoreticalParams.numberOfThreads 
+      : 0;
+
+    setCalculatedTargets({
+      hourlyTarget,
+      efficiency85Target,
+      targetPerThread
+    });
+  }, [jobCard.theoreticalParams]);
+
+  useEffect(() => {
     const loadMachines = async () => {
       try {
-        const response = await productionApi.getMachines();
-        if (response.success) {
+        const response = await machineApi.getAll();
+        if (response.success && response.data) {
           setMachines(response.data);
         }
       } catch (error) {
@@ -80,25 +114,21 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
       }
     };
     
-    loadMachines();
-  }, [editingJob]);
-
-  // Calculate theoretical targets when parameters change
-  useEffect(() => {
-    const params = jobCard.theoreticalParams;
-    if (params) {
-      setCalculatedTargets({
-        hourlyTarget: params.ideal12HourTarget ? params.ideal12HourTarget / 12 : 0,
-        efficiency85Target: params.ideal12HourTarget ? params.ideal12HourTarget * 0.85 : 0,
-        targetPerThread: params.ideal12HourTarget && params.numberOfThreads 
-          ? params.ideal12HourTarget / params.numberOfThreads 
-          : 0
-      });
+    if (isOpen) {
+      loadMachines();
+      if (editingJob) {
+        setJobCard(editingJob);
+      }
     }
-  }, [jobCard.theoreticalParams]);
+  }, [isOpen, editingJob]);
 
-  const generateHourlySlots = () => {
-    const slots: YarnHourlyEfficiencyData[] = [];
+  useEffect(() => {
+    calculateMetrics();
+    updateCalculatedTargets();
+  }, [calculateMetrics, updateCalculatedTargets]);
+
+  const generateHourlySlots = (): YarnHourlyEfficiencyData[] => {
+    const slots = [];
     for (let hour = 6; hour <= 18; hour++) {
       slots.push({
         hour: `${hour.toString().padStart(2, '0')}:00`,
@@ -106,105 +136,119 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
         actualProduction: 0,
         efficiency: 0,
         downtime: 0,
-        downtimeReason: '',
-        operatorId: '',
         operatorName: '',
-        qualityIssues: '',
         machineSpeed: jobCard.theoreticalParams?.machineSpeed || 0,
-        yarnBreaks: 0,
-        notes: ''
+        yarnBreaks: 0
       });
     }
     return slots;
   };
 
-  const calculateEfficiency = (actual: number, target: number) => {
-    return target > 0 ? (actual / target) * 100 : 0;
-  };
-
-  const updateHourlyData = (index: number, field: keyof YarnHourlyEfficiencyData, value: any) => {
-    const updated = [...(jobCard.hourlyEfficiency || [])];
+  const updateHourlyData = (index: number, field: keyof YarnHourlyEfficiencyData, value: string | number) => {
+    if (!jobCard.hourlyEfficiency) return;
+    
+    const updated = [...jobCard.hourlyEfficiency];
     updated[index] = { ...updated[index], [field]: value };
     
-    // Auto-calculate efficiency
+    // Auto-calculate efficiency when production values change
     if (field === 'actualProduction' || field === 'targetProduction') {
-      const efficiency = calculateEfficiency(
-        updated[index].actualProduction,
-        updated[index].targetProduction
-      );
-      updated[index].efficiency = Number(efficiency.toFixed(2));
+      const target = field === 'targetProduction' ? Number(value) : updated[index].targetProduction;
+      const actual = field === 'actualProduction' ? Number(value) : updated[index].actualProduction;
+      updated[index].efficiency = target > 0 ? (actual / target) * 100 : 0;
     }
     
     setJobCard({ ...jobCard, hourlyEfficiency: updated });
   };
 
-  const addUtilityReading = () => {
-    const newReading: YarnUtilityReadings = {
-      timestamp: new Date().toISOString(),
-      electricity: 0,
-      water: 0,
-      steam: 0,
-      gas: 0,
-      readingType: 'hourly'
-    };
+  const updateUtilityReading = (index: number, field: keyof YarnUtilityReadings, value: string | number) => {
+    if (!jobCard.utilityReadings) return;
     
-    setJobCard({
-      ...jobCard,
-      utilityReadings: [...(jobCard.utilityReadings || []), newReading]
-    });
-  };
-
-  const updateUtilityReading = (index: number, field: keyof YarnUtilityReadings, value: any) => {
-    const updated = [...(jobCard.utilityReadings || [])];
+    const updated = [...jobCard.utilityReadings];
     updated[index] = { ...updated[index], [field]: value };
     setJobCard({ ...jobCard, utilityReadings: updated });
   };
 
-  const calculatePerformanceMetrics = () => {
-    const hourlyData = jobCard.hourlyEfficiency || [];
-    const totalActual = hourlyData.reduce((sum, h) => sum + h.actualProduction, 0);
-    const totalTarget = hourlyData.reduce((sum, h) => sum + h.targetProduction, 0);
-    const totalDowntime = hourlyData.reduce((sum, h) => sum + h.downtime, 0);
-    const avgEfficiency = hourlyData.length > 0 
-      ? hourlyData.reduce((sum, h) => sum + h.efficiency, 0) / hourlyData.length 
-      : 0;
-
-    const benchmarkEff = jobCard.theoreticalParams?.benchmarkEfficiency || 85;
-    
-    return {
-      totalActualProduction: totalActual,
-      totalTargetProduction: totalTarget,
-      totalDowntime,
-      averageEfficiency: avgEfficiency,
-      actualVsTheoretical: {
-        efficiencyVariance: avgEfficiency - benchmarkEff,
-        productionVariance: totalTarget > 0 ? ((totalActual - totalTarget) / totalTarget) * 100 : 0,
-        qualityVariance: 0, // Calculate based on quality parameters
-        overallPerformance: avgEfficiency,
-        utilityEfficiency: 0, // Calculate from utility readings
-        downtimePercentage: (totalDowntime / (hourlyData.length * 60)) * 100
-      }
+  const addUtilityReading = () => {
+    const newReading: YarnUtilityReadings = {
+      timestamp: new Date().toISOString().slice(0, 16),
+      readingType: 'hourly' as const,
+      electricity: 0,
+      steam: 0,
+      water: 0
     };
+    const readings = jobCard.utilityReadings || [];
+    setJobCard({ ...jobCard, utilityReadings: [...readings, newReading] });
   };
 
-  const handleSubmit = async () => {
-    try {
-      const metrics = calculatePerformanceMetrics();
+  const handleSaveForm = () => {
+    // Compile all data into YarnProductionJobCard format
+    const finalJobCard: YarnProductionJobCard = {
+      // Basic job properties
+      id: editingJob?.id || 0,
+      jobId: editingJob?.jobId || `YARN-${Date.now()}`,
+      productType: jobCard.productType || 'Cotton Yarn',
+      quantity: jobCard.quantity || 0,
+      unit: jobCard.unit || 'kg',
+      machineId: jobCard.machineId || 0,
+      workerId: jobCard.workerId,
+      status: jobCard.status || 'pending',
+      priority: jobCard.priority || 'medium',
+      startDate: jobCard.startDate,
+      endDate: jobCard.endDate,
+      dueDate: jobCard.dueDate,
+      estimatedHours: jobCard.estimatedHours,
+      actualHours: jobCard.actualHours,
+      partyName: jobCard.partyName,
+      dyeingOrderId: jobCard.dyeingOrderId,
+      notes: jobCard.notes,
+      createdAt: jobCard.createdAt,
+      updatedAt: jobCard.updatedAt,
+      machine: jobCard.machine,
       
-      const finalJobCard: YarnProductionJobCard = {
-        ...jobCard,
-        id: editingJob?.id || 0,
-        jobId: editingJob?.jobId || `YARN-${Date.now()}`,
-        ...metrics,
-        createdAt: editingJob?.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      } as YarnProductionJobCard;
+      // Yarn-specific properties
+      hourlyEfficiency: jobCard.hourlyEfficiency || [],
+      utilityReadings: jobCard.utilityReadings || [],
+      qualityData: jobCard.qualityData || { targetGrade: 'A' },
+      theoreticalParams: jobCard.theoreticalParams || {
+        machineId: jobCard.machineId || 0,
+        numberOfThreads: 0,
+        machineSpeed: 0,
+        yarnWeight10Min: 0,
+        ideal12HourTarget: 0,
+        benchmarkEfficiency: 85,
+        theoreticalHourlyRate: 0,
+        lastUpdated: new Date().toISOString()
+      },
+      shiftData: jobCard.shiftData || {
+        shift: 'A',
+        supervisor: '',
+        operators: [],
+        startTime: '06:00',
+        endTime: '18:00'
+      },
+      actualVsTheoretical: {
+        efficiencyVariance: jobCard.averageEfficiency ? jobCard.averageEfficiency - (jobCard.theoreticalParams?.benchmarkEfficiency || 85) : 0,
+        productionVariance: 0,
+        qualityVariance: 0,
+        overallPerformance: jobCard.averageEfficiency || 0,
+        utilityEfficiency: 0,
+        downtimePercentage: 0
+      },
+      
+      // Production summary
+      totalActualProduction: jobCard.totalActualProduction || 0,
+      totalTargetProduction: jobCard.totalTargetProduction || 0,
+      totalDowntime: jobCard.totalDowntime || 0,
+      averageEfficiency: jobCard.averageEfficiency || 0,
+      totalUtilityCost: 0,
+      
+      // Quality summary
+      qualityScore: jobCard.qualityScore || 95,
+      defectCount: 0,
+      reworkRequired: false
+    };
 
-      onSave(finalJobCard);
-      onClose();
-    } catch (error) {
-      console.error('Error saving job card:', error);
-    }
+    onSave(finalJobCard);
   };
 
   if (!isOpen) return null;
@@ -219,19 +263,19 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-7xl w-full max-h-[95vh] overflow-hidden">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-7xl w-full max-h-[95vh] overflow-hidden">
         {/* Header */}
-        <div className="p-6 text-white bg-gradient-to-r from-blue-600 to-purple-600">
+        <div className="p-6 text-white bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-700 dark:to-purple-700">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-bold">
                 {editingJob ? 'Edit Yarn Production Job Card' : 'Create Yarn Production Job Card'}
               </h2>
-              <p className="mt-1 text-blue-100">Comprehensive yarn manufacturing job management</p>
+              <p className="mt-1 text-blue-100 dark:text-blue-200">Comprehensive yarn manufacturing job management</p>
             </div>
             <button
               onClick={onClose}
-              className="p-2 transition-colors rounded-lg hover:bg-white/20"
+              className="p-2 transition-colors rounded-lg hover:bg-white/20 dark:hover:bg-white/10"
             >
               <X className="w-6 h-6" />
             </button>
@@ -243,12 +287,12 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
               <div
                 key={step.id}
                 className={`flex items-center space-x-2 ${
-                  currentStep >= step.id ? 'text-white' : 'text-blue-200'
+                  currentStep >= step.id ? 'text-white' : 'text-blue-200 dark:text-blue-300'
                 }`}
               >
                 <div
                   className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                    currentStep >= step.id ? 'bg-white text-blue-600' : 'bg-blue-500'
+                    currentStep >= step.id ? 'bg-white text-blue-600 dark:bg-gray-100 dark:text-blue-700' : 'bg-blue-500 dark:bg-blue-600'
                   }`}
                 >
                   {currentStep > step.id ? '✓' : step.id}
@@ -260,26 +304,26 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
         </div>
 
         {/* Form Content */}
-        <div className="p-6 overflow-y-auto max-h-[70vh]">
+        <div className="p-6 overflow-y-auto max-h-[70vh] bg-white dark:bg-gray-900">
           {/* Step 1: Basic Information */}
           {currentStep === 1 && (
             <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-900">Basic Job Information</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Basic Job Information</h3>
               
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
-                  <label className="block mb-2 text-sm font-medium text-gray-700">Yarn Type/Product</label>
+                  <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Yarn Type/Product</label>
                   <input
                     type="text"
                     value={jobCard.productType || ''}
                     onChange={(e) => setJobCard({ ...jobCard, productType: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100"
                     placeholder="e.g., 30s Cotton Combed"
                   />
                 </div>
                 
                 <div>
-                  <label className="block mb-2 text-sm font-medium text-gray-700">Machine</label>
+                  <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Machine</label>
                   <select
                     value={jobCard.machineId || ''}
                     onChange={(e) => {
@@ -293,7 +337,7 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
                         }
                       });
                     }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100"
                   >
                     <option value="">Select Machine</option>
                     {machines.map((machine) => (
@@ -305,18 +349,18 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
                 </div>
                 
                 <div>
-                  <label className="block mb-2 text-sm font-medium text-gray-700">Target Quantity</label>
+                  <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Target Quantity</label>
                   <div className="flex space-x-2">
                     <input
                       type="number"
                       value={jobCard.quantity || 0}
                       onChange={(e) => setJobCard({ ...jobCard, quantity: Number(e.target.value) })}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="flex-1 px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100"
                     />
                     <select
                       value={jobCard.unit || 'kg'}
                       onChange={(e) => setJobCard({ ...jobCard, unit: e.target.value })}
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100"
                     >
                       <option value="kg">kg</option>
                       <option value="tons">tons</option>
@@ -326,11 +370,11 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
                 </div>
                 
                 <div>
-                  <label className="block mb-2 text-sm font-medium text-gray-700">Priority</label>
+                  <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Priority</label>
                   <select
                     value={jobCard.priority || 'medium'}
-                    onChange={(e) => setJobCard({ ...jobCard, priority: e.target.value as any })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    onChange={(e) => setJobCard({ ...jobCard, priority: e.target.value as 'low' | 'medium' | 'high' | 'urgent' })}
+                    className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100"
                   >
                     <option value="low">Low</option>
                     <option value="medium">Medium</option>
@@ -340,33 +384,33 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
                 </div>
                 
                 <div>
-                  <label className="block mb-2 text-sm font-medium text-gray-700">Due Date</label>
+                  <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Due Date</label>
                   <input
                     type="date"
                     value={jobCard.dueDate?.split('T')[0] || ''}
                     onChange={(e) => setJobCard({ ...jobCard, dueDate: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100"
                   />
                 </div>
                 
                 <div>
-                  <label className="block mb-2 text-sm font-medium text-gray-700">Party/Client</label>
+                  <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Party/Client</label>
                   <input
                     type="text"
                     value={jobCard.partyName || ''}
                     onChange={(e) => setJobCard({ ...jobCard, partyName: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100"
                     placeholder="Client name"
                   />
                 </div>
               </div>
               
               <div>
-                <label className="block mb-2 text-sm font-medium text-gray-700">Job Notes</label>
+                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Job Notes</label>
                 <textarea
                   value={jobCard.notes || ''}
                   onChange={(e) => setJobCard({ ...jobCard, notes: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100"
                   rows={3}
                   placeholder="Additional notes or special instructions..."
                 />
@@ -378,13 +422,13 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
           {currentStep === 2 && (
             <div className="space-y-6">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">Theoretical Efficiency Parameters</h3>
-                <span className="text-sm text-gray-500">Updated weekly</span>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Theoretical Efficiency Parameters</h3>
+                <span className="text-sm text-gray-500 dark:text-gray-400">Updated weekly</span>
               </div>
               
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
                 <div>
-                  <label className="block mb-2 text-sm font-medium text-gray-700">Number of Threads</label>
+                  <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Number of Threads</label>
                   <input
                     type="number"
                     value={jobCard.theoreticalParams?.numberOfThreads || 0}
@@ -395,12 +439,12 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
                         numberOfThreads: Number(e.target.value)
                       }
                     })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100"
                   />
                 </div>
                 
                 <div>
-                  <label className="block mb-2 text-sm font-medium text-gray-700">Machine Speed (RPM)</label>
+                  <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Machine Speed (RPM)</label>
                   <input
                     type="number"
                     value={jobCard.theoreticalParams?.machineSpeed || 0}
@@ -411,12 +455,12 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
                         machineSpeed: Number(e.target.value)
                       }
                     })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100"
                   />
                 </div>
                 
                 <div>
-                  <label className="block mb-2 text-sm font-medium text-gray-700">10-Min Yarn Weight (kg)</label>
+                  <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">10-Min Yarn Weight (kg)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -428,12 +472,12 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
                         yarnWeight10Min: Number(e.target.value)
                       }
                     })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100"
                   />
                 </div>
                 
                 <div>
-                  <label className="block mb-2 text-sm font-medium text-gray-700">Ideal 12-Hour Target (kg)</label>
+                  <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Ideal 12-Hour Target (kg)</label>
                   <input
                     type="number"
                     value={jobCard.theoreticalParams?.ideal12HourTarget || 0}
@@ -444,12 +488,12 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
                         ideal12HourTarget: Number(e.target.value)
                       }
                     })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100"
                   />
                 </div>
                 
                 <div>
-                  <label className="block mb-2 text-sm font-medium text-gray-700">Benchmark Efficiency (%)</label>
+                  <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Benchmark Efficiency (%)</label>
                   <input
                     type="number"
                     value={jobCard.theoreticalParams?.benchmarkEfficiency || 85}
@@ -460,12 +504,12 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
                         benchmarkEfficiency: Number(e.target.value)
                       }
                     })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100"
                   />
                 </div>
                 
                 <div>
-                  <label className="block mb-2 text-sm font-medium text-gray-700">Theoretical Hourly Rate (kg/hr)</label>
+                  <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Theoretical Hourly Rate (kg/hr)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -477,13 +521,13 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
                         theoreticalHourlyRate: Number(e.target.value)
                       }
                     })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100"
                   />
                 </div>
               </div>
 
               {/* Auto-calculated targets */}
-              <div className="p-4 rounded-lg bg-blue-50">
+              <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20">
                 <h4 className="mb-3 font-medium text-blue-900">Calculated Targets</h4>
                 <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
                   <div>
@@ -628,22 +672,22 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
               {/* Shift Summary */}
               {jobCard.hourlyEfficiency && jobCard.hourlyEfficiency.length > 0 && (
                 <div className="p-4 rounded-lg bg-gray-50">
-                  <h4 className="mb-2 font-medium text-gray-900">Shift Summary</h4>
+                  <h4 className="mb-2 font-medium text-gray-900 dark:text-gray-100">Shift Summary</h4>
                   <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-5">
                     <div>
-                      <span className="text-gray-600">Total Target:</span>
+                      <span className="text-gray-600 dark:text-gray-400">Total Target:</span>
                       <div className="font-medium">
                         {jobCard.hourlyEfficiency.reduce((sum, h) => sum + h.targetProduction, 0).toFixed(2)} kg
                       </div>
                     </div>
                     <div>
-                      <span className="text-gray-600">Total Actual:</span>
+                      <span className="text-gray-600 dark:text-gray-400">Total Actual:</span>
                       <div className="font-medium">
                         {jobCard.hourlyEfficiency.reduce((sum, h) => sum + h.actualProduction, 0).toFixed(2)} kg
                       </div>
                     </div>
                     <div>
-                      <span className="text-gray-600">Average Efficiency:</span>
+                      <span className="text-gray-600 dark:text-gray-400">Average Efficiency:</span>
                       <div className="font-medium">
                         {jobCard.hourlyEfficiency.length > 0 
                           ? (jobCard.hourlyEfficiency.reduce((sum, h) => sum + h.efficiency, 0) / jobCard.hourlyEfficiency.length).toFixed(1)
@@ -651,13 +695,13 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
                       </div>
                     </div>
                     <div>
-                      <span className="text-gray-600">Total Downtime:</span>
+                      <span className="text-gray-600 dark:text-gray-400">Total Downtime:</span>
                       <div className="font-medium">
                         {jobCard.hourlyEfficiency.reduce((sum, h) => sum + h.downtime, 0)} min
                       </div>
                     </div>
                     <div>
-                      <span className="text-gray-600">Total Breaks:</span>
+                      <span className="text-gray-600 dark:text-gray-400">Total Breaks:</span>
                       <div className="font-medium">
                         {jobCard.hourlyEfficiency.reduce((sum, h) => sum + (h.yarnBreaks || 0), 0)}
                       </div>
@@ -676,7 +720,7 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
               {/* Utility Readings */}
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <h4 className="font-medium text-gray-900">Daily Utility (Mains) Readings</h4>
+                  <h4 className="font-medium text-gray-900 dark:text-gray-100">Daily Utility (Mains) Readings</h4>
                   <button
                     onClick={addUtilityReading}
                     className="flex items-center gap-1 px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700"
@@ -756,7 +800,7 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
                               const updated = jobCard.utilityReadings?.filter((_, i) => i !== index) || [];
                               setJobCard({ ...jobCard, utilityReadings: updated });
                             }}
-                            className="p-1 text-red-600 rounded hover:bg-red-50"
+                            className="p-1 text-red-600 rounded hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -769,17 +813,17 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
 
               {/* Quality Parameters */}
               <div>
-                <h4 className="mb-4 font-medium text-gray-900">Yarn Quality Control Parameters</h4>
+                <h4 className="mb-4 font-medium text-gray-900 dark:text-gray-100">Yarn Quality Control Parameters</h4>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                   <div>
-                    <label className="block mb-2 text-sm font-medium text-gray-700">Target Grade</label>
+                    <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Target Grade</label>
                     <select
                       value={jobCard.qualityData?.targetGrade || 'A'}
                       onChange={(e) => setJobCard({
                         ...jobCard,
                         qualityData: { ...jobCard.qualityData!, targetGrade: e.target.value as 'A' | 'B' | 'C' }
                       })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100"
                     >
                       <option value="A">Grade A</option>
                       <option value="B">Grade B</option>
@@ -788,14 +832,14 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
                   </div>
                   
                   <div>
-                    <label className="block mb-2 text-sm font-medium text-gray-700">Actual Grade</label>
+                    <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Actual Grade</label>
                     <select
                       value={jobCard.qualityData?.actualGrade || ''}
                       onChange={(e) => setJobCard({
                         ...jobCard,
                         qualityData: { ...jobCard.qualityData!, actualGrade: e.target.value as 'A' | 'B' | 'C' }
                       })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100"
                     >
                       <option value="">Not tested</option>
                       <option value="A">Grade A</option>
@@ -805,7 +849,7 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
                   </div>
                   
                   <div>
-                    <label className="block mb-2 text-sm font-medium text-gray-700">Defect Rate (%)</label>
+                    <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Defect Rate (%)</label>
                     <input
                       type="number"
                       step="0.01"
@@ -814,12 +858,12 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
                         ...jobCard,
                         qualityData: { ...jobCard.qualityData!, defectRate: Number(e.target.value) }
                       })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100"
                     />
                   </div>
                   
                   <div>
-                    <label className="block mb-2 text-sm font-medium text-gray-700">Yarn Count</label>
+                    <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Yarn Count</label>
                     <input
                       type="number"
                       value={jobCard.qualityData?.yarnCount || 0}
@@ -827,12 +871,12 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
                         ...jobCard,
                         qualityData: { ...jobCard.qualityData!, yarnCount: Number(e.target.value) }
                       })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100"
                     />
                   </div>
                   
                   <div>
-                    <label className="block mb-2 text-sm font-medium text-gray-700">Tensile Strength</label>
+                    <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Tensile Strength</label>
                     <input
                       type="number"
                       step="0.1"
@@ -841,12 +885,12 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
                         ...jobCard,
                         qualityData: { ...jobCard.qualityData!, tensileStrength: Number(e.target.value) }
                       })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100"
                     />
                   </div>
                   
                   <div>
-                    <label className="block mb-2 text-sm font-medium text-gray-700">Moisture (%)</label>
+                    <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Moisture (%)</label>
                     <input
                       type="number"
                       step="0.1"
@@ -855,12 +899,12 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
                         ...jobCard,
                         qualityData: { ...jobCard.qualityData!, moisture: Number(e.target.value) }
                       })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100"
                     />
                   </div>
                   
                   <div>
-                    <label className="block mb-2 text-sm font-medium text-gray-700">Twist (TPI)</label>
+                    <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Twist (TPI)</label>
                     <input
                       type="number"
                       step="0.1"
@@ -869,12 +913,12 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
                         ...jobCard,
                         qualityData: { ...jobCard.qualityData!, twist: Number(e.target.value) }
                       })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100"
                     />
                   </div>
                   
                   <div>
-                    <label className="block mb-2 text-sm font-medium text-gray-700">Elongation (%)</label>
+                    <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Elongation (%)</label>
                     <input
                       type="number"
                       step="0.1"
@@ -883,12 +927,12 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
                         ...jobCard,
                         qualityData: { ...jobCard.qualityData!, elongation: Number(e.target.value) }
                       })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100"
                     />
                   </div>
                   
                   <div>
-                    <label className="block mb-2 text-sm font-medium text-gray-700">Irregularity (%)</label>
+                    <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Irregularity (%)</label>
                     <input
                       type="number"
                       step="0.1"
@@ -897,7 +941,7 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
                         ...jobCard,
                         qualityData: { ...jobCard.qualityData!, irregularity: Number(e.target.value) }
                       })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-800 dark:text-gray-100"
                     />
                   </div>
                 </div>
@@ -912,7 +956,7 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
               
               {/* Shift Information */}
               <div>
-                <h4 className="mb-4 font-medium text-gray-900">Shift Details</h4>
+                <h4 className="mb-4 font-medium text-gray-900 dark:text-gray-100">Shift Details</h4>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
                     <label className="block mb-2 text-sm font-medium text-gray-700">Shift</label>
@@ -1003,27 +1047,27 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
 
               {/* Performance Analysis Summary */}
               <div className="p-6 rounded-lg bg-gradient-to-r from-blue-50 to-purple-50">
-                <h4 className="mb-4 font-medium text-gray-900">Performance Analysis Summary</h4>
+                <h4 className="mb-4 font-medium text-gray-900 dark:text-gray-100">Performance Analysis Summary</h4>
                 <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
                   <div className="text-center">
                     <div className="text-2xl font-bold text-blue-600">
-                      {jobCard.hourlyEfficiency?.length > 0 
+                      {(jobCard.hourlyEfficiency && jobCard.hourlyEfficiency.length > 0)
                         ? (jobCard.hourlyEfficiency.reduce((sum, h) => sum + h.efficiency, 0) / jobCard.hourlyEfficiency.length).toFixed(1)
                         : '0.0'}%
                     </div>
-                    <div className="text-sm text-gray-600">Average Efficiency</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Average Efficiency</div>
                   </div>
                   <div className="text-center">
                     <div className="text-2xl font-bold text-green-600">
                       {jobCard.hourlyEfficiency?.reduce((sum, h) => sum + h.actualProduction, 0).toFixed(1) || '0.0'} kg
                     </div>
-                    <div className="text-sm text-gray-600">Total Production</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Total Production</div>
                   </div>
                   <div className="text-center">
                     <div className="text-2xl font-bold text-orange-600">
                       {jobCard.hourlyEfficiency?.reduce((sum, h) => sum + h.downtime, 0) || 0} min
                     </div>
-                    <div className="text-sm text-gray-600">Total Downtime</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Total Downtime</div>
                   </div>
                 </div>
                 
@@ -1031,26 +1075,26 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
                   <h5 className="mb-2 font-medium">Variance Analysis</h5>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <span className="text-gray-600">Efficiency vs Benchmark:</span>
+                      <span className="text-gray-600 dark:text-gray-400">Efficiency vs Benchmark:</span>
                       <span className={`ml-2 font-medium ${
-                        (jobCard.hourlyEfficiency?.length > 0 
+                        ((jobCard.hourlyEfficiency && jobCard.hourlyEfficiency.length > 0)
                           ? (jobCard.hourlyEfficiency.reduce((sum, h) => sum + h.efficiency, 0) / jobCard.hourlyEfficiency.length)
                           : 0) >= (jobCard.theoreticalParams?.benchmarkEfficiency || 85)
-                        ? 'text-green-600' : 'text-red-600'
+                        ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                       }`}>
-                        {jobCard.hourlyEfficiency?.length > 0 && jobCard.theoreticalParams?.benchmarkEfficiency
+                        {(jobCard.hourlyEfficiency && jobCard.hourlyEfficiency.length > 0) && jobCard.theoreticalParams?.benchmarkEfficiency
                           ? ((jobCard.hourlyEfficiency.reduce((sum, h) => sum + h.efficiency, 0) / jobCard.hourlyEfficiency.length) - jobCard.theoreticalParams.benchmarkEfficiency).toFixed(1)
                           : '0.0'}%
                       </span>
                     </div>
                     <div>
-                      <span className="text-gray-600">Production vs Target:</span>
+                      <span className="text-gray-600 dark:text-gray-400">Production vs Target:</span>
                       <span className={`ml-2 font-medium ${
                         (jobCard.hourlyEfficiency?.reduce((sum, h) => sum + h.actualProduction, 0) || 0) >= 
                         (jobCard.hourlyEfficiency?.reduce((sum, h) => sum + h.targetProduction, 0) || 0)
-                        ? 'text-green-600' : 'text-red-600'
+                        ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                       }`}>
-                        {jobCard.hourlyEfficiency?.length > 0
+                        {(jobCard.hourlyEfficiency && jobCard.hourlyEfficiency.length > 0)
                           ? (((jobCard.hourlyEfficiency.reduce((sum, h) => sum + h.actualProduction, 0) - 
                                jobCard.hourlyEfficiency.reduce((sum, h) => sum + h.targetProduction, 0)) / 
                               (jobCard.hourlyEfficiency.reduce((sum, h) => sum + h.targetProduction, 0) || 1)) * 100).toFixed(1)
@@ -1065,12 +1109,12 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50">
+        <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
           <div className="flex space-x-3">
             {currentStep > 1 && (
               <button
                 onClick={() => setCurrentStep(currentStep - 1)}
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
               >
                 Previous
               </button>
@@ -1080,7 +1124,7 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
           <div className="flex space-x-3">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+              className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-800"
             >
               Cancel
             </button>
@@ -1088,14 +1132,14 @@ const YarnJobCardForm: React.FC<Props> = ({ isOpen, onClose, onSave, editingJob 
             {currentStep < steps.length ? (
               <button
                 onClick={() => setCurrentStep(currentStep + 1)}
-                className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+                className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800"
               >
                 Next
               </button>
             ) : (
               <button
-                onClick={handleSubmit}
-                className="flex items-center gap-2 px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700"
+                onClick={handleSaveForm}
+                className="flex items-center gap-2 px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800"
               >
                 <Save className="w-4 h-4" />
                 Save Job Card

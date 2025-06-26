@@ -267,20 +267,20 @@ const ProductionJobs: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen text-gray-900 bg-gray-50 dark:bg-gray-950 dark:text-white">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex justify-between items-center">
+      <div className="text-white bg-gradient-to-r from-blue-600 to-blue-800 dark:from-indigo-800 dark:to-indigo-900">
+        <div className="px-4 py-6 mx-auto max-w-7xl sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold">Production Job Cards</h1>
-              <p className="text-blue-100 mt-1">Manage and track production jobs</p>
+              <p className="mt-1 text-blue-100">Manage and track production jobs</p>
             </div>
             <button
               onClick={() => setShowYarnJobForm(true)}
-              className="bg-white text-blue-600 px-4 py-2 rounded-lg font-medium hover:bg-blue-50 transition-colors flex items-center gap-2"
+              className="flex items-center gap-2 px-4 py-2 font-medium text-blue-600 transition-colors bg-white rounded-lg hover:bg-blue-50"
             >
-              <Plus className="h-5 w-5" />
+              <Plus className="w-5 h-5" />
               New Yarn Job Card
             </button>
           </div>
@@ -289,64 +289,64 @@ const ProductionJobs: React.FC = () => {
 
       {/* Stats Cards */}
       {stats && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-            <div className="bg-white rounded-lg shadow p-6">
+        <div className="px-4 py-6 mx-auto max-w-7xl sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-5">
+            <div className="p-6 bg-white rounded-lg shadow dark:bg-gray-800">
               <div className="flex items-center">
                 <div className="p-2 bg-blue-100 rounded-lg">
-                  <Activity className="h-6 w-6 text-blue-600" />
+                  <Activity className="w-6 h-6 text-blue-600" />
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Total Jobs</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.totalJobs || 0}</p>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Total Jobs</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalJobs || 0}</p>
                 </div>
               </div>
             </div>
             
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="p-6 bg-white rounded-lg shadow dark:bg-gray-800">
               <div className="flex items-center">
                 <div className="p-2 bg-yellow-100 rounded-lg">
-                  <Clock className="h-6 w-6 text-yellow-600" />
+                  <Clock className="w-6 h-6 text-yellow-600" />
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Pending</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.pendingJobs || 0}</p>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Pending</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.pendingJobs || 0}</p>
                 </div>
               </div>
             </div>
             
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="p-6 bg-white rounded-lg shadow dark:bg-gray-800">
               <div className="flex items-center">
                 <div className="p-2 bg-blue-100 rounded-lg">
-                  <Play className="h-6 w-6 text-blue-600" />
+                  <Play className="w-6 h-6 text-blue-600" />
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Active</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.activeJobs || 0}</p>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Active</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.activeJobs || 0}</p>
                 </div>
               </div>
             </div>
             
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="p-6 bg-white rounded-lg shadow dark:bg-gray-800">
               <div className="flex items-center">
                 <div className="p-2 bg-green-100 rounded-lg">
-                  <CheckCircle className="h-6 w-6 text-green-600" />
+                  <CheckCircle className="w-6 h-6 text-green-600" />
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Completed</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.completedJobs || 0}</p>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Completed</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.completedJobs || 0}</p>
                 </div>
               </div>
             </div>
             
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="p-6 bg-white rounded-lg shadow dark:bg-gray-800">
               <div className="flex items-center">
                 <div className="p-2 bg-purple-100 rounded-lg">
-                  <TrendingUp className="h-6 w-6 text-purple-600" />
+                  <TrendingUp className="w-6 h-6 text-purple-600" />
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Avg Efficiency</p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Avg Efficiency</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
                     {stats.averageEfficiency ? stats.averageEfficiency.toFixed(1) : '0.0'}%
                   </p>
                 </div>
@@ -357,18 +357,18 @@ const ProductionJobs: React.FC = () => {
       )}
 
       {/* Search and Filters */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex flex-col lg:flex-row gap-4">
+      <div className="px-4 pb-6 mx-auto max-w-7xl sm:px-6 lg:px-8">
+        <div className="p-6 bg-white rounded-lg shadow dark:bg-gray-800">
+          <div className="flex flex-col gap-4 lg:flex-row">
             <div className="flex-1">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                <Search className="absolute w-5 h-5 text-gray-400 transform -translate-y-1/2 left-3 top-1/2" />
                 <input
                   type="text"
                   placeholder="Search by job ID, product type, or party name..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full py-2 pl-10 pr-4 border border-gray-300 rounded-lg dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-900 dark:text-white"
                 />
               </div>
             </div>
@@ -376,16 +376,16 @@ const ProductionJobs: React.FC = () => {
             <div className="flex gap-2">
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2"
+                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
               >
-                <Filter className="h-4 w-4" />
+                <Filter className="w-4 h-4" />
                 Filters
               </button>
               
               <select
                 value={filters.status || ''}
                 onChange={(e) => setFilters({ ...filters, status: e.target.value || undefined })}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="px-4 py-2 border border-gray-300 rounded-lg dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:bg-gray-900 dark:text-white"
               >
                 <option value="">All Status</option>
                 <option value="pending">Pending</option>
@@ -397,7 +397,7 @@ const ProductionJobs: React.FC = () => {
               <select
                 value={filters.priority || ''}
                 onChange={(e) => setFilters({ ...filters, priority: e.target.value || undefined })}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="px-4 py-2 border border-gray-300 rounded-lg dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:bg-gray-900 dark:text-white"
               >
                 <option value="">All Priority</option>
                 <option value="urgent">Urgent</option>
@@ -412,11 +412,11 @@ const ProductionJobs: React.FC = () => {
 
       {/* Error Display */}
       {error && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+        <div className="px-4 pb-6 mx-auto max-w-7xl sm:px-6 lg:px-8">
+          <div className="p-4 border border-red-200 rounded-lg bg-red-50 dark:bg-red-900 dark:border-red-700">
             <div className="flex items-center">
-              <XCircle className="h-5 w-5 text-red-400" />
-              <p className="ml-3 text-red-700">{error}</p>
+              <XCircle className="w-5 h-5 text-red-400" />
+              <p className="ml-3 text-red-700 dark:text-red-100">{error}</p>
               <button
                 onClick={() => setError(null)}
                 className="ml-auto text-red-400 hover:text-red-600"
@@ -429,67 +429,67 @@ const ProductionJobs: React.FC = () => {
       )}
 
       {/* Production Jobs Table */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="px-4 pb-8 mx-auto max-w-7xl sm:px-6 lg:px-8">
+        <div className="overflow-hidden bg-white rounded-lg shadow dark:bg-gray-800">
           {loading ? (
             <div className="p-8 text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="mt-2 text-gray-500">Loading production jobs...</p>
+              <div className="w-8 h-8 mx-auto border-b-2 border-blue-600 rounded-full animate-spin"></div>
+              <p className="mt-2 text-gray-500 dark:text-gray-300">Loading production jobs...</p>
             </div>
           ) : jobs.length === 0 ? (
             <div className="p-8 text-center">
-              <Settings className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No production jobs found</h3>
-              <p className="text-gray-500 mb-4">Get started by creating your first production job.</p>
-              <p className="text-xs text-gray-400 mb-4">Debug: Jobs array length: {jobs.length}, Jobs: {JSON.stringify(jobs)}</p>
+              <Settings className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+              <h3 className="mb-2 text-lg font-medium text-gray-900 dark:text-white">No production jobs found</h3>
+              <p className="mb-4 text-gray-500 dark:text-gray-300">Get started by creating your first production job.</p>
+              <p className="mb-4 text-xs text-gray-400">Debug: Jobs array length: {jobs.length}, Jobs: {JSON.stringify(jobs)}</p>
               <button
                 onClick={() => setShowCreateForm(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                className="px-4 py-2 text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-700"
               >
                 Create Production Job
               </button>
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-900">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase dark:text-gray-300">
                       Job Details
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase dark:text-gray-300">
                       Product & Quantity
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase dark:text-gray-300">
                       Machine
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase dark:text-gray-300">
                       Status & Priority
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase dark:text-gray-300">
                       Due Date
                     </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-xs font-medium tracking-wider text-right text-gray-500 uppercase dark:text-gray-300">
                       Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-800 dark:divide-gray-700">
                   {(Array.isArray(jobs) ? jobs : []).map((job) => (
-                    <tr key={job.id} className="hover:bg-gray-50">
+                    <tr key={job.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
-                          <div className="text-sm font-medium text-gray-900">{job.jobId}</div>
-                          <div className="text-sm text-gray-500">{job.partyName || 'No party assigned'}</div>
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">{job.jobId}</div>
+                          <div className="text-sm text-gray-500 dark:text-gray-300">{job.partyName || 'No party assigned'}</div>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
-                          <div className="text-sm font-medium text-gray-900">{job.productType}</div>
-                          <div className="text-sm text-gray-500">{job.quantity} {job.unit}</div>
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">{job.productType}</div>
+                          <div className="text-sm text-gray-500 dark:text-gray-300">{job.quantity} {job.unit}</div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-6 py-4 text-sm text-gray-900 whitespace-nowrap dark:text-white">
                         {job.machine?.name || `Machine ${job.machineId}`}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -503,10 +503,10 @@ const ProductionJobs: React.FC = () => {
                           </span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 text-sm text-gray-500 whitespace-nowrap dark:text-gray-300">
                         {formatDate(job.dueDate)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <td className="px-6 py-4 text-sm font-medium text-right whitespace-nowrap">
                         <div className="flex items-center justify-end space-x-2">
                           {job.status === 'pending' && (
                             <button
@@ -514,7 +514,7 @@ const ProductionJobs: React.FC = () => {
                               className="text-green-600 hover:text-green-900"
                               title="Start Job"
                             >
-                              <Play className="h-4 w-4" />
+                              <Play className="w-4 h-4" />
                             </button>
                           )}
                           
@@ -524,7 +524,7 @@ const ProductionJobs: React.FC = () => {
                               className="text-blue-600 hover:text-blue-900"
                               title="Complete Job"
                             >
-                              <CheckCircle className="h-4 w-4" />
+                              <CheckCircle className="w-4 h-4" />
                             </button>
                           )}
                           
@@ -533,7 +533,7 @@ const ProductionJobs: React.FC = () => {
                             className="text-gray-600 hover:text-gray-900"
                             title="View Details"
                           >
-                            <Eye className="h-4 w-4" />
+                            <Eye className="w-4 h-4" />
                           </button>
                           
                           <button
@@ -541,7 +541,7 @@ const ProductionJobs: React.FC = () => {
                             className="text-blue-600 hover:text-blue-900"
                             title="Edit Job"
                           >
-                            <Edit className="h-4 w-4" />
+                            <Edit className="w-4 h-4" />
                           </button>
                           
                           <button
@@ -549,7 +549,7 @@ const ProductionJobs: React.FC = () => {
                             className="text-red-600 hover:text-red-900"
                             title="Delete Job"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </td>
@@ -563,43 +563,43 @@ const ProductionJobs: React.FC = () => {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 mt-4 rounded-lg shadow">
-            <div className="flex-1 flex justify-between sm:hidden">
+          <div className="flex items-center justify-between px-4 py-3 mt-4 bg-white border-t border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700 sm:px-6">
+            <div className="flex justify-between flex-1 sm:hidden">
               <button
                 onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                 disabled={currentPage === 1}
-                className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                className="relative inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md dark:border-gray-600 dark:text-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50"
               >
                 Previous
               </button>
               <button
                 onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                 disabled={currentPage === totalPages}
-                className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                className="relative inline-flex items-center px-4 py-2 ml-3 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md dark:border-gray-600 dark:text-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50"
               >
                 Next
               </button>
             </div>
             <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
               <div>
-                <p className="text-sm text-gray-700">
+                <p className="text-sm text-gray-700 dark:text-gray-300">
                   Page <span className="font-medium">{currentPage}</span> of{' '}
                   <span className="font-medium">{totalPages}</span>
                 </p>
               </div>
               <div>
-                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+                <nav className="relative z-0 inline-flex -space-x-px rounded-md shadow-sm">
                   <button
                     onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                     disabled={currentPage === 1}
-                    className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                    className="relative inline-flex items-center px-2 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-l-md dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50"
                   >
                     Previous
                   </button>
                   <button
                     onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                     disabled={currentPage === totalPages}
-                    className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                    className="relative inline-flex items-center px-2 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-r-md dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50"
                   >
                     Next
                   </button>
@@ -622,19 +622,19 @@ const ProductionJobs: React.FC = () => {
 
       {/* Create Job Modal Placeholder */}
       {showCreateForm && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-600 bg-opacity-50">
+          <div className="w-full max-w-md bg-white rounded-lg shadow-xl dark:bg-gray-900">
             <div className="p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Create New Production Job</h3>
-              <p className="text-gray-500 mb-4">Production job creation form will be implemented here.</p>
+              <h3 className="mb-4 text-lg font-medium text-gray-900 dark:text-white">Create New Production Job</h3>
+              <p className="mb-4 text-gray-500 dark:text-gray-300">Production job creation form will be implemented here.</p>
               <div className="flex justify-end space-x-3">
                 <button
                   onClick={() => setShowCreateForm(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-md dark:border-gray-600 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
                   Cancel
                 </button>
-                <button className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700">
+                <button className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
                   Create Job
                 </button>
               </div>
