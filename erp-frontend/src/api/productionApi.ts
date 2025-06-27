@@ -16,6 +16,11 @@ const apiCall = async <T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> => {
+  console.log(`API call to ${endpoint} with options:`, {
+    method: options.method || 'GET',
+    hasBody: !!options.body
+  });
+  
   try {
     const token = localStorage.getItem('token');
     const headers = {
@@ -24,17 +29,46 @@ const apiCall = async <T>(
       ...options.headers,
     };
 
+    if (options.body && typeof options.body === 'string') {
+      try {
+        // Log parsed body for debugging (avoid sensitive data)
+        const parsedBody = JSON.parse(options.body);
+        console.log(`Request body for ${endpoint}:`, {
+          ...parsedBody,
+          // Don't log sensitive fields if any
+        });
+      } catch (e) {
+        console.error('Failed to parse request body for logging');
+      }
+    }
+
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
       headers,
     });
 
+    console.log(`Response status for ${endpoint}:`, response.status);
+    
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'Network error' }));
-      throw new Error(errorData.message || `HTTP ${response.status}`);
+      let errorMessage = `HTTP ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorData.error || errorMessage;
+        console.error(`API error response for ${endpoint}:`, errorData);
+      } catch (e) {
+        console.error(`Failed to parse error response for ${endpoint}`);
+      }
+      throw new Error(errorMessage);
     }
 
     const data = await response.json();
+    console.log(`Success response for ${endpoint}:`, {
+      structure: typeof data,
+      isPaginated: !!(data.data && data.total),
+      isArray: Array.isArray(data),
+      success: !!data.success
+    });
+    
     return { success: true, data };
   } catch (error) {
     console.error(`API call failed for ${endpoint}:`, error);
@@ -79,10 +113,44 @@ export const productionApi = {
 
   // Create detailed production job with all job card data
   createDetailed: async (jobData: ProductionJobFormData): Promise<ApiResponse<DetailedProductionJob>> => {
-    return apiCall<DetailedProductionJob>('/production/detailed', {
-      method: 'POST',
-      body: JSON.stringify(jobData),
+    console.log('Creating detailed production job with data:', {
+      productName: jobData.productName,
+      productType: jobData.productType,
+      quantity: jobData.quantity,
+      unit: jobData.unit,
+      machineId: jobData.machineId,
+      priority: jobData.priority,
+      // Don't log entire object which might be large
     });
+    
+    try {
+      const result = await apiCall<DetailedProductionJob>('/production/detailed', {
+        method: 'POST',
+        body: JSON.stringify(jobData),
+      });
+      
+      if (result.success) {
+        console.log('Job created successfully with ID:', result.data?.id);
+        console.log('Job structure:', result.data);
+        
+        // Verify that the data is a job object and not a nested object with data property
+        if (result.data && typeof result.data === 'object' && !Array.isArray(result.data) && 'id' in result.data) {
+          console.log('Response is a valid job object');
+        } else {
+          console.warn('Response structure is not the expected job object');
+        }
+      } else {
+        console.error('Failed to create job:', result.error);
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Exception in createDetailed:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error creating job'
+      };
+    }
   },
 
   // Update production job

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import toast from "react-hot-toast";
+import { API_ENDPOINTS } from "../config/api";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -32,7 +33,7 @@ const Login = () => {
     const loading = toast.loading("🔐 Logging in...");
 
     try {
-      const res = await axios.post("http://localhost:5000/api/auth/login", {
+      const res = await axios.post(API_ENDPOINTS.AUTH.LOGIN, {
         email,
         password,
       });
