@@ -1,1 +1,3 @@
-// This file is intentionally left blank. The main YarnJobCardForm has been modularized and moved to components/yarn/JobCardForm/YarnJobCardForm.tsx
+// This file re-exports the modularized YarnJobCardForm component to maintain backward compatibility
+import YarnJobCardForm from './yarn/JobCardForm/YarnJobCardForm';
+export default YarnJobCardForm;

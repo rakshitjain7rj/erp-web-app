@@ -30,8 +30,15 @@ const apiCall = async <T>(
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'Network error' }));
-      throw new Error(errorData.message || `HTTP ${response.status}`);
+      let errorMessage = `HTTP Error ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorData.error || errorMessage;
+        console.error('API error details:', errorData);
+      } catch (e) {
+        console.error('Failed to parse error response:', e);
+      }
+      throw new Error(errorMessage);
     }
 
     const data = await response.json();

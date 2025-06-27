@@ -22,8 +22,7 @@ const User = sequelize.define('User', {
   password: {
     type: DataTypes.STRING,
     allowNull: false,
-    // Password is excluded by default in queries
-    select: false,
+    // Password is excluded by default via defaultScope
   },  role: {
     type: DataTypes.ENUM('admin', 'manager', 'storekeeper'),
     allowNull: false,

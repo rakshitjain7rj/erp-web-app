@@ -1,7 +1,7 @@
 import React from 'react';
 
 interface ControlledInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  label: string;
+  label: React.ReactNode;
   value: string | number;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   className?: string;

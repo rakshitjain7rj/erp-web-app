@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { 
   Plus, 
   Search, 
@@ -22,7 +23,7 @@ import {
   ProductionJobStats,
   YarnProductionJobCard
 } from '../types/production';
-import YarnJobCardForm from '../components/YarnJobCardForm';
+import YarnJobCardForm from '../components/yarn/JobCardForm/YarnJobCardForm';
 
 const ProductionJobs: React.FC = () => {
   const navigate = useNavigate();
@@ -143,11 +144,14 @@ const ProductionJobs: React.FC = () => {
   const handleYarnJobSubmit = async (jobData: YarnProductionJobCard) => {
     try {
       // Transform YarnProductionJobCard to ProductionJobFormData
+      // Log data for debugging
+      console.log("Submitting job data:", jobData);
+      
       const formData = {
         productName: jobData.productType,
         productType: jobData.productType,
-        quantity: jobData.quantity,
-        unit: jobData.unit,
+        quantity: parseFloat(String(jobData.quantity || 0)), // Ensure it's always a number
+        unit: jobData.unit || 'kg',
         machineId: jobData.machineId,
         assignedTo: jobData.workerId,
         priority: jobData.priority,
@@ -177,19 +181,26 @@ const ProductionJobs: React.FC = () => {
           steamConsumption: jobData.utilityReadings[0].steam
         } : undefined,
         processParameters: jobData.theoreticalParams ? {
-          numberOfThreads: jobData.theoreticalParams.numberOfThreads.toString(),
-          machineSpeed: jobData.theoreticalParams.machineSpeed.toString(),
-          yarnWeight10Min: jobData.theoreticalParams.yarnWeight10Min.toString(),
-          ideal12HourTarget: jobData.theoreticalParams.ideal12HourTarget.toString()
+          numberOfThreads: jobData.theoreticalParams.numberOfThreads?.toString() ?? '0',
+          machineSpeed: jobData.theoreticalParams.machineSpeed?.toString() ?? '0',
+          yarnWeight10Min: jobData.theoreticalParams.yarnWeight10Min?.toString() ?? '0',
+          ideal12HourTarget: jobData.theoreticalParams.ideal12HourTarget?.toString() ?? '0'
         } : undefined
       };
 
+      console.log("Sending formData to API:", formData);
       const response = await productionApi.createDetailed(formData);
+      console.log("API Response:", response);
+      
       if (response.success) {
+        toast.success("Job card created successfully!");
         setShowYarnJobForm(false);
         reloadData();
       } else {
-        setError(response.error || 'Failed to create yarn job card');
+        const errorMessage = response.error || 'Failed to create yarn job card';
+        toast.error(errorMessage);
+        setError(errorMessage);
+        console.error("API Error:", errorMessage);
       }
     } catch (err) {
       setError('Error creating yarn job card');

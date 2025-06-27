@@ -55,7 +55,7 @@ const Step2_HourlyEfficiency: React.FC<StepProps> = ({ jobCard, updateHourlyData
                   hour.efficiency >= 70 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
                   'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
                 }`}>
-                  {hour.efficiency?.toFixed(1) ?? '0.0'}%
+                  {hour.efficiency !== undefined ? hour.efficiency.toFixed(1) : '0.0'}%
                 </span>
               </td>
               <td className="px-3 py-2">
