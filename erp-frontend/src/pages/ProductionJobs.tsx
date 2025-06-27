@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import toast from 'react-hot-toast';
 import { 
   Plus, 
   Search, 
@@ -16,6 +15,7 @@ import {
   TrendingUp,
   Activity
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { productionApi } from '../api/productionApi';
 import {
   ProductionJob,
@@ -45,23 +45,45 @@ const ProductionJobs: React.FC = () => {
 
   const reloadData = async () => {
     try {
+      console.log('Reloading data with filters:', { ...filters, search: searchTerm }, 'page:', currentPage);
+      
       const [jobsResponse, statsResponse] = await Promise.all([
         productionApi.getAll({ ...filters, search: searchTerm }, currentPage, 20),
         productionApi.getStats(filters)
       ]);
       
+      console.log('Jobs API Response:', jobsResponse);
+      
       if (jobsResponse.success && jobsResponse.data) {
-        setJobs(jobsResponse.data.data || []);
-        setTotalPages(jobsResponse.data.totalPages || 1);
+        // Ensure we're handling the pagination structure correctly
+        if (jobsResponse.data.data && Array.isArray(jobsResponse.data.data)) {
+          console.log('Setting jobs with paginated data:', jobsResponse.data.data);
+          setJobs(jobsResponse.data.data);
+          setTotalPages(jobsResponse.data.totalPages || 1);
+        } else if (Array.isArray(jobsResponse.data)) {
+          console.log('Setting jobs with direct array:', jobsResponse.data);
+          setJobs(jobsResponse.data);
+          setTotalPages(1);
+        } else {
+          console.error('Unexpected jobs response structure:', jobsResponse);
+          setJobs([]);
+          toast.error('Unexpected response format from server');
+        }
       } else {
+        console.error('Failed to load jobs:', jobsResponse.error);
         setJobs([]);
+        toast.error(jobsResponse.error || 'Failed to load jobs');
       }
       
       if (statsResponse.success && statsResponse.data) {
         setStats(statsResponse.data);
+      } else {
+        console.error('Failed to load stats:', statsResponse.error);
       }
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error reloading data';
       console.error('Error reloading data:', err);
+      toast.error(errorMessage);
     }
   };
 
@@ -70,6 +92,9 @@ const ProductionJobs: React.FC = () => {
       try {
         setLoading(true);
         setError(null);
+        
+        console.log('Initial data fetch with filters:', { ...filters, search: searchTerm }, 'page:', currentPage);
+        
         const response = await productionApi.getAll(
           { ...filters, search: searchTerm },
           currentPage,
@@ -85,22 +110,26 @@ const ProductionJobs: React.FC = () => {
         if (response.success && response.data && response.data.data) {
           // Ensure we have an array
           const jobsData = Array.isArray(response.data.data) ? response.data.data : [];
-          console.log('Setting jobs to:', jobsData);
+          console.log('Setting jobs to paginated data:', jobsData);
           setJobs(jobsData);
           setTotalPages(response.data.totalPages || 1);
         } else if (response.success && response.data && Array.isArray(response.data)) {
           // Handle case where data is directly an array
           console.log('Setting jobs to direct array:', response.data);
           setJobs(response.data);
+          setTotalPages(1); // No pagination info in this format
         } else {
           console.error('Invalid API response structure:', response);
           setJobs([]); // Ensure jobs is always an array
           setError(response.error || 'Failed to load production jobs');
+          toast.error('Failed to load jobs: Invalid response format');
         }
       } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error loading jobs';
         console.error('Error in fetchData:', err);
         setError('Error loading production jobs');
         setJobs([]); // Ensure jobs is always an array
+        toast.error(errorMessage);
       } finally {
         setLoading(false);
       }
@@ -143,15 +172,14 @@ const ProductionJobs: React.FC = () => {
 
   const handleYarnJobSubmit = async (jobData: YarnProductionJobCard) => {
     try {
-      // Transform YarnProductionJobCard to ProductionJobFormData
-      // Log data for debugging
-      console.log("Submitting job data:", jobData);
+      console.log('Submitting job data:', jobData);
       
+      // Transform YarnProductionJobCard to ProductionJobFormData
       const formData = {
         productName: jobData.productType,
         productType: jobData.productType,
-        quantity: parseFloat(String(jobData.quantity || 0)), // Ensure it's always a number
-        unit: jobData.unit || 'kg',
+        quantity: jobData.quantity,
+        unit: jobData.unit,
         machineId: jobData.machineId,
         assignedTo: jobData.workerId,
         priority: jobData.priority,
@@ -188,23 +216,36 @@ const ProductionJobs: React.FC = () => {
         } : undefined
       };
 
-      console.log("Sending formData to API:", formData);
+      console.log('Transformed formData for createDetailed:', formData);
       const response = await productionApi.createDetailed(formData);
-      console.log("API Response:", response);
+      console.log('Create job response:', response);
       
-      if (response.success) {
-        toast.success("Job card created successfully!");
+      if (response.success && response.data) {
+        console.log('Job created successfully:', response.data);
         setShowYarnJobForm(false);
-        reloadData();
+        
+        // Show success notification
+        toast.success('Job created successfully!');
+        
+        // Immediately add the new job to the jobs list
+        // The job data is directly in response.data (not in response.data.data)
+        if (response.data) {
+          setJobs(prevJobs => [response.data as ProductionJob, ...prevJobs]);
+        }
+        
+        // Then reload all data to ensure we have the latest state from the server
+        await reloadData();
       } else {
         const errorMessage = response.error || 'Failed to create yarn job card';
-        toast.error(errorMessage);
+        console.error('Job creation failed:', errorMessage);
         setError(errorMessage);
-        console.error("API Error:", errorMessage);
+        toast.error(errorMessage);
       }
     } catch (err) {
-      setError('Error creating yarn job card');
-      console.error('Error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Error creating yarn job card';
+      console.error('Exception in job creation:', err);
+      setError(errorMessage);
+      toast.error(errorMessage);
     }
   };
 
@@ -212,13 +253,18 @@ const ProductionJobs: React.FC = () => {
     try {
       const response = await productionApi.start(jobId);
       if (response.success) {
+        toast.success('Job started successfully');
         reloadData();
       } else {
-        setError(response.error || 'Failed to start job');
+        const errorMessage = response.error || 'Failed to start job';
+        setError(errorMessage);
+        toast.error(errorMessage);
       }
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Error starting job';
       setError('Error starting job');
       console.error('Error:', err);
+      toast.error(errorMessage);
     }
   };
 
@@ -226,13 +272,18 @@ const ProductionJobs: React.FC = () => {
     try {
       const response = await productionApi.complete(jobId);
       if (response.success) {
+        toast.success('Job completed successfully');
         reloadData();
       } else {
-        setError(response.error || 'Failed to complete job');
+        const errorMessage = response.error || 'Failed to complete job';
+        setError(errorMessage);
+        toast.error(errorMessage);
       }
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Error completing job';
       setError('Error completing job');
       console.error('Error:', err);
+      toast.error(errorMessage);
     }
   };
 
@@ -242,13 +293,18 @@ const ProductionJobs: React.FC = () => {
     try {
       const response = await productionApi.delete(jobId);
       if (response.success) {
+        toast.success('Job deleted successfully');
         reloadData();
       } else {
-        setError(response.error || 'Failed to delete job');
+        const errorMessage = response.error || 'Failed to delete job';
+        setError(errorMessage);
+        toast.error(errorMessage);
       }
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Error deleting job';
       setError('Error deleting job');
       console.error('Error:', err);
+      toast.error(errorMessage);
     }
   };
 
@@ -279,6 +335,7 @@ const ProductionJobs: React.FC = () => {
 
   return (
     <div className="min-h-screen text-gray-900 bg-gray-50 dark:bg-gray-950 dark:text-white">
+      {/* Toast container is already added at the app level via Toaster component */}
       {/* Header */}
       <div className="text-white bg-gradient-to-r from-blue-600 to-blue-800 dark:from-indigo-800 dark:to-indigo-900">
         <div className="px-4 py-6 mx-auto max-w-7xl sm:px-6 lg:px-8">
@@ -453,12 +510,28 @@ const ProductionJobs: React.FC = () => {
               <h3 className="mb-2 text-lg font-medium text-gray-900 dark:text-white">No production jobs found</h3>
               <p className="mb-4 text-gray-500 dark:text-gray-300">Get started by creating your first production job.</p>
               <p className="mb-4 text-xs text-gray-400">Debug: Jobs array length: {jobs.length}, Jobs: {JSON.stringify(jobs)}</p>
-              <button
-                onClick={() => setShowCreateForm(true)}
-                className="px-4 py-2 text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-700"
-              >
-                Create Production Job
-              </button>
+              {jobs.length === 0 && (
+                <p className="mb-4 text-xs text-gray-400">
+                  Note: If you just created a job and don't see it, try refreshing the page or check the server logs for errors.
+                </p>
+              )}
+              <div className="flex flex-col justify-center gap-2 sm:flex-row sm:gap-4">
+                <button
+                  onClick={() => setShowCreateForm(true)}
+                  className="px-4 py-2 text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-700"
+                >
+                  Create Production Job
+                </button>
+                <button
+                  onClick={() => {
+                    toast.success('Refreshing data...');
+                    reloadData();
+                  }}
+                  className="px-4 py-2 text-blue-600 transition-colors bg-white border border-blue-600 rounded-lg hover:bg-blue-50"
+                >
+                  Refresh Data
+                </button>
+              </div>
             </div>
           ) : (
             <div className="overflow-x-auto">

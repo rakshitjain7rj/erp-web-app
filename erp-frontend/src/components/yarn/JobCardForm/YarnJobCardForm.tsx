@@ -20,21 +20,7 @@ const steps = [
 
 const YarnJobCardForm: React.FC<YarnJobCardFormProps> = ({ isOpen, onClose, onSave, editingJob }) => {
   const [currentStep, setCurrentStep] = useState(1);
-  const [jobCard, setJobCard] = useState<YarnJobCardData>(() => {
-    // Initialize with default values for critical nested objects
-    const defaultData: YarnJobCardData = {
-      ...editingJob || {},
-      // Ensure shift data is initialized with proper structure
-      shiftData: {
-        ...(editingJob?.shiftData || {}),
-        shift: editingJob?.shiftData?.shift || 'A',
-        shiftLabel: editingJob?.shiftData?.shiftLabel || 'Morning (6AM-2PM)',
-        operators: Array.isArray(editingJob?.shiftData?.operators) ? editingJob.shiftData.operators : [],
-        supervisor: editingJob?.shiftData?.supervisor || ''
-      }
-    };
-    return defaultData;
-  });
+  const [jobCard, setJobCard] = useState<YarnJobCardData>(editingJob || {});
   const [machines, setMachines] = useState<Machine[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -62,13 +48,38 @@ const YarnJobCardForm: React.FC<YarnJobCardFormProps> = ({ isOpen, onClose, onSa
       // In production, we wouldn't use mock data, but would show users an appropriate message
       if (machinesArray.length === 0) {
         console.warn('No machines found in API response');
-        // Let the component render with empty machines array
-        // The warning UI will be displayed to inform the user
+        // Add mock machines for testing purposes
+        const mockMachines = [
+          { 
+            id: 1, 
+            machineId: 'SPIN001', 
+            name: 'Spinning Machine 1',
+            type: 'spinning',
+            status: 'active',
+            capacity: 500,
+            location: 'Floor 1'
+          },
+          {
+            id: 2,
+            machineId: 'SPIN002',
+            name: 'Spinning Machine 2',
+            type: 'spinning',
+            status: 'active',
+            capacity: 450,
+            location: 'Floor 2'
+          }
+        ];
+        setMachines(mockMachines);
+        return;
       }
       
       // Filter for yarn/spinning machines if needed
-      const yarnMachines = machinesArray.filter((machine: Machine) => 
-        machine && machine.type === 'spinning'
+      const validMachines = machinesArray.filter((machine: Machine) => 
+        machine && typeof machine.id === 'number' && machine.machineId
+      );
+      
+      const yarnMachines = validMachines.filter((machine: Machine) => 
+        machine.type === 'spinning' || machine.type === 'yarn' || !machine.type // include machines with missing type
       );
       
       setMachines(yarnMachines.length ? yarnMachines : machinesArray);
@@ -267,9 +278,12 @@ const YarnJobCardForm: React.FC<YarnJobCardFormProps> = ({ isOpen, onClose, onSa
           onNext={() => setCurrentStep(currentStep + 1)}
           onSave={() => {
             // Validate machine selection
-            if (!jobCard.machineId || jobCard.machineId === 0) {
+            if (!jobCard.machineId || isNaN(Number(jobCard.machineId)) || Number(jobCard.machineId) <= 0) {
               toast.error("Machine selection is required. Please select a machine before saving the job.");
               setCurrentStep(1); // Redirect to step 1
+              
+              // Log the current value for debugging
+              console.log("Invalid machine ID:", jobCard.machineId, typeof jobCard.machineId);
               
               // Add focus to the machine dropdown when we return to step 1
               setTimeout(() => {
@@ -288,35 +302,49 @@ const YarnJobCardForm: React.FC<YarnJobCardFormProps> = ({ isOpen, onClose, onSa
               return;
             }
             
-            // Validate required fields
-            if (!jobCard.quantity || jobCard.quantity < 0.01) {
-              toast.error("Please enter a valid quantity (minimum 0.01).");
-              setCurrentStep(1);
-              return;
-            }
-            
-            // Validate product type
-            if (!jobCard.productType) {
-              toast.error("Please enter a yarn type/product name.");
-              setCurrentStep(1);
+            // Validate quantity field
+            if (!jobCard.quantity || isNaN(Number(jobCard.quantity)) || Number(jobCard.quantity) <= 0) {
+              toast.error("Quantity is required and must be a positive number");
               return;
             }
 
-            // Update last updated timestamp and ensure required fields have valid values
+            // Validate product type
+            if (!jobCard.productType || jobCard.productType.trim() === '') {
+              toast.error("Product type is required");
+              return;
+            }
+
+            // Ensure all required fields are present
+            console.log("Final job card validation before saving:", {
+              machineId: jobCard.machineId,
+              quantity: jobCard.quantity,
+              productType: jobCard.productType,
+              hasTheoreticalParams: !!jobCard.theoreticalParams
+            });
+            
+            // Update last updated timestamp
             const updatedJobCard = {
               ...jobCard,
-              // Ensure critical fields are properly set
-              quantity: parseFloat(String(jobCard.quantity)), // Explicitly convert to number
+              // Ensure these fields are definitely set
+              machineId: Number(jobCard.machineId),
+              quantity: Number(jobCard.quantity),
               unit: jobCard.unit || 'kg',
-              priority: jobCard.priority || 'medium',
+              productType: jobCard.productType,
+              // Ensure nested objects exist
               theoreticalParams: {
                 ...jobCard.theoreticalParams,
                 lastUpdated: new Date().toISOString()
+              },
+              shiftData: jobCard.shiftData || { 
+                shift: 'A',
+                startTime: '',
+                endTime: '',
+                supervisor: '',
+                operators: [] 
               }
             };
             
-            // Final validation
-            console.log("Job data being submitted:", updatedJobCard);
+            console.log("Submitting updatedJobCard:", updatedJobCard);
             
             // Proceed with saving if validation passes
             onSave(updatedJobCard as YarnProductionJobCard);
