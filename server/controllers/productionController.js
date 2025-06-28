@@ -50,6 +50,9 @@ const createProductionJob = asyncHandler(async (req, res) => {
       as: 'machine'
     }]
   });
+  
+  console.log('✅ Created Job With Machine:', JSON.stringify(jobWithMachine?.toJSON?.() || jobWithMachine, null, 2));
+
 
   res.status(201).json({
     success: true,
@@ -58,13 +61,14 @@ const createProductionJob = asyncHandler(async (req, res) => {
   });
 });
 
-// ✅ Create detailed production job
+// // ✅ Create detailed production job
 const createDetailedProductionJob = asyncHandler(async (req, res) => {
   const jobData = req.body;
-  
+
   // Generate unique job ID
   const jobId = await ProductionJob.generateNextJobId();
 
+  // Create the production job
   const newJob = await ProductionJob.create({
     ...jobData,
     jobId,
@@ -77,18 +81,24 @@ const createDetailedProductionJob = asyncHandler(async (req, res) => {
     qualityControlData: {}
   });
 
-  // Include machine details
+  // Refetch with machine included
   const jobWithMachine = await ProductionJob.findByPk(newJob.id, {
-    include: [{
-      model: Machine,
-      as: 'machine'
-    }]
+    include: [
+      {
+        model: Machine,
+        as: 'machine'
+      }
+    ]
   });
+
+  const plainJob = jobWithMachine?.toJSON?.() || jobWithMachine;
+
+  console.log('✅ Created Job With Machine:', JSON.stringify(plainJob, null, 2));
 
   res.status(201).json({
     success: true,
     message: 'Detailed production job created successfully',
-    data: jobWithMachine
+    data: plainJob
   });
 });
 
@@ -131,7 +141,7 @@ const getAllProductionJobs = asyncHandler(async (req, res) => {
 
   const offset = (page - 1) * limit;
 
-  const { rows: data, count: total } = await ProductionJob.findAndCountAll({
+  const { rows, count } = await ProductionJob.findAndCountAll({
     where: whereClause,
     include: [{
       model: Machine,
@@ -142,14 +152,15 @@ const getAllProductionJobs = asyncHandler(async (req, res) => {
     offset: parseInt(offset)
   });
 
+  // ✅ Final fixed structure - match frontend expectations
   res.status(200).json({
     success: true,
     data: {
-      data,
-      total,
+      data: rows,         // 👈 changed from rows to data to match frontend expectation
+      total: count,       // 👈 changed from count to total to match frontend expectation
       page: parseInt(page),
       limit: parseInt(limit),
-      totalPages: Math.ceil(total / limit)
+      totalPages: Math.ceil(count / limit)
     }
   });
 });

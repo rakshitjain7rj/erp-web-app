@@ -11,6 +11,28 @@ import {
 
 const API_BASE_URL = 'http://localhost:5000/api';
 
+// Utility function to handle nested API response structures
+const unwrapNestedResponse = <T>(response: ApiResponse<unknown>): ApiResponse<T> => {
+  if (response.success && response.data) {
+    // Check if we have a nested structure (data.data contains the actual data)
+    if (
+      typeof response.data === 'object' && 
+      response.data !== null &&
+      'data' in response.data
+    ) {
+      // Return the unwrapped data
+      const nestedData = response.data as { data: unknown };
+      return {
+        success: true,
+        data: nestedData.data as T
+      };
+    }
+  }
+  
+  // If not a nested structure or not successful, return as is
+  return response as unknown as ApiResponse<T>;
+};
+
 // API utility function
 const apiCall = async <T>(
   endpoint: string,
@@ -37,7 +59,7 @@ const apiCall = async <T>(
           ...parsedBody,
           // Don't log sensitive fields if any
         });
-      } catch (e) {
+      } catch (_) {
         console.error('Failed to parse request body for logging');
       }
     }
@@ -55,19 +77,72 @@ const apiCall = async <T>(
         const errorData = await response.json();
         errorMessage = errorData.message || errorData.error || errorMessage;
         console.error(`API error response for ${endpoint}:`, errorData);
-      } catch (e) {
+      } catch (_) {
         console.error(`Failed to parse error response for ${endpoint}`);
       }
       throw new Error(errorMessage);
     }
 
     const data = await response.json();
+    
+    // ✅ Enhanced API response validation
+    if (typeof data !== 'object' || data === null) {
+      console.error(`API response from ${endpoint} is not an object:`, data);
+      return { 
+        success: false, 
+        error: 'Invalid API response format: Not an object'
+      };
+    }
+    
+    // Log detailed response structure for debugging
     console.log(`Success response for ${endpoint}:`, {
       structure: typeof data,
-      isPaginated: !!(data.data && data.total),
-      isArray: Array.isArray(data),
+      hasDataProperty: 'data' in data,
+      dataType: data.data ? typeof data.data : 'undefined',
+      isPaginated: !!(data.data && data.data.data),
+      isArray: Array.isArray(data.data),
+      isDirectArray: data.data && Array.isArray(data.data),
       success: !!data.success
     });
+    
+    // All API responses should have success flag
+    if (data.success !== true) {
+      console.warn(`API response from ${endpoint} missing success flag:`, data);
+      // Keep going if data looks valid despite missing success flag
+      if (!('data' in data)) {
+        console.error(`API response from ${endpoint} has no data property:`, data);
+        return { 
+          success: false, 
+          error: 'Invalid API response format: No data property'
+        };
+      }
+    }
+
+    // Check for paginated data structure and validate it
+    if (data.data && typeof data.data === 'object' && 'data' in data.data) {
+      const paginatedData = data.data;
+      // Check if the nested data array exists
+      if (!Array.isArray(paginatedData.data)) {
+        console.error(`API response from ${endpoint} has invalid paginated data structure - expected data.data to be an array:`, data);
+        console.error(`data.data type: ${typeof paginatedData.data}`);
+        return { 
+          success: false, 
+          error: 'Invalid paginated response format: data.data is not an array'
+        };
+      }
+      
+      // Ensure other pagination properties exist
+      const missingFields = [];
+      if (typeof paginatedData.total !== 'number') missingFields.push('total');
+      if (typeof paginatedData.page !== 'number') missingFields.push('page'); 
+      if (typeof paginatedData.totalPages !== 'number') missingFields.push('totalPages');
+      
+      if (missingFields.length > 0) {
+        console.warn(`API response from ${endpoint} has incomplete pagination metadata. Missing: ${missingFields.join(', ')}`, paginatedData);
+      } else {
+        console.log(`Validated paginated response from ${endpoint}: ${paginatedData.data.length} items, page ${paginatedData.page} of ${paginatedData.totalPages}`);
+      }
+    }
     
     return { success: true, data };
   } catch (error) {
@@ -95,24 +170,128 @@ export const productionApi = {
       )
     });
 
-    return apiCall<PaginatedResponse<ProductionJob>>(`/production?${params}`);
+    const result = await apiCall<unknown>(`/production?${params}`);
+    console.log('Production API getAll response:', result);
+    
+    // Unwrap the nested response to match our expected type structure
+    if (result.success && result.data) {
+      // Check if the data structure is paginated with the expected structure
+      if (
+        typeof result.data === 'object' &&
+        result.data !== null &&
+        'data' in result.data &&
+        Array.isArray((result.data as any).data)
+      ) {
+        // This is the expected format from the backend:
+        // { success: true, data: { data: [...], total, page, limit, totalPages } }
+        console.log('Processing standard paginated response format');
+        const paginated = result.data as {
+          data: ProductionJob[];
+          total: number;
+          page?: number;
+          limit?: number;
+          totalPages?: number;
+        };
+
+        // Validate required fields and provide fallbacks
+        if (!Array.isArray(paginated.data)) {
+          console.error('Paginated response has data field but it is not an array:', paginated.data);
+          paginated.data = [];
+        }
+
+        return {
+          success: true,
+          data: {
+            data: paginated.data,
+            total: typeof paginated.total === 'number' ? paginated.total : paginated.data.length,
+            page: typeof paginated.page === 'number' ? paginated.page : page,
+            limit: typeof paginated.limit === 'number' ? paginated.limit : limit,
+            totalPages: typeof paginated.totalPages === 'number' ? paginated.totalPages : 
+                       (typeof paginated.total === 'number' ? Math.ceil(paginated.total / limit) : 1)
+          }
+        };
+      } else if (Array.isArray(result.data)) {
+        // Handle case where API returns a direct array (not paginated)
+        console.log('API returned direct array instead of paginated response');
+        return {
+          success: true,
+          data: {
+            data: result.data,
+            total: result.data.length,
+            page: 1,
+            limit: result.data.length,
+            totalPages: 1
+          }
+        };
+      } else if (typeof result.data === 'object' && result.data !== null && 'rows' in result.data && Array.isArray((result.data as any).rows)) {
+        // Handle legacy format with rows and count
+        console.log('Processing legacy response format with rows/count');
+        const legacyData = result.data as {
+          rows: ProductionJob[];
+          count: number;
+          page?: number;
+          limit?: number;
+          totalPages?: number;
+        };
+        
+        return {
+          success: true,
+          data: {
+            data: legacyData.rows,
+            total: typeof legacyData.count === 'number' ? legacyData.count : legacyData.rows.length,
+            page: typeof legacyData.page === 'number' ? legacyData.page : page,
+            limit: typeof legacyData.limit === 'number' ? legacyData.limit : limit,
+            totalPages: typeof legacyData.totalPages === 'number' ? legacyData.totalPages : 
+                       (typeof legacyData.count === 'number' ? Math.ceil(legacyData.count / limit) : 1)
+          }
+        };
+      }
+      
+      // Invalid data structure
+      console.error('Invalid data structure in getAll response:', {
+        type: typeof result.data,
+        isPaginated: typeof result.data === 'object' && 'data' in result.data,
+        isArray: Array.isArray(result.data),
+        hasRows: typeof result.data === 'object' && result.data !== null && 'rows' in result.data,
+        dataValue: result.data
+      });
+      
+      return {
+        success: false,
+        error: 'Invalid data structure in API response',
+        data: {
+          data: [],
+          total: 0,
+          page: 1,
+          limit: 20,
+          totalPages: 1
+        }
+      };
+    }
+    
+    // Pass through error responses
+    console.error('API call was not successful:', result.error);
+    return result as ApiResponse<PaginatedResponse<ProductionJob>>;
   },
 
   // Get production job by ID
   getById: async (id: number): Promise<ApiResponse<DetailedProductionJob>> => {
-    return apiCall<DetailedProductionJob>(`/production/${id}`);
+    const result = await apiCall<unknown>(`/production/${id}`);
+    return unwrapNestedResponse<DetailedProductionJob>(result);
   },
 
   // Create new production job
   create: async (jobData: ProductionJobFormData): Promise<ApiResponse<ProductionJob>> => {
-    return apiCall<ProductionJob>('/production', {
+    const result = await apiCall<unknown>('/production', {
       method: 'POST',
       body: JSON.stringify(jobData),
     });
+    return unwrapNestedResponse<ProductionJob>(result);
   },
 
   // Create detailed production job with all job card data
   createDetailed: async (jobData: ProductionJobFormData): Promise<ApiResponse<DetailedProductionJob>> => {
+   
     console.log('Creating detailed production job with data:', {
       productName: jobData.productName,
       productType: jobData.productType,
@@ -124,26 +303,30 @@ export const productionApi = {
     });
     
     try {
-      const result = await apiCall<DetailedProductionJob>('/production/detailed', {
+      const result = await apiCall<unknown>('/production/detailed', {
         method: 'POST',
         body: JSON.stringify(jobData),
       });
       
-      if (result.success) {
-        console.log('Job created successfully with ID:', result.data?.id);
-        console.log('Job structure:', result.data);
-        
-        // Verify that the data is a job object and not a nested object with data property
-        if (result.data && typeof result.data === 'object' && !Array.isArray(result.data) && 'id' in result.data) {
-          console.log('Response is a valid job object');
-        } else {
-          console.warn('Response structure is not the expected job object');
+      // Use our unwrapping utility and additional validation
+      const unwrappedResult = unwrapNestedResponse<DetailedProductionJob>(result);
+      console.log('Unwrapped detailed job result:', unwrappedResult);
+      if (unwrappedResult.success) {
+        // Verify we have a valid job object with ID
+        if (unwrappedResult.data && 'id' in unwrappedResult.data) {
+          console.log('Job created successfully with ID:', unwrappedResult.data.id);
+          return unwrappedResult;
         }
+        
+        console.warn('Response does not contain a valid job object with ID:', unwrappedResult.data);
+        return {
+          success: false,
+          error: 'Invalid job data returned from server'
+        };
       } else {
-        console.error('Failed to create job:', result.error);
+        console.error('Failed to create job:', unwrappedResult.error);
+        return unwrappedResult;
       }
-      
-      return result;
     } catch (error) {
       console.error('Exception in createDetailed:', error);
       return {
@@ -155,25 +338,28 @@ export const productionApi = {
 
   // Update production job
   update: async (id: number, jobData: Partial<ProductionJobFormData>): Promise<ApiResponse<ProductionJob>> => {
-    return apiCall<ProductionJob>(`/production/${id}`, {
+    const result = await apiCall<unknown>(`/production/${id}`, {
       method: 'PUT',
       body: JSON.stringify(jobData),
     });
+    return unwrapNestedResponse<ProductionJob>(result);
   },
 
   // Update job status
   updateStatus: async (id: number, status: ProductionJob['status']): Promise<ApiResponse<ProductionJob>> => {
-    return apiCall<ProductionJob>(`/production/${id}/status`, {
+    const result = await apiCall<unknown>(`/production/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     });
+    return unwrapNestedResponse<ProductionJob>(result);
   },
 
   // Start production job
   start: async (id: number): Promise<ApiResponse<ProductionJob>> => {
-    return apiCall<ProductionJob>(`/production/${id}/start`, {
+    const result = await apiCall<unknown>(`/production/${id}/start`, {
       method: 'POST',
     });
+    return unwrapNestedResponse<ProductionJob>(result);
   },
 
   // Complete production job
@@ -183,17 +369,24 @@ export const productionApi = {
     qualityControlData?: Record<string, string | number>;
     notes?: string;
   }): Promise<ApiResponse<ProductionJob>> => {
-    return apiCall<ProductionJob>(`/production/${id}/complete`, {
+    const result = await apiCall<unknown>(`/production/${id}/complete`, {
       method: 'POST',
       body: JSON.stringify(completionData || {}),
     });
+    return unwrapNestedResponse<ProductionJob>(result);
   },
 
   // Delete production job
   delete: async (id: number): Promise<ApiResponse<void>> => {
-    return apiCall<void>(`/production/${id}`, {
+    const result = await apiCall<unknown>(`/production/${id}`, {
       method: 'DELETE',
     });
+    // For DELETE operations, we typically don't need to unwrap the data
+    // but we should still handle success/error properly
+    return {
+      success: result.success,
+      error: result.error
+    };
   },
 
   // Get production job statistics
@@ -204,7 +397,8 @@ export const productionApi = {
       )
     );
     
-    return apiCall<ProductionJobStats>(`/production/stats?${params}`);
+    const result = await apiCall<unknown>(`/production/stats?${params}`);
+    return unwrapNestedResponse<ProductionJobStats>(result);
   },
 
   // Add hourly efficiency entry
@@ -216,10 +410,11 @@ export const productionApi = {
     qualityIssues?: number;
     notes?: string;
   }): Promise<ApiResponse<ProductionJob>> => {
-    return apiCall<ProductionJob>(`/production/${id}/efficiency`, {
+    const result = await apiCall<unknown>(`/production/${id}/efficiency`, {
       method: 'POST',
       body: JSON.stringify(efficiencyData),
     });
+    return unwrapNestedResponse<ProductionJob>(result);
   },
 
   // Add utility reading
@@ -232,13 +427,14 @@ export const productionApi = {
     steamConsumption?: number;
     waterConsumption?: number;
   }): Promise<ApiResponse<ProductionJob>> => {
-    return apiCall<ProductionJob>(`/production/${id}/utility-reading`, {
+    const result = await apiCall<unknown>(`/production/${id}/utility-reading`, {
       method: 'POST',
       body: JSON.stringify({
         timestamp: new Date().toISOString(),
         ...readingData,
       }),
     });
+    return unwrapNestedResponse<ProductionJob>(result);
   },
 };
 
@@ -246,45 +442,55 @@ export const productionApi = {
 export const machineApi = {
   // Get all machines
   getAll: async (): Promise<ApiResponse<Machine[]>> => {
-    return apiCall<Machine[]>('/production/machines');
+    const result = await apiCall<unknown>('/production/machines');
+    return unwrapNestedResponse<Machine[]>(result);
   },
 
   // Get machine by ID
   getById: async (id: number): Promise<ApiResponse<Machine>> => {
-    return apiCall<Machine>(`/production/machines/${id}`);
+    const result = await apiCall<unknown>(`/production/machines/${id}`);
+    return unwrapNestedResponse<Machine>(result);
   },
 
   // Create new machine
   create: async (machineData: Omit<Machine, 'id' | 'createdAt' | 'updatedAt'>): Promise<ApiResponse<Machine>> => {
-    return apiCall<Machine>('/production/machines', {
+    const result = await apiCall<unknown>('/production/machines', {
       method: 'POST',
       body: JSON.stringify(machineData),
     });
+    return unwrapNestedResponse<Machine>(result);
   },
 
   // Update machine
   update: async (id: number, machineData: Partial<Machine>): Promise<ApiResponse<Machine>> => {
-    return apiCall<Machine>(`/production/machines/${id}`, {
+    const result = await apiCall<unknown>(`/production/machines/${id}`, {
       method: 'PUT',
       body: JSON.stringify(machineData),
     });
+    return unwrapNestedResponse<Machine>(result);
   },
 
   // Delete machine
   delete: async (id: number): Promise<ApiResponse<void>> => {
-    return apiCall<void>(`/production/machines/${id}`, {
+    const result = await apiCall<unknown>(`/production/machines/${id}`, {
       method: 'DELETE',
     });
+    return {
+      success: result.success,
+      error: result.error
+    };
   },
 
   // Get machines by type
   getByType: async (type: Machine['type']): Promise<ApiResponse<Machine[]>> => {
-    return apiCall<Machine[]>(`/production/machines/type/${type}`);
+    const result = await apiCall<unknown>(`/production/machines/type/${type}`);
+    return unwrapNestedResponse<Machine[]>(result);
   },
 
   // Get active machines
   getActive: async (): Promise<ApiResponse<Machine[]>> => {
-    return apiCall<Machine[]>('/production/machines/active');
+    const result = await apiCall<unknown>('/production/machines/active');
+    return unwrapNestedResponse<Machine[]>(result);
   },
 };
 

@@ -54,31 +54,82 @@ const ProductionJobs: React.FC = () => {
       
       console.log('Jobs API Response:', jobsResponse);
       
-      if (jobsResponse.success && jobsResponse.data) {
-        // Ensure we're handling the pagination structure correctly
-        if (jobsResponse.data.data && Array.isArray(jobsResponse.data.data)) {
-          console.log('Setting jobs with paginated data:', jobsResponse.data.data);
-          setJobs(jobsResponse.data.data);
-          setTotalPages(jobsResponse.data.totalPages || 1);
-        } else if (Array.isArray(jobsResponse.data)) {
-          console.log('Setting jobs with direct array:', jobsResponse.data);
-          setJobs(jobsResponse.data);
-          setTotalPages(1);
-        } else {
-          console.error('Unexpected jobs response structure:', jobsResponse);
-          setJobs([]);
-          toast.error('Unexpected response format from server');
-        }
-      } else {
-        console.error('Failed to load jobs:', jobsResponse.error);
+      // ✅ Enhanced API response structure validation
+      if (!jobsResponse.success) {
+        console.error("❌ Jobs API request failed:", jobsResponse.error);
         setJobs([]);
-        toast.error(jobsResponse.error || 'Failed to load jobs');
+        toast.error(`Failed to load jobs: ${jobsResponse.error || 'Unknown error'}`);
+        return;
       }
       
+      if (!jobsResponse.data) {
+        console.error("❌ Jobs API response missing data property:", jobsResponse);
+        setJobs([]);
+        toast.error('Failed to load jobs: No data returned');
+        return;
+      }
+      
+      // Check for paginated response structure
+      if (typeof jobsResponse.data === 'object' && 'data' in jobsResponse.data) {
+        // Paginated response
+        if (!Array.isArray(jobsResponse.data.data)) {
+          console.error("❌ Jobs API response data.data is not an array:", jobsResponse.data);
+          setJobs([]);
+          toast.error('Failed to load jobs: Invalid data format');
+          return;
+        }
+        
+        // Valid paginated response
+        console.log('Setting jobs with paginated data:', jobsResponse.data.data);
+        setJobs(jobsResponse.data.data);
+        setTotalPages(jobsResponse.data.totalPages || 1);
+        
+        // Validate pagination metadata
+        if (typeof jobsResponse.data.total !== 'number' || 
+            typeof jobsResponse.data.page !== 'number' ||
+            typeof jobsResponse.data.totalPages !== 'number') {
+          console.warn('Jobs API response has incomplete pagination metadata:', jobsResponse.data);
+        }
+      } else if (Array.isArray(jobsResponse.data)) {
+        // Direct array response
+        console.log('Setting jobs with direct array:', jobsResponse.data);
+        setJobs(jobsResponse.data);
+        setTotalPages(1); // No pagination info available
+      } else {
+        // Unknown response structure
+        console.error('Unexpected jobs response structure:', jobsResponse);
+        setJobs([]);
+        toast.error('Failed to load jobs: Unknown response format');
+      }
+      
+      // Process stats response
       if (statsResponse.success && statsResponse.data) {
-        setStats(statsResponse.data);
+        // Validate stats data structure
+        if (typeof statsResponse.data !== 'object') {
+          console.error('Stats API response is not an object:', statsResponse.data);
+          // Use default stats
+          setStats({
+            totalJobs: 0,
+            activeJobs: 0,
+            completedJobs: 0,
+            pendingJobs: 0,
+            averageEfficiency: 0,
+            totalDowntime: 0
+          });
+        } else {
+          setStats(statsResponse.data);
+        }
       } else {
         console.error('Failed to load stats:', statsResponse.error);
+        // Use default stats
+        setStats({
+          totalJobs: 0,
+          activeJobs: 0,
+          completedJobs: 0,
+          pendingJobs: 0,
+          averageEfficiency: 0,
+          totalDowntime: 0
+        });
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error reloading data';
@@ -107,22 +158,50 @@ const ProductionJobs: React.FC = () => {
         console.log('Response data.data:', response.data?.data);
         console.log('Is data.data an array?', Array.isArray(response.data?.data));
         
-        if (response.success && response.data && response.data.data) {
-          // Ensure we have an array
-          const jobsData = Array.isArray(response.data.data) ? response.data.data : [];
-          console.log('Setting jobs to paginated data:', jobsData);
-          setJobs(jobsData);
-          setTotalPages(response.data.totalPages || 1);
-        } else if (response.success && response.data && Array.isArray(response.data)) {
-          // Handle case where data is directly an array
-          console.log('Setting jobs to direct array:', response.data);
-          setJobs(response.data);
-          setTotalPages(1); // No pagination info in this format
-        } else {
-          console.error('Invalid API response structure:', response);
+        // ✅ Enhanced API response structure validation
+        // Backend returns: { success: true, data: { data: [], total, page, limit, totalPages } }
+        if (!response.success) {
+          console.error("❌ API request failed:", response.error);
           setJobs([]); // Ensure jobs is always an array
-          setError(response.error || 'Failed to load production jobs');
-          toast.error('Failed to load jobs: Invalid response format');
+          setError(`Failed to load production jobs: ${response.error || 'Unknown error'}`);
+          toast.error(`Failed to load jobs: ${response.error || 'Unknown error'}`);
+          return; // Exit early
+        }
+        
+        if (!response.data) {
+          console.error("❌ API response missing data property:", response);
+          setJobs([]); // Ensure jobs is always an array
+          setError('Failed to load production jobs: No data returned');
+          toast.error('Failed to load jobs: No data returned');
+          return; // Exit early
+        }
+        
+        // Check for paginated response structure
+        if (typeof response.data === 'object' && 'data' in response.data) {
+          // Paginated response
+          if (!Array.isArray(response.data.data)) {
+            console.error("❌ API response data.data is not an array:", response.data);
+            setJobs([]); // Ensure jobs is always an array
+            setError('Failed to load production jobs: Invalid data format');
+            toast.error('Failed to load jobs: Invalid data format');
+            return; // Exit early
+          }
+          
+          // Response structure is valid, proceed with setting the jobs
+          console.log('Setting jobs to paginated data:', response.data.data);
+          setJobs(response.data.data);
+          setTotalPages(response.data.totalPages || 1);
+        } else if (Array.isArray(response.data)) {
+          // Direct array response
+          console.log('Setting jobs to direct array data:', response.data);
+          setJobs(response.data);
+          setTotalPages(1); // No pagination info available
+        } else {
+          // Unknown response structure
+          console.error("❌ Unknown API response structure:", response.data);
+          setJobs([]); // Ensure jobs is always an array
+          setError('Failed to load production jobs: Unknown response format');
+          toast.error('Failed to load jobs: Unknown response format');
         }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error loading jobs';
@@ -220,26 +299,55 @@ const ProductionJobs: React.FC = () => {
       const response = await productionApi.createDetailed(formData);
       console.log('Create job response:', response);
       
-      if (response.success && response.data) {
-        console.log('Job created successfully:', response.data);
-        setShowYarnJobForm(false);
-        
-        // Show success notification
-        toast.success('Job created successfully!');
-        
-        // Immediately add the new job to the jobs list
-        // The job data is directly in response.data (not in response.data.data)
-        if (response.data) {
-          setJobs(prevJobs => [response.data as ProductionJob, ...prevJobs]);
-        }
-        
-        // Then reload all data to ensure we have the latest state from the server
-        await reloadData();
-      } else {
+      // ✅ Enhanced API response validation for job creation
+      if (!response.success) {
         const errorMessage = response.error || 'Failed to create yarn job card';
         console.error('Job creation failed:', errorMessage);
         setError(errorMessage);
         toast.error(errorMessage);
+        return;
+      }
+      
+      if (!response.data) {
+        console.error("❌ API response missing data property:", response);
+        toast.error('Job creation failed: No data returned from server');
+        return;
+      }
+      
+      // Validate the job object has required fields
+      if (!response.data.id) {
+        console.error("❌ Created job missing ID:", response.data);
+        toast.error('Created job has invalid format: Missing ID');
+        return;
+      }
+      
+      if (!response.data.jobId) {
+        console.warn("⚠️ Created job missing jobId but has id, proceeding anyway:", response.data);
+      }
+      
+      console.log('Job created successfully:', response.data);
+      setShowYarnJobForm(false);
+      
+      // Show success notification
+      toast.success('Job created successfully!');
+      
+      try {
+        // Immediately add the new job to the jobs list
+        setJobs(prevJobs => {
+          // Verify the job can be safely added to the list
+          if (typeof response.data !== 'object' || !response.data.id) {
+            console.error("❌ Cannot add invalid job to job list:", response.data);
+            return prevJobs;
+          }
+          return [response.data as ProductionJob, ...prevJobs];
+        });
+        
+        // Then reload all data to ensure we have the latest state from the server
+        await reloadData();
+      } catch (updateErr) {
+        console.error("Error updating job list after creation:", updateErr);
+        // Force reload data if we couldn't update the list
+        await reloadData();
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Error creating yarn job card';
@@ -252,8 +360,18 @@ const ProductionJobs: React.FC = () => {
   const handleStartJob = async (jobId: number) => {
     try {
       const response = await productionApi.start(jobId);
-      if (response.success) {
-        toast.success('Job started successfully');
+      console.log('Start job response:', response);
+      
+      if (response.success && response.data) {
+        // ✅ Validate response data
+        if (!response.data.id || !response.data.status || response.data.status !== 'in_progress') {
+          console.error("❌ Invalid job data returned from start operation:", response.data);
+          toast.error('Job started but returned unexpected data. Refreshing data...');
+        } else {
+          toast.success('Job started successfully');
+        }
+        
+        // Refresh the jobs list regardless
         reloadData();
       } else {
         const errorMessage = response.error || 'Failed to start job';
@@ -271,8 +389,18 @@ const ProductionJobs: React.FC = () => {
   const handleCompleteJob = async (jobId: number) => {
     try {
       const response = await productionApi.complete(jobId);
-      if (response.success) {
-        toast.success('Job completed successfully');
+      console.log('Complete job response:', response);
+      
+      if (response.success && response.data) {
+        // ✅ Validate response data
+        if (!response.data.id || !response.data.status || response.data.status !== 'completed') {
+          console.error("❌ Invalid job data returned from complete operation:", response.data);
+          toast.error('Job completed but returned unexpected data. Refreshing data...');
+        } else {
+          toast.success('Job completed successfully');
+        }
+        
+        // Refresh the jobs list regardless
         reloadData();
       } else {
         const errorMessage = response.error || 'Failed to complete job';
@@ -292,8 +420,18 @@ const ProductionJobs: React.FC = () => {
     
     try {
       const response = await productionApi.delete(jobId);
+      console.log('Delete job response:', response);
+      
       if (response.success) {
+        // ✅ For delete operations, we expect success flag to be true
+        // but we typically don't need to validate the deleted object
         toast.success('Job deleted successfully');
+        
+        // Remove the job from the local state before reloading
+        // This gives immediate feedback to the user
+        setJobs(prevJobs => prevJobs.filter(job => job.id !== jobId));
+        
+        // Then refresh all data
         reloadData();
       } else {
         const errorMessage = response.error || 'Failed to delete job';
@@ -509,13 +647,19 @@ const ProductionJobs: React.FC = () => {
               <Settings className="w-12 h-12 mx-auto mb-4 text-gray-400" />
               <h3 className="mb-2 text-lg font-medium text-gray-900 dark:text-white">No production jobs found</h3>
               <p className="mb-4 text-gray-500 dark:text-gray-300">Get started by creating your first production job.</p>
-              <p className="mb-4 text-xs text-gray-400">Debug: Jobs array length: {jobs.length}, Jobs: {JSON.stringify(jobs)}</p>
+              <p className="mb-4 text-xs text-gray-400">Debug: Jobs array length: {jobs.length}, Jobs: {JSON.stringify(jobs).substring(0, 100)}{JSON.stringify(jobs).length > 100 ? '...' : ''}</p>
               {jobs.length === 0 && (
                 <p className="mb-4 text-xs text-gray-400">
                   Note: If you just created a job and don't see it, try refreshing the page or check the server logs for errors.
                 </p>
               )}
               <div className="flex flex-col justify-center gap-2 sm:flex-row sm:gap-4">
+                <button
+                  onClick={() => reloadData()}
+                  className="px-4 py-2 text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-700"
+                >
+                  Refresh Data
+                </button>
                 <button
                   onClick={() => setShowCreateForm(true)}
                   className="px-4 py-2 text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-700"
