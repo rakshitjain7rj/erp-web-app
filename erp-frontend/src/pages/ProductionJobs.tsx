@@ -28,6 +28,12 @@ import YarnJobCardForm from '../components/yarn/JobCardForm/YarnJobCardForm';
 const ProductionJobs: React.FC = () => {
   const navigate = useNavigate();
   const [jobs, setJobs] = useState<ProductionJob[]>([]);
+  
+  // Add debugging for jobs state changes
+  useEffect(() => {
+    console.log('Jobs state changed. New length:', jobs.length);
+    console.log('First few jobs:', jobs.slice(0, 3).map(job => ({ id: job.id, jobId: job.jobId, productType: job.productType })));
+  }, [jobs]);
   const [stats, setStats] = useState<ProductionJobStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -189,8 +195,10 @@ const ProductionJobs: React.FC = () => {
           
           // Response structure is valid, proceed with setting the jobs
           console.log('Setting jobs to paginated data:', response.data.data);
+          console.log('Jobs array length before setting:', jobs.length);
           setJobs(response.data.data);
           setTotalPages(response.data.totalPages || 1);
+          console.log('Jobs should now be set. Data length:', response.data.data.length);
         } else if (Array.isArray(response.data)) {
           // Direct array response
           console.log('Setting jobs to direct array data:', response.data);
@@ -703,8 +711,13 @@ const ProductionJobs: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-800 dark:divide-gray-700">
-                  {(Array.isArray(jobs) ? jobs : []).map((job) => (
-                    <tr key={job.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                  {/* Debug: Log jobs being rendered */}
+                  {console.log('Rendering table with jobs:', jobs.length, 'jobs')}
+                  {console.log('First job for rendering:', jobs[0])}
+                  {(Array.isArray(jobs) ? jobs : []).map((job, index) => {
+                    console.log(`Rendering job ${index}:`, { id: job.id, jobId: job.jobId, productType: job.productType });
+                    return (
+                    <tr key={job.id || `job-${index}`} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
                           <div className="text-sm font-medium text-gray-900 dark:text-white">{job.jobId}</div>
@@ -782,7 +795,8 @@ const ProductionJobs: React.FC = () => {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

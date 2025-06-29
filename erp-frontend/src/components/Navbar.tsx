@@ -78,6 +78,8 @@ const Navbar = () => {
       links.push({ to: "/party-master", label: "Party Master" });
     if (["admin", "manager", "operator"].includes(role))
       links.push({ to: "/production-jobs", label: "Production Jobs" });
+    if (["admin", "manager", "operator"].includes(role))
+      links.push({ to: "/asu-unit2", label: "ASU Unit 2" });
     if (role === "admin") {
       links.push({ to: "/users", label: "Users" });
       links.push({ to: "/settings", label: "", iconOnly: true }); // Show as icon

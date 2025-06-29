@@ -13,6 +13,7 @@ const User = require('./models/User');
 const ProductionJob = require('./models/ProductionJob');
 const Machine = require('./models/Machine');
 require('./models/DyeingFollowUp');
+require('./models/ASUModels');
 
 // Set up model associations
 const models = { ProductionJob, Machine, User };
@@ -34,6 +35,7 @@ const authRoutes = require('./routes/authRoutes');
 const dyeingRoutes = require('./routes/dyeingRoutes');
 const partyRoutes = require('./routes/partyRoutes');
 const productionRoutes = require('./routes/productionRoutes');
+const asuRoutes = require('./routes/asuRoutes');
 
 
 
@@ -49,7 +51,11 @@ console.log('🔧 CORS Origin:', process.env.CORS_ORIGIN || 'http://localhost:30
 
 // Middleware
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  origin: [
+    process.env.CORS_ORIGIN || 'http://localhost:3000',
+    'http://localhost:5173',
+    'http://localhost:5174'
+  ],
   credentials: true
 }));
 app.use(express.json());
@@ -68,6 +74,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/dyeing', dyeingRoutes);
 app.use('/api/parties', partyRoutes);
 app.use('/api/production', productionRoutes);
+app.use('/api/asu-unit2', asuRoutes);
 
 // Error Handler
 app.use(errorHandler);

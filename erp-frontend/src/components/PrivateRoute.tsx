@@ -1,5 +1,6 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import LoadingSpinner from "./LoadingSpinner";
 
 type Props = {
   children: JSX.Element;
@@ -7,8 +8,13 @@ type Props = {
 };
 
 const PrivateRoute = ({ children, roles }: Props) => {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, isLoading } = useAuth();
   const location = useLocation();
+
+  // 🔄 Show loading spinner while checking authentication
+  if (isLoading) {
+    return <LoadingSpinner size="sm" text="Authenticating..." />;
+  }
 
   // 🔐 If user is not logged in, redirect to login
   if (!isAuthenticated || !user) {

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import toast from "react-hot-toast";
+import { useAuth } from "../context/AuthContext";
 import { API_ENDPOINTS } from "../config/api";
 
 const Login = () => {
@@ -10,6 +11,7 @@ const Login = () => {
   const [errors, setErrors] = useState({ email: false, password: false });
 
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const validate = () => {
     const emailValid = email.trim() !== "";
@@ -40,28 +42,32 @@ const Login = () => {
 
       const { token, user } = res.data;
 
-      // Save token and user data to localStorage
-      localStorage.setItem("token", token);
-      localStorage.setItem("user", JSON.stringify(user));
+      // Use AuthContext login method instead of direct localStorage
+      login({
+        token,
+        role: user.role,
+        name: user.name,
+        email: user.email,
+      });
 
       toast.success("✅ Login successful", { id: loading });
 
-      // Redirect to the dashboard or homepage
-      navigate("/dashboard"); // ✅ Make sure this route exists in App.tsx
+      // Redirect to the dashboard
+      navigate("/dashboard", { replace: true });
     } catch (err: any) {
       toast.error("❌ Invalid email or password", { id: loading });
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-900 px-4 py-8 transition-colors">
-      <div className="bg-gray-100 dark:bg-gray-800 shadow-xl rounded-2xl p-6 sm:p-8 w-full max-w-sm transition-colors">
-        <h2 className="text-2xl sm:text-3xl font-bold mb-6 text-center text-blue-600 dark:text-white">
+    <div className="flex items-center justify-center min-h-screen px-4 py-8 transition-colors bg-white dark:bg-gray-900">
+      <div className="w-full max-w-sm p-6 transition-colors bg-gray-100 shadow-xl dark:bg-gray-800 rounded-2xl sm:p-8">
+        <h2 className="mb-6 text-2xl font-bold text-center text-blue-600 sm:text-3xl dark:text-white">
           Login to ERP
         </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">
               Email
             </label>
             <input
@@ -81,7 +87,7 @@ const Login = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">
               Password
             </label>
             <input
@@ -102,7 +108,7 @@ const Login = () => {
 
           <button
             type="submit"
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg shadow transition"
+            className="w-full py-2 font-semibold text-white transition bg-blue-600 rounded-lg shadow hover:bg-blue-700"
           >
             🔐 Login
           </button>

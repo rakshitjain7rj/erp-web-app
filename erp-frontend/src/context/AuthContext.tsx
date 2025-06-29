@@ -17,6 +17,7 @@ type User = {
 type AuthContextType = {
   isAuthenticated: boolean;
   user: User | null;
+  isLoading: boolean;
   login: (userData: User) => void;
   logout: () => void;
   getAuthHeaders: () => HeadersInit;
@@ -28,18 +29,51 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem(USER_KEY);
-    if (storedUser) {
+    const initializeAuth = () => {
       try {
-        setUser(JSON.parse(storedUser));
+        const storedUser = localStorage.getItem(USER_KEY);
+        if (storedUser) {
+          const parsedUser = JSON.parse(storedUser);
+          // Validate that the token exists and is not expired
+          if (parsedUser.token && isTokenValid(parsedUser.token)) {
+            setUser(parsedUser);
+          } else {
+            // Token is invalid or expired, remove it
+            localStorage.removeItem(USER_KEY);
+          }
+        }
       } catch (err) {
         console.error("❌ Invalid user data in localStorage");
         localStorage.removeItem(USER_KEY);
+      } finally {
+        setIsLoading(false);
       }
-    }
+    };
+
+    initializeAuth();
   }, []);
+
+  // Helper function to check if token is valid (not expired)
+  const isTokenValid = (token: string): boolean => {
+    try {
+      // Decode JWT payload (second part of token)
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const currentTime = Math.floor(Date.now() / 1000);
+      
+      // Check if token has expiration and if it's still valid
+      if (payload.exp && payload.exp < currentTime) {
+        return false; // Token expired
+      }
+      
+      return true; // Token is valid
+    } catch (error) {
+      // Invalid token format
+      return false;
+    }
+  };
 
   const login = (userData: User) => {
     // If originalRole is already set in localStorage, preserve it
@@ -79,11 +113,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     () => ({
       isAuthenticated: !!user,
       user,
+      isLoading,
       login,
       logout,
       getAuthHeaders,
     }),
-    [user]
+    [user, isLoading]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

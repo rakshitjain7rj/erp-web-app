@@ -172,6 +172,20 @@ export const productionApi = {
 
     const result = await apiCall<unknown>(`/production?${params}`);
     console.log('Production API getAll response:', result);
+    console.log('Raw result.data:', JSON.stringify(result.data, null, 2));
+    
+    // Add detailed logging for debugging
+    if (result.success && result.data) {
+      console.log('Response data structure analysis:', {
+        dataType: typeof result.data,
+        isObject: typeof result.data === 'object',
+        isNotNull: result.data !== null,
+        hasDataProp: result.data && typeof result.data === 'object' && 'data' in result.data,
+        dataValue: result.data && typeof result.data === 'object' && 'data' in result.data ? (result.data as any).data : 'no data prop',
+        isDataArray: result.data && typeof result.data === 'object' && 'data' in result.data ? Array.isArray((result.data as any).data) : false,
+        fullResponse: JSON.stringify(result.data, null, 2)
+      });
+    }
     
     // Unwrap the nested response to match our expected type structure
     if (result.success && result.data) {
@@ -179,37 +193,104 @@ export const productionApi = {
       if (
         typeof result.data === 'object' &&
         result.data !== null &&
-        'data' in result.data &&
-        Array.isArray((result.data as any).data)
+        'data' in result.data
       ) {
-        // This is the expected format from the backend:
-        // { success: true, data: { data: [...], total, page, limit, totalPages } }
-        console.log('Processing standard paginated response format');
-        const paginated = result.data as {
-          data: ProductionJob[];
-          total: number;
-          page?: number;
-          limit?: number;
-          totalPages?: number;
-        };
-
-        // Validate required fields and provide fallbacks
-        if (!Array.isArray(paginated.data)) {
-          console.error('Paginated response has data field but it is not an array:', paginated.data);
-          paginated.data = [];
+        const potentialPaginated = result.data as any;
+        console.log('Found data property, checking if data.data is array:', {
+          hasDataData: 'data' in potentialPaginated,
+          dataDataType: typeof potentialPaginated.data,
+          isArray: Array.isArray(potentialPaginated.data),
+          dataDataValue: potentialPaginated.data,
+          dataDataKeys: typeof potentialPaginated.data === 'object' && potentialPaginated.data !== null ? Object.keys(potentialPaginated.data) : 'not an object',
+          fullDataStructure: JSON.stringify(potentialPaginated.data).substring(0, 200) + '...',
+          potentialPaginatedKeys: Object.keys(potentialPaginated),
+          potentialPaginatedStructure: JSON.stringify(potentialPaginated).substring(0, 300) + '...'
+        });
+        
+        // Handle case where data.data might be null or undefined
+        if (potentialPaginated.data === null || potentialPaginated.data === undefined) {
+          console.warn('data.data is null or undefined, treating as empty array');
+          potentialPaginated.data = [];
         }
+        
+        if (Array.isArray(potentialPaginated.data)) {
+          // Case: result.data.data is directly an array
+          console.log('Processing direct array in result.data.data');
+          const paginated = result.data as {
+            data: ProductionJob[];
+            total: number;
+            page?: number;
+            limit?: number;
+            totalPages?: number;
+          };
 
-        return {
-          success: true,
-          data: {
-            data: paginated.data,
-            total: typeof paginated.total === 'number' ? paginated.total : paginated.data.length,
-            page: typeof paginated.page === 'number' ? paginated.page : page,
-            limit: typeof paginated.limit === 'number' ? paginated.limit : limit,
-            totalPages: typeof paginated.totalPages === 'number' ? paginated.totalPages : 
-                       (typeof paginated.total === 'number' ? Math.ceil(paginated.total / limit) : 1)
-          }
-        };
+          const finalResponse = {
+            success: true,
+            data: {
+              data: paginated.data || [],
+              total: typeof paginated.total === 'number' ? paginated.total : (paginated.data || []).length,
+              page: typeof paginated.page === 'number' ? paginated.page : page,
+              limit: typeof paginated.limit === 'number' ? paginated.limit : limit,
+              totalPages: typeof paginated.totalPages === 'number' ? paginated.totalPages : 
+                         (typeof paginated.total === 'number' ? Math.ceil(paginated.total / limit) : 1)
+            }
+          };
+
+          console.log('Final processed response being returned (direct array):', {
+            success: finalResponse.success,
+            dataLength: finalResponse.data.data.length,
+            total: finalResponse.data.total,
+            page: finalResponse.data.page,
+            firstJob: finalResponse.data.data[0] ? {
+              id: finalResponse.data.data[0].id,
+              jobId: finalResponse.data.data[0].jobId,
+              productType: finalResponse.data.data[0].productType
+            } : 'no jobs'
+          });
+
+          return finalResponse;
+        } else if (
+          typeof potentialPaginated.data === 'object' &&
+          potentialPaginated.data !== null &&
+          'data' in potentialPaginated.data &&
+          Array.isArray(potentialPaginated.data.data)
+        ) {
+          // Case: result.data.data.data is the array (nested pagination structure)
+          console.log('Processing nested paginated response format');
+          const nestedPaginated = potentialPaginated.data as {
+            data: ProductionJob[];
+            total: number;
+            page?: number;
+            limit?: number;
+            totalPages?: number;
+          };
+
+          const finalResponse = {
+            success: true,
+            data: {
+              data: nestedPaginated.data || [],
+              total: typeof nestedPaginated.total === 'number' ? nestedPaginated.total : (nestedPaginated.data || []).length,
+              page: typeof nestedPaginated.page === 'number' ? nestedPaginated.page : page,
+              limit: typeof nestedPaginated.limit === 'number' ? nestedPaginated.limit : limit,
+              totalPages: typeof nestedPaginated.totalPages === 'number' ? nestedPaginated.totalPages : 
+                         (typeof nestedPaginated.total === 'number' ? Math.ceil(nestedPaginated.total / limit) : 1)
+            }
+          };
+
+          console.log('Final processed response being returned (nested):', {
+            success: finalResponse.success,
+            dataLength: finalResponse.data.data.length,
+            total: finalResponse.data.total,
+            page: finalResponse.data.page,
+            firstJob: finalResponse.data.data[0] ? {
+              id: finalResponse.data.data[0].id,
+              jobId: finalResponse.data.data[0].jobId,
+              productType: finalResponse.data.data[0].productType
+            } : 'no jobs'
+          });
+
+          return finalResponse;
+        }
       } else if (Array.isArray(result.data)) {
         // Handle case where API returns a direct array (not paginated)
         console.log('API returned direct array instead of paginated response');
@@ -247,12 +328,48 @@ export const productionApi = {
         };
       }
       
+      // Try to find any array-like data in the response as a fallback
+      console.log('Attempting fallback data extraction from response:', result.data);
+      let fallbackData: any[] = [];
+      
+      // Check various possible locations for array data
+      if (Array.isArray(result.data)) {
+        fallbackData = result.data;
+        console.log('Found direct array data');
+      } else if (result.data && typeof result.data === 'object') {
+        // Look for common array properties
+        const possibleArrayKeys = ['data', 'rows', 'items', 'results', 'jobs'];
+        for (const key of possibleArrayKeys) {
+          if (key in result.data && Array.isArray((result.data as any)[key])) {
+            fallbackData = (result.data as any)[key];
+            console.log(`Found array data in ${key} property`);
+            break;
+          }
+        }
+      }
+      
+      if (fallbackData.length >= 0) {
+        console.log(`Using fallback data extraction: found ${fallbackData.length} items`);
+        return {
+          success: true,
+          data: {
+            data: fallbackData,
+            total: fallbackData.length,
+            page: 1,
+            limit: fallbackData.length,
+            totalPages: 1
+          }
+        };
+      }
+      
       // Invalid data structure
-      console.error('Invalid data structure in getAll response:', {
+      console.error('Invalid data structure in getAll response - no recoverable data found:', {
         type: typeof result.data,
-        isPaginated: typeof result.data === 'object' && 'data' in result.data,
+        isPaginated: typeof result.data === 'object' && result.data !== null && 'data' in result.data,
         isArray: Array.isArray(result.data),
         hasRows: typeof result.data === 'object' && result.data !== null && 'rows' in result.data,
+        hasData: typeof result.data === 'object' && result.data !== null && 'data' in result.data,
+        keys: typeof result.data === 'object' && result.data !== null ? Object.keys(result.data) : [],
         dataValue: result.data
       });
       

@@ -2,6 +2,7 @@ import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import PrivateRoute from "./components/PrivateRoute";
+import LoadingSpinner from "./components/LoadingSpinner";
 
 // Auth Pages
 import Login from "./pages/Login";
@@ -23,6 +24,7 @@ import Settings from "./pages/Settings";
 import DyeingSummary from "./pages/DyeingSummary"; // ✅ Correct import
 import PartyMaster from "./pages/PartyMaster";
 import ProductionJobs from "./pages/ProductionJobs";
+import ASUUnit2 from "./pages/ASUUnit2";
 import ApiTest from "./components/ApiTest";
 import SimplePartyTest from "./components/SimplePartyTest";
 import RawDataTest from "./components/RawDataTest";
@@ -31,11 +33,20 @@ import Navbar from "./components/Navbar";
 import { Toaster } from "react-hot-toast";
 
 const App = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
 
   const hideNavbarRoutes = ["/login", "/register", "/signup"];
   const shouldShowNavbar = isAuthenticated && !hideNavbarRoutes.includes(location.pathname);
+
+  // Show loading spinner while authentication is being determined
+  if (isLoading) {
+    return (
+      <ThemeProvider>
+        <LoadingSpinner text="Checking authentication..." />
+      </ThemeProvider>
+    );
+  }
 
   return (
     <ThemeProvider>
@@ -69,10 +80,30 @@ const App = () => {
 
         <Routes>
           {/* Auth Routes */}
-          <Route path="/" element={<Navigate to="/login" />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/signup" element={<Signup />} />
+          <Route 
+            path="/" 
+            element={
+              isAuthenticated ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />
+            } 
+          />
+          <Route 
+            path="/login" 
+            element={
+              isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />
+            } 
+          />
+          <Route 
+            path="/register" 
+            element={
+              isAuthenticated ? <Navigate to="/dashboard" replace /> : <Register />
+            } 
+          />
+          <Route 
+            path="/signup" 
+            element={
+              isAuthenticated ? <Navigate to="/dashboard" replace /> : <Signup />
+            } 
+          />
           <Route path="/unauthorized" element={<Unauthorized />} />          {/* Public Product Page */}
           <Route path="/products" element={<Product />} />
           <Route path="/party-test" element={<PartyMaster />} />
@@ -155,6 +186,14 @@ const App = () => {
             element={
               <PrivateRoute roles={["admin", "manager", "operator"]}>
                 <ProductionJobs />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/asu-unit2"
+            element={
+              <PrivateRoute roles={["admin", "manager", "operator"]}>
+                <ASUUnit2 />
               </PrivateRoute>
             }
           />
