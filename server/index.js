@@ -10,13 +10,12 @@ const { sequelize, connectPostgres } = require('./config/postgres');
 // Load models for Sequelize sync
 const DyeingRecord = require('./models/DyeingRecord');
 const User = require('./models/User');
-const ProductionJob = require('./models/ProductionJob');
 const Machine = require('./models/Machine');
 require('./models/DyeingFollowUp');
 require('./models/ASUModels');
 
 // Set up model associations
-const models = { ProductionJob, Machine, User };
+const models = { Machine, User };
 Object.keys(models).forEach(modelName => {
   if (models[modelName].associate) {
     models[modelName].associate(models);
@@ -34,7 +33,6 @@ const authRoutes = require('./routes/authRoutes');
 // const reportRoutes = require('./routes/reportRoutes');
 const dyeingRoutes = require('./routes/dyeingRoutes');
 const partyRoutes = require('./routes/partyRoutes');
-const productionRoutes = require('./routes/productionRoutes');
 const asuRoutes = require('./routes/asuRoutes');
 
 
@@ -73,7 +71,6 @@ app.use('/api/auth', authRoutes);
 // app.use('/api/reports', reportRoutes);
 app.use('/api/dyeing', dyeingRoutes);
 app.use('/api/parties', partyRoutes);
-app.use('/api/production', productionRoutes);
 app.use('/api/asu-unit2', asuRoutes);
 
 // Error Handler

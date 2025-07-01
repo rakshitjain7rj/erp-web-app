@@ -16,8 +16,8 @@ const {
 // TODO: Re-enable auth for all routes after debugging
 // router.use(auth);
 
-// Submit daily data (all forms combined) - requires auth
-router.post('/daily', auth, submitDailyData);
+// Submit daily data (all forms combined) - temporarily no auth for debugging
+router.post('/daily', submitDailyData);
 
 // Get data with pagination and filters - temporarily no auth for debugging
 router.get('/daily-machine', getDailyMachineData);

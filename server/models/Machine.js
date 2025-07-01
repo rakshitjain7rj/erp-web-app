@@ -3,11 +3,7 @@ const { sequelize } = require('../config/postgres');
 
 class Machine extends Model {
   static associate(models) {
-    // A machine can have many production jobs
-    Machine.hasMany(models.ProductionJob, {
-      foreignKey: 'machineId',
-      as: 'productionJobs'
-    });
+    // Machine associations can be added here if needed
   }
 }
 

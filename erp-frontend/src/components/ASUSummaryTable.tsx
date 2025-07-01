@@ -22,6 +22,7 @@ interface ASUSummaryTableProps {
   mainsReadings: ASUMainsReadingPaginated;
   weeklyData: ASUWeeklyPaginated;
   onFiltersChange?: (filters: ASUFilters) => void;
+  filters?: ASUFilters;
   isLoading?: boolean;
 }
 
@@ -31,6 +32,7 @@ const ASUSummaryTable: React.FC<ASUSummaryTableProps> = ({
   mainsReadings,
   weeklyData,
   onFiltersChange,
+  filters: externalFilters,
   isLoading = false
 }) => {
   // Debug logging to see what data the component receives
@@ -87,7 +89,7 @@ const ASUSummaryTable: React.FC<ASUSummaryTableProps> = ({
       headers.join(','),
       ...dataToExport.map(row =>
         headers.map(header =>
-          JSON.stringify((row as unknown as Record<string, unknown>)[header] ?? '')
+          JSON.stringify((row as Record<string, unknown>)[header] ?? '')
         ).join(',')
       )
     ].join('\n');

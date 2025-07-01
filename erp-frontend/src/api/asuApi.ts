@@ -6,9 +6,28 @@ import {
   ASUWeeklyData,
   ASUFormData,
   ASUFilters
-} from '../types/asu';
+} from '../types/asu';  
 
 const API_BASE_URL = 'http://localhost:5000/api';
+
+// Helper function to validate token format
+const isValidToken = (token: string | null): boolean => {
+  if (!token) return false;
+  // JWT tokens have 3 parts separated by dots
+  const parts = token.split('.');
+  return parts.length === 3 && parts.every(part => part.length > 0);
+};
+
+// Helper function to check if token is expired (basic check)
+const isTokenExpired = (token: string): boolean => {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const currentTime = Math.floor(Date.now() / 1000);
+    return payload.exp && payload.exp < currentTime;
+  } catch {
+    return true; // If we can't decode, assume expired
+  }
+}
 
 // API utility function
 const apiCall = async <T>(
@@ -19,13 +38,20 @@ const apiCall = async <T>(
     const token = localStorage.getItem('token');
     console.log('🔑 Token status:', { hasToken: !!token, tokenLength: token?.length || 0 });
 
+    // Validate token if it exists
+    if (token && (!isValidToken(token) || isTokenExpired(token))) {
+      console.warn('🔒 Token is invalid or expired, removing from storage');
+      localStorage.removeItem('token');
+    }
+
+    const validToken = localStorage.getItem('token'); // Get fresh token after validation
     const headers = {
       'Content-Type': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` }),
+      ...(validToken && { Authorization: `Bearer ${validToken}` }),
       ...options.headers,
     };
 
-    console.log('📡 API Call:', { endpoint: `${API_BASE_URL}${endpoint}`, method: options.method || 'GET', hasAuth: !!token });
+    console.log('📡 API Call:', { endpoint: `${API_BASE_URL}${endpoint}`, method: options.method || 'GET', hasAuth: !!validToken });
 
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
@@ -40,7 +66,23 @@ const apiCall = async <T>(
         const errorData = await response.json();
         console.log('❌ Error response:', errorData);
         errorMessage = errorData.message || errorData.error || errorMessage;
-      } catch (_) {}
+        
+        // Special handling for auth errors
+        if (response.status === 401) {
+          console.warn('🔒 Authentication failed - token may be expired');
+          // Optionally clear invalid token
+          if (errorData.error === 'Invalid token' || errorData.error === 'Unauthorized') {
+            localStorage.removeItem('token');
+            errorMessage = 'Session expired. Please login again.';
+          }
+        }
+      } catch (parseError) {
+        // If we can't parse error response, use generic message
+        console.warn('Failed to parse error response:', parseError);
+        if (response.status === 401) {
+          errorMessage = 'Authentication failed. Please login again.';
+        }
+      }
       throw new Error(errorMessage);
     }
 
@@ -56,20 +98,23 @@ const apiCall = async <T>(
   }
 };
 
-function wrapPaginated<T>(res: ApiResponse<any>, page: number, limit: number): ApiResponse<PaginatedResponse<T>> {
-  if (res.success && res.data && !Array.isArray(res.data.data)) {
-    return {
-      success: true,
-      data: {
-        data: res.data ? [res.data] : [],
-        total: 1,
-        page,
-        limit,
-        totalPages: 1
-      }
-    };
+function wrapPaginated<T>(res: ApiResponse<unknown>, page: number, limit: number): ApiResponse<PaginatedResponse<T>> {
+  if (res.success && res.data && typeof res.data === 'object' && res.data !== null) {
+    const dataObj = res.data as Record<string, unknown>;
+    if (!Array.isArray(dataObj.data)) {
+      return {
+        success: true,
+        data: {
+          data: res.data ? [res.data as T] : [],
+          total: 1,
+          page,
+          limit,
+          totalPages: 1
+        }
+      };
+    }
   }
-  return res;
+  return res as ApiResponse<PaginatedResponse<T>>;
 }
 
 export const asuApi = {

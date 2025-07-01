@@ -1,5 +1,4 @@
 const { sequelize } = require('./config/postgres');
-const ProductionJob = require('./models/ProductionJob');
 const Machine = require('./models/Machine');
 
 async function testModels() {
@@ -21,20 +20,7 @@ async function testModels() {
     });
     console.log('✅ Machine created:', testMachine.machineId);
 
-    // Test production job creation
-    const testJob = await ProductionJob.create({
-      jobId: 'PJ202601-TEST',
-      productType: 'Cotton Yarn',
-      quantity: 100,
-      unit: 'kg',
-      machineId: testMachine.id,
-      priority: 'medium',
-      status: 'pending'
-    });
-    console.log('✅ Production job created:', testJob.jobId);
-
     // Clean up test data
-    await testJob.destroy();
     await testMachine.destroy();
     console.log('✅ Test data cleaned up');
 
