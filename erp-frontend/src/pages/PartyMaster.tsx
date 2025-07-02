@@ -74,6 +74,8 @@ const PartyMaster = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortField, setSortField] = useState<keyof PartySummary>('partyName');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [showAddModal, setShowAddModal] = useState(false);
+
   const [debugInfo, setDebugInfo] = useState<string>('Starting...');useEffect(() => {
     const fetchData = async () => {
       setLoading(true);      try {
@@ -220,12 +222,7 @@ const PartyMaster = () => {
     <div className="min-h-screen p-4 transition-colors duration-200 bg-gray-50 dark:bg-gray-900 sm:p-6">
       <div className="mx-auto max-w-7xl">
         {/* Debug Info */}
-        <div className="mb-4 p-3 bg-yellow-100 border border-yellow-300 rounded-lg dark:bg-yellow-900/20 dark:border-yellow-800">
-          <p className="text-sm text-yellow-800 dark:text-yellow-200">
-            <strong>Debug:</strong> {debugInfo}
-          </p>
-        </div>
-
+          
         {/* Header Section */}
         <div className="relative mb-8 overflow-hidden bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-700 rounded-2xl">
           <div className="absolute inset-0 bg-black/20"></div>
@@ -245,17 +242,14 @@ const PartyMaster = () => {
                 <div className="px-4 py-2 rounded-lg shadow-md bg-white/20 backdrop-blur-sm">
                   <span className="text-sm font-medium text-white">Active Parties: {summary.length}</span>
                 </div>
-                <button 
-                  onClick={() => {
-                    toast.info("Add Party", {
-                      description: "Party registration feature coming soon!"
-                    });
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 text-white transition-all duration-200 border rounded-lg shadow-md bg-white/20 backdrop-blur-sm border-white/30 hover:bg-white/30"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Party
-                </button>
+                <button
+  onClick={() => setShowAddModal(true)}
+  className="flex items-center gap-2 px-4 py-2 text-white transition-all duration-200 border rounded-lg shadow-md bg-white/20 backdrop-blur-sm border-white/30 hover:bg-white/30"
+>
+  <Plus className="w-4 h-4" />
+  Add Party
+</button>
+
               </div>
             </div>
           </div>
