@@ -1,28 +1,43 @@
 // types/dyeing.ts
 
+// ================= DYEING RECORD =================
 export interface DyeingRecord {
   id: number;
+
+  // Core fields
   yarnType: string;
   sentDate: string;
-  expectedArrivalDate: string; // Used to track when the order is expected
-  arrivalDate?: string;        // Set once the order arrives
-  isOverdue?: boolean;         // Calculated on backend or frontend helper
+  expectedArrivalDate: string; // Expected date of arrival
+  arrivalDate?: string;        // Actual arrival (nullable)
   remarks?: string;
+
+  // Party & Firm Info
   partyName: string;
+  dyeingFirm: string;
+
+  // Order details
   quantity: number;
   shade: string;
   count: string;
   lot: string;
-  dyeingFirm: string;
+
+  // Reprocessing Info
   isReprocessing: boolean;
   reprocessingDate?: string;
   reprocessingReason?: string;
+
+  // Metadata
   createdAt: string;
   updatedAt: string;
+
+  // Derived status flags (optional, frontend or backend)
+  isOverdue?: boolean;
+
+  // Related follow-ups
   followUps?: DyeingFollowUp[];
 }
 
-// Payload used when creating or updating a dyeing record
+// ================= CREATE/UPDATE REQUEST =================
 export interface CreateDyeingRecordRequest {
   yarnType: string;
   sentDate: string;
@@ -36,11 +51,12 @@ export interface CreateDyeingRecordRequest {
   dyeingFirm: string;
 }
 
-// Used to update only the arrival date
+// ================= ARRIVAL UPDATE =================
 export interface UpdateArrivalRequest {
   arrivalDate: string;
 }
 
+// ================= FOLLOW-UP STRUCTURE =================
 export interface DyeingFollowUp {
   id: number;
   dyeingRecordId: number;
@@ -54,15 +70,17 @@ export interface DyeingFollowUp {
 
 export interface CreateFollowUpRequest {
   remarks: string;
-  followUpDate?: string; // Optional: default to now if not provided
+  followUpDate?: string; // Optional: defaults to now if not provided
 }
 
-// Aggregated summary for dashboard or status cards
+// ================= SUMMARY (for Dashboard) =================
 export interface DyeingSummary {
   totalRecords: number;
   pendingRecords: number;
   arrivedRecords: number;
   overdueRecords: number;
+
+  // Helpful aggregations
   recentArrivals: DyeingRecord[];
-  upcomingDue: DyeingRecord[]; // Orders arriving in the next 3 days
+  upcomingDue: DyeingRecord[]; // Orders arriving in next 3 days
 }

@@ -21,7 +21,7 @@ import DyeingOrders from "./pages/DyeingOrders";
 import Product from "./pages/Product";
 import Users from "./pages/Users";
 import Settings from "./pages/Settings";
-import DyeingSummary from "./pages/DyeingSummary"; // ✅ Correct import
+import DyeingSummary from "./pages/DyeingSummary";
 import PartyMaster from "./pages/PartyMaster";
 import ASUUnit2 from "./pages/ASUUnit2";
 import ApiTest from "./components/ApiTest";
@@ -38,7 +38,6 @@ const App = () => {
   const hideNavbarRoutes = ["/login", "/register", "/signup"];
   const shouldShowNavbar = isAuthenticated && !hideNavbarRoutes.includes(location.pathname);
 
-  // Show loading spinner while authentication is being determined
   if (isLoading) {
     return (
       <ThemeProvider>
@@ -75,141 +74,140 @@ const App = () => {
           }}
         />
 
-        {shouldShowNavbar && <Navbar />}
+        {/* Routes without Navbar (Auth pages) */}
+        {!shouldShowNavbar && (
+          <Routes>
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/unauthorized" element={<Unauthorized />} />
+            <Route path="/products" element={<Product />} />
+            <Route path="/party-test" element={<PartyMaster />} />
+            <Route path="/simple-test" element={<SimplePartyTest />} />
+            <Route path="/raw-test" element={<RawDataTest />} />
+            <Route path="/api-test" element={<ApiTest />} />
+            <Route path="*" element={<Navigate to="/login" />} />
+          </Routes>
+        )}
 
-        <Routes>
-          {/* Auth Routes */}
-          <Route 
-            path="/" 
-            element={
-              isAuthenticated ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />
-            } 
-          />
-          <Route 
-            path="/login" 
-            element={
-              isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />
-            } 
-          />
-          <Route 
-            path="/register" 
-            element={
-              isAuthenticated ? <Navigate to="/dashboard" replace /> : <Register />
-            } 
-          />
-          <Route 
-            path="/signup" 
-            element={
-              isAuthenticated ? <Navigate to="/dashboard" replace /> : <Signup />
-            } 
-          />
-          <Route path="/unauthorized" element={<Unauthorized />} />          {/* Public Product Page */}
-          <Route path="/products" element={<Product />} />
-          <Route path="/party-test" element={<PartyMaster />} />
-          <Route path="/simple-test" element={<SimplePartyTest />} />
-          <Route path="/raw-test" element={<RawDataTest />} />
+        {/* Routes with Navbar (Protected App) */}
+        {shouldShowNavbar && (
+          <>
+            <Navbar />
 
-          {/* Protected Role-Based Pages */}
-          <Route
-            path="/dashboard"
-            element={
-              <PrivateRoute roles={["admin", "manager", "storekeeper", "operator"]}>
-                <Dashboard />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/inventory"
-            element={
-              <PrivateRoute roles={["admin", "manager", "storekeeper"]}>
-                <Inventory />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/bom"
-            element={
-              <PrivateRoute roles={["admin", "manager", "storekeeper"]}>
-                <BOM />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/workorders"
-            element={
-              <PrivateRoute roles={["admin", "manager", "storekeeper"]}>
-                <WorkOrders />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/costing"
-            element={
-              <PrivateRoute roles={["admin"]}>
-                <Costing />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/reports"
-            element={
-              <PrivateRoute roles={["admin", "manager"]}>
-                <Reports />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/dyeing-orders"
-            element={
-              <PrivateRoute roles={["admin", "manager"]}>
-                <DyeingOrders />
-              </PrivateRoute>
-            }
-          />          <Route
-            path="/dyeing-summary"
-            element={
-              <PrivateRoute roles={["admin", "manager"]}>
-                <DyeingSummary />
-              </PrivateRoute>
-            }
-          />          <Route
-            path="/party-master"
-            element={
-              <PrivateRoute roles={["admin", "manager"]}>
-                <PartyMaster />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/asu-unit2"
-            element={
-              <PrivateRoute roles={["admin", "manager", "operator"]}>
-                <ASUUnit2 />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/users"
-            element={
-              <PrivateRoute roles={["admin"]}>
-                <Users />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/settings"
-            element={
-              <PrivateRoute roles={["admin"]}>
-                <Settings />
-              </PrivateRoute>
-            }
-          />
+            <div className="pt-16 px-4">
+              <Routes>
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-          <Route path="/api-test" element={<ApiTest />} />
+                <Route
+                  path="/dashboard"
+                  element={
+                    <PrivateRoute roles={["admin", "manager", "storekeeper", "operator"]}>
+                      <Dashboard />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/inventory"
+                  element={
+                    <PrivateRoute roles={["admin", "manager", "storekeeper"]}>
+                      <Inventory />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/bom"
+                  element={
+                    <PrivateRoute roles={["admin", "manager", "storekeeper"]}>
+                      <BOM />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/workorders"
+                  element={
+                    <PrivateRoute roles={["admin", "manager", "storekeeper"]}>
+                      <WorkOrders />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/costing"
+                  element={
+                    <PrivateRoute roles={["admin"]}>
+                      <Costing />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/reports"
+                  element={
+                    <PrivateRoute roles={["admin", "manager"]}>
+                      <Reports />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/dyeing-orders"
+                  element={
+                    <PrivateRoute roles={["admin", "manager"]}>
+                      <DyeingOrders />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/dyeing-summary"
+                  element={
+                    <PrivateRoute roles={["admin", "manager"]}>
+                      <DyeingSummary />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/party-master"
+                  element={
+                    <PrivateRoute roles={["admin", "manager"]}>
+                      <PartyMaster />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/asu-unit2"
+                  element={
+                    <PrivateRoute roles={["admin", "manager", "operator"]}>
+                      <ASUUnit2 />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/users"
+                  element={
+                    <PrivateRoute roles={["admin"]}>
+                      <Users />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/settings"
+                  element={
+                    <PrivateRoute roles={["admin"]}>
+                      <Settings />
+                    </PrivateRoute>
+                  }
+                />
+                <Route path="/products" element={<Product />} />
+                <Route path="/party-test" element={<PartyMaster />} />
+                <Route path="/simple-test" element={<SimplePartyTest />} />
+                <Route path="/raw-test" element={<RawDataTest />} />
+                <Route path="/api-test" element={<ApiTest />} />
 
-          {/* Fallback Route */}
-          <Route path="*" element={<Navigate to="/login" />} />
-        </Routes>
+                {/* Catch-all */}
+                <Route path="*" element={<Navigate to="/dashboard" />} />
+              </Routes>
+            </div>
+          </>
+        )}
       </div>
     </ThemeProvider>
   );
