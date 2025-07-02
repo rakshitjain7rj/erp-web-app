@@ -1,12 +1,14 @@
-// ASU Unit 2 Types
+// types/asu.ts
+
+// Core data interfaces
 export interface ASUDailyMachineData {
   id?: number;
-  machine: number; // 1-21
+  machine: number; // 1–21
   karigarName: string;
   reading8AM: number;
   reading8PM: number;
   machineHoursWorked: number; // Auto-calculated: 8PM - 8AM
-  extraHours?: number; // Optional: for overtime/extra hours
+  extraHours?: number; // Optional: for overtime
   yarn: string;
   date: string;
   createdAt?: string;
@@ -37,14 +39,15 @@ export interface ASUWeeklyData {
   machine: number;
   numberOfThreads: number;
   tenMinWeight: number; // in grams
-  ideal12Hr: number; // 24hr production in kgs (keeping field name for DB compatibility)
-  ideal85Percent: number; // 85% of 24hr production in kgs
+  ideal12Hr: number;     // 12hr production in kgs
+  ideal85Percent: number; // 85% of 12hr production in kgs
   speed: number;
   weekStartDate: string;
   createdAt?: string;
   updatedAt?: string;
 }
 
+// Combined form data
 export interface ASUFormData {
   dailyMachineData: ASUDailyMachineData;
   productionEfficiency: ASUProductionEfficiency;
@@ -52,6 +55,7 @@ export interface ASUFormData {
   weeklyData: ASUWeeklyData;
 }
 
+// Filtering utilities
 export interface ASUFilters {
   machine?: number;
   karigarName?: string;
@@ -62,12 +66,14 @@ export interface ASUFilters {
   limit?: number;
 }
 
+// API response wrapper
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;
   error?: string;
 }
 
+// Paginated response structure
 export interface PaginatedResponse<T> {
   data: T[];
   total: number;
@@ -76,11 +82,8 @@ export interface PaginatedResponse<T> {
   totalPages: number;
 }
 
-// Paginated type aliases for easier use
+// Aliases for paginated types
 export type ASUDailyMachinePaginated = PaginatedResponse<ASUDailyMachineData>;
 export type ASUProductionEfficiencyPaginated = PaginatedResponse<ASUProductionEfficiency>;
 export type ASUMainsReadingPaginated = PaginatedResponse<ASUMainsReading>;
 export type ASUWeeklyPaginated = PaginatedResponse<ASUWeeklyData>;
-  limit: number;
-  totalPages: number;
-}
