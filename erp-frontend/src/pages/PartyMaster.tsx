@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Users, Package, Clock, RotateCcw, CheckCircle, Search, Edit3, Eye, MoreVertical, Plus } from 'lucide-react';
 import { getAllPartiesSummary, getPartyStatistics } from '../api/partyApi';
+import AddPartyForm from '../components/AddPartyForm';
 
 type PartySummary = {
   partyName: string;
@@ -222,7 +223,20 @@ const PartyMaster = () => {
     <div className="min-h-screen p-4 transition-colors duration-200 bg-gray-50 dark:bg-gray-900 sm:p-6">
       <div className="mx-auto max-w-7xl">
         {/* Debug Info */}
-          
+          {showAddModal && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <AddPartyForm
+      onSuccess={() => {
+        toast.success("Refreshing data...");
+        setShowAddModal(false);
+        // Re-fetch data
+        getAllPartiesSummary().then(setSummary);
+      }}
+      onClose={() => setShowAddModal(false)}
+    />
+  </div>
+)}
+
         {/* Header Section */}
         <div className="relative mb-8 overflow-hidden bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-700 rounded-2xl">
           <div className="absolute inset-0 bg-black/20"></div>
