@@ -30,7 +30,7 @@ export interface DyeingRecord {
   createdAt: string;
   updatedAt: string;
 
-  // Derived status flags (optional, frontend or backend)
+  // Derived (optional frontend flags)
   isOverdue?: boolean;
 
   // Related follow-ups

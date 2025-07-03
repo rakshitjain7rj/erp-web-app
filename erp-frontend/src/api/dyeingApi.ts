@@ -1,3 +1,4 @@
+// src/api/dyeingApi.ts
 import axios from "axios";
 import {
   DyeingRecord,
@@ -148,7 +149,7 @@ export const markAsReprocessing = async (
   const response = await api.patch(`/${id}/reprocessing`, {
     isReprocessing: true,
     reprocessingDate: new Date().toISOString(),
-    reprocessingReason: reason,
+    reprocessingReason: reason || "",
   });
   return response.data.data || response.data;
 };
@@ -161,6 +162,9 @@ export const markReprocessingComplete = async (
   });
   return response.data.data || response.data;
 };
+
+// ✅ Export alias for compatibility with `DyeingOrders.tsx`
+export const completeReprocessing = markReprocessingComplete;
 
 export const getDyeingStatus = (record: DyeingRecord): string => {
   if (record.arrivalDate) return "Arrived";

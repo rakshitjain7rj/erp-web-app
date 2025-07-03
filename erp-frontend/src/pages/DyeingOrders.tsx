@@ -4,12 +4,14 @@ import {
   getAllDyeingRecords,
   deleteDyeingRecord,
   getDyeingStatus,
+  markAsArrived,
+  completeReprocessing
 } from "../api/dyeingApi";
 import { DyeingRecord } from "../types/dyeing";
 import CreateDyeingOrderForm from "../components/CreateDyeingOrderForm";
 import { Button } from "../components/ui/Button";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { FaEdit, FaTrash, FaBell } from "react-icons/fa";
+import { FaEdit, FaTrash, FaBell, FaCheckCircle, FaRecycle } from "react-icons/fa";
 import { toast } from "sonner";
 import FollowUpModal from "../components/FollowUpModal";
 
@@ -78,6 +80,31 @@ const DyeingOrders: React.FC = () => {
     setIsFollowUpModalOpen(true);
   };
 
+  const handleMarkArrived = async (record: DyeingRecord) => {
+    try {
+      await markAsArrived(record.id);
+      toast.success("Marked as Arrived");
+      fetchRecords();
+    } catch (error) {
+      console.error("Mark Arrived error:", error);
+      toast.error("Failed to mark as arrived");
+    }
+  };
+
+  const handleReprocessing = async (record: DyeingRecord) => {
+    const reason = prompt("Enter reason for reprocessing:");
+    if (!reason) return;
+
+    try {
+      await completeReprocessing(record.id, { reprocessingReason: reason });
+      toast.success("Marked as Reprocessing");
+      fetchRecords();
+    } catch (error) {
+      console.error("Reprocessing error:", error);
+      toast.error("Failed to complete reprocessing");
+    }
+  };
+
   return (
     <div className="min-h-screen p-6 bg-gray-50 dark:bg-gray-900">
       <div className="flex items-center justify-between mb-8">
@@ -131,16 +158,12 @@ const DyeingOrders: React.FC = () => {
                         <td className="px-4 py-2">{new Date(record.expectedArrivalDate).toLocaleDateString()}</td>
                         <td className="px-4 py-2">{statusBadge(getDyeingStatus(record))}</td>
                         <td className="px-4 py-2 italic text-gray-500 dark:text-gray-400">{record.remarks || "-"}</td>
-                        <td className="px-4 py-2 flex gap-3 justify-center items-center text-[16px] text-gray-600 dark:text-gray-300">
-                          <button onClick={() => handleEdit(record)} title="Edit">
-                            <FaEdit />
-                          </button>
-                          <button onClick={() => handleDelete(record)} title="Delete">
-                            <FaTrash />
-                          </button>
-                          <button onClick={() => handleFollowUp(record)} title="Follow Up">
-                            <FaBell />
-                          </button>
+                        <td className="px-4 py-2 flex flex-wrap justify-center items-center gap-2 max-w-[200px]">
+                          <button onClick={() => handleEdit(record)} title="Edit"><FaEdit /></button>
+                          <button onClick={() => handleDelete(record)} title="Delete"><FaTrash /></button>
+                          <button onClick={() => handleFollowUp(record)} title="Follow Up"><FaBell /></button>
+                          <button onClick={() => handleMarkArrived(record)} title="Mark Arrived"><FaCheckCircle /></button>
+                          <button onClick={() => handleReprocessing(record)} title="Reprocessing"><FaRecycle /></button>
                         </td>
                       </tr>
                     ))}
@@ -152,7 +175,6 @@ const DyeingOrders: React.FC = () => {
         ))}
       </div>
 
-      {/* Create/Edit Order Form */}
       <CreateDyeingOrderForm
         isOpen={isFormOpen}
         recordToEdit={recordToEdit}
@@ -167,7 +189,6 @@ const DyeingOrders: React.FC = () => {
         }}
       />
 
-      {/* Follow-Up Modal */}
       <FollowUpModal
         isOpen={isFollowUpModalOpen}
         onClose={() => {
