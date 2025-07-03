@@ -1,5 +1,6 @@
 const asyncHandler = require("express-async-handler");
 const DyeingRecord = require("../models/DyeingRecord");
+const Party = require("../models/Party"); // New model for Party table
 const { sequelize } = require('../config/postgres');
 
 // ✅ Get all parties summary (main party dashboard data)
@@ -23,7 +24,8 @@ const getAllPartiesSummary = asyncHandler(async (req, res) => {
         WHEN "arrivalDate" IS NULL AND "isReprocessing" = false THEN "quantity"
         ELSE 0 
       END) AS "pendingYarn",
-      SUM(CASE WHEN "isReprocessing" = true THEN "quantity" ELSE 0 END) AS "reprocessingYarn",      SUM(CASE WHEN "arrivalDate" IS NOT NULL AND "isReprocessing" = false THEN "quantity" ELSE 0 END) AS "arrivedYarn",
+      SUM(CASE WHEN "isReprocessing" = true THEN "quantity" ELSE 0 END) AS "reprocessingYarn",
+      SUM(CASE WHEN "arrivalDate" IS NOT NULL AND "isReprocessing" = false THEN "quantity" ELSE 0 END) AS "arrivedYarn",
       MAX("sentDate") AS "lastOrderDate",
       MIN("sentDate") AS "firstOrderDate"
     FROM "DyeingRecords"
@@ -38,13 +40,12 @@ const getAllPartiesSummary = asyncHandler(async (req, res) => {
 // ✅ Get individual party details
 const getPartyDetails = asyncHandler(async (req, res) => {
   const { partyName } = req.params;
-  
+
   if (!partyName) {
     res.status(400);
     throw new Error("Party name is required");
   }
 
-  // Get all orders for this party
   const orders = await DyeingRecord.findAll({
     where: sequelize.where(
       sequelize.fn('LOWER', sequelize.fn('TRIM', sequelize.col('partyName'))),
@@ -58,7 +59,6 @@ const getPartyDetails = asyncHandler(async (req, res) => {
     throw new Error("Party not found");
   }
 
-  // Calculate summary for this party
   const summary = {
     partyName: orders[0].partyName,
     totalOrders: orders.length,
@@ -109,9 +109,51 @@ const getPartyStatistics = asyncHandler(async (req, res) => {
   res.status(200).json(results[0]);
 });
 
+// 🆕 Create a new party and optionally insert into DyeingRecords
+const createParty = asyncHandler(async (req, res) => {
+  const {
+    name,
+    address,
+    contact,
+    dyeingFirm, // optional
+  } = req.body;
+
+  if (!name) {
+    res.status(400);
+    throw new Error("Party name is required");
+  }
+
+  const newParty = await Party.create({
+    name: name.trim(),
+    address,
+    contact,
+    dyeingFirm: dyeingFirm?.trim() || null,
+  });
+
+  if (dyeingFirm) {
+    await DyeingRecord.create({
+      partyName: name.trim(),
+      dyeingFirm: dyeingFirm.trim(),
+      quantity: 0.01,
+      shade: "N/A",
+      count: "N/A",
+      lot: "AUTO-GEN",
+      yarnType: "N/A",
+      sentDate: new Date(),
+      remarks: "Auto-created with party",
+    });
+  }
+
+  res.status(201).json({
+    message: "Party created successfully",
+    party: newParty,
+  });
+});
+
 module.exports = {
   getAllPartiesSummary,
   getPartyDetails,
   getAllPartyNames,
   getPartyStatistics,
+  createParty,
 };
