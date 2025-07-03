@@ -1,3 +1,4 @@
+// src/api/dyeingApi.ts
 import axios from "axios";
 import {
   DyeingRecord,
@@ -148,7 +149,7 @@ export const markAsReprocessing = async (
   const response = await api.patch(`/${id}/reprocessing`, {
     isReprocessing: true,
     reprocessingDate: new Date().toISOString(),
-    reprocessingReason: reason,
+    reprocessingReason: reason || "",
   });
   return response.data.data || response.data;
 };
@@ -158,6 +159,18 @@ export const markReprocessingComplete = async (
 ): Promise<DyeingRecord> => {
   const response = await api.patch(`/${id}/reprocessing`, {
     isReprocessing: false,
+  });
+  return response.data.data || response.data;
+};
+
+// ✅ Accepts second argument for reprocessingReason
+export const completeReprocessing = async (
+  id: number,
+  payload: { reprocessingReason: string }
+): Promise<DyeingRecord> => {
+  const response = await api.patch(`/${id}/reprocessing`, {
+    isReprocessing: false,
+    reprocessingReason: payload.reprocessingReason,
   });
   return response.data.data || response.data;
 };
