@@ -163,8 +163,17 @@ export const markReprocessingComplete = async (
   return response.data.data || response.data;
 };
 
-// ✅ Export alias for compatibility with `DyeingOrders.tsx`
-export const completeReprocessing = markReprocessingComplete;
+// ✅ Accepts second argument for reprocessingReason
+export const completeReprocessing = async (
+  id: number,
+  payload: { reprocessingReason: string }
+): Promise<DyeingRecord> => {
+  const response = await api.patch(`/${id}/reprocessing`, {
+    isReprocessing: false,
+    reprocessingReason: payload.reprocessingReason,
+  });
+  return response.data.data || response.data;
+};
 
 export const getDyeingStatus = (record: DyeingRecord): string => {
   if (record.arrivalDate) return "Arrived";

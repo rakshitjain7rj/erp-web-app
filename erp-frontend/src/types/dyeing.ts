@@ -32,6 +32,7 @@ export interface DyeingRecord {
 
   // Derived (optional frontend flags)
   isOverdue?: boolean;
+  status?: "Pending" | "Arrived" | "Overdue" | "Reprocessing"; // <-- ADDED for clarity in filtering
 
   // Related follow-ups
   followUps?: DyeingFollowUp[];
