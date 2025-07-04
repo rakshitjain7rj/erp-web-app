@@ -23,7 +23,7 @@ import Users from "./pages/Users";
 import Settings from "./pages/Settings";
 import DyeingSummary from "./pages/DyeingSummary";
 import PartyMaster from "./pages/PartyMaster";
-import ASUUnit2 from "./pages/ASUUnit2";
+import ASUUnit from './pages/ASUUnit';
 import ApiTest from "./components/ApiTest";
 import SimplePartyTest from "./components/SimplePartyTest";
 import RawDataTest from "./components/RawDataTest";
@@ -96,7 +96,7 @@ const App = () => {
           <>
             <Navbar />
 
-            <div className="pt-16 px-4">
+            <div className="px-4 pt-16">
               <Routes>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
@@ -173,13 +173,22 @@ const App = () => {
                   }
                 />
                 <Route
-                  path="/asu-unit2"
-                  element={
-                    <PrivateRoute roles={["admin", "manager", "operator"]}>
-                      <ASUUnit2 />
-                    </PrivateRoute>
-                  }
-                />
+  path="/asu-unit1"
+  element={
+    <PrivateRoute roles={["admin", "manager"]}>
+      <ASUUnit unit={1} />
+    </PrivateRoute>
+  }
+/>
+<Route
+  path="/asu-unit2"
+  element={
+    <PrivateRoute roles={["admin", "manager"]}>
+      <ASUUnit unit={2} />
+    </PrivateRoute>
+  }
+/>
+
                 <Route
                   path="/users"
                   element={

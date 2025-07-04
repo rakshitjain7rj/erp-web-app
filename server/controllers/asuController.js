@@ -1,10 +1,19 @@
 const { Op } = require('sequelize');
+// Utility to filter by unit
+const getMachineRange = (unit) => {
+  if (unit === '1') return { [Op.between]: [1, 9] };
+  if (unit === '2') return { [Op.between]: [10, 21] };
+  return undefined;
+};
+
 const {
   ASUDailyMachineData,
   ASUProductionEfficiency,
   ASUMainsReading,
   ASUWeeklyData
 } = require('../models/ASUModels');
+
+
 
 // Submit daily data (all forms combined)
 const submitDailyData = async (req, res) => {
@@ -40,11 +49,12 @@ const submitDailyData = async (req, res) => {
 // Get daily machine data with pagination and filters
 const getDailyMachineData = async (req, res) => {
   try {
-    const { page = 1, limit = 20, machine, karigarName, dateFrom, dateTo } = req.query;
+    const { page = 1, limit = 20, machine, karigarName, dateFrom, dateTo, unit } = req.query;
     const offset = (page - 1) * limit;
 
     const where = {};
     if (machine) where.machine = machine;
+    else if (unit) where.machine = getMachineRange(unit);
     if (karigarName) where.karigarName = { [Op.iLike]: `%${karigarName}%` };
     if (dateFrom && dateTo) {
       where.date = { [Op.between]: [dateFrom, dateTo] };
@@ -83,11 +93,13 @@ const getDailyMachineData = async (req, res) => {
 // Get production efficiency data
 const getProductionEfficiency = async (req, res) => {
   try {
-    const { page = 1, limit = 20, machine, dateFrom, dateTo } = req.query;
+    const { page = 1, limit = 20, machine, dateFrom, dateTo, unit } = req.query;
     const offset = (page - 1) * limit;
 
     const where = {};
     if (machine) where.machine = machine;
+    else if (unit) where.machine = getMachineRange(unit);
+
     if (dateFrom && dateTo) {
       where.date = { [Op.between]: [dateFrom, dateTo] };
     } else if (dateFrom) {
@@ -166,11 +178,13 @@ const getMainsReadings = async (req, res) => {
 // Get weekly data
 const getWeeklyData = async (req, res) => {
   try {
-    const { page = 1, limit = 20, machine, weekStartDate } = req.query;
+    const { page = 1, limit = 20, machine, weekStartDate, unit } = req.query;
+
     const offset = (page - 1) * limit;
 
     const where = {};
     if (machine) where.machine = machine;
+    else if (unit) where.machine = getMachineRange(unit);
     if (weekStartDate) where.weekStartDate = weekStartDate;
 
     const { count, rows } = await ASUWeeklyData.findAndCountAll({
@@ -203,6 +217,9 @@ const getWeeklyData = async (req, res) => {
 const getStats = async (req, res) => {
   try {
     const { dateFrom, dateTo } = req.query;
+    const { unit } = req.query;
+    const machineFilter = unit ? { machine: getMachineRange(unit) } : {};
+
     
     // Set default date range to last 7 days if not provided
     const endDate = dateTo || new Date().toISOString().split('T')[0];
@@ -214,7 +231,7 @@ const getStats = async (req, res) => {
 
     // Get production stats
     const productionStats = await ASUProductionEfficiency.findAll({
-      where: dateFilter,
+      where: {...dateFilter, ...machineFilter},
       attributes: [
         'machine',
         [require('sequelize').fn('SUM', require('sequelize').col('kgs_produced')), 'totalProduction'],
@@ -242,7 +259,7 @@ const getStats = async (req, res) => {
 
     // Get active machines (machines with data in the date range)
     const activeMachines = new Set(productionStats.map(stat => stat.machine)).size;
-    const totalMachines = 21; // Fixed number as per requirement
+    const totalMachines = unit === '1' ? 9 : unit === '2' ? 12 : 21;
 
     // Calculate previous week comparison (simplified)
     const prevWeekStart = new Date(new Date(startDate).getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];

@@ -1,3 +1,5 @@
+// src/models/ASUModels.js
+
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/postgres');
 
@@ -59,6 +61,15 @@ const ASUDailyMachineData = sequelize.define('ASUDailyMachineData', {
   date: {
     type: DataTypes.DATEONLY,
     allowNull: false
+  },
+  unit: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 2,
+    validate: {
+      min: 1,
+      max: 2
+    }
   }
 }, {
   tableName: 'asu_daily_machine_data',
@@ -66,15 +77,10 @@ const ASUDailyMachineData = sequelize.define('ASUDailyMachineData', {
   createdAt: 'created_at',
   updatedAt: 'updated_at',
   indexes: [
-    {
-      fields: ['machine', 'date']
-    },
-    {
-      fields: ['karigarName']
-    },
-    {
-      fields: ['date']
-    }
+    { fields: ['machine', 'date'] },
+    { fields: ['karigar_name'] },
+    { fields: ['date'] },
+    { fields: ['unit'] }
   ]
 });
 
@@ -111,6 +117,15 @@ const ASUProductionEfficiency = sequelize.define('ASUProductionEfficiency', {
   date: {
     type: DataTypes.DATEONLY,
     allowNull: false
+  },
+  unit: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 2,
+    validate: {
+      min: 1,
+      max: 2
+    }
   }
 }, {
   tableName: 'asu_production_efficiency',
@@ -118,12 +133,9 @@ const ASUProductionEfficiency = sequelize.define('ASUProductionEfficiency', {
   createdAt: 'created_at',
   updatedAt: 'updated_at',
   indexes: [
-    {
-      fields: ['machine', 'date']
-    },
-    {
-      fields: ['date']
-    }
+    { fields: ['machine', 'date'] },
+    { fields: ['date'] },
+    { fields: ['unit'] }
   ]
 });
 
@@ -149,6 +161,15 @@ const ASUMainsReading = sequelize.define('ASUMainsReading', {
     type: DataTypes.DATEONLY,
     allowNull: false,
     unique: true
+  },
+  unit: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 2,
+    validate: {
+      min: 1,
+      max: 2
+    }
   }
 }, {
   tableName: 'asu_mains_readings',
@@ -156,9 +177,8 @@ const ASUMainsReading = sequelize.define('ASUMainsReading', {
   createdAt: 'created_at',
   updatedAt: 'updated_at',
   indexes: [
-    {
-      fields: ['date']
-    }
+    { fields: ['date'] },
+    { fields: ['unit'] }
   ]
 });
 
@@ -209,6 +229,15 @@ const ASUWeeklyData = sequelize.define('ASUWeeklyData', {
     type: DataTypes.DATEONLY,
     allowNull: false,
     field: 'week_start_date'
+  },
+  unit: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 2,
+    validate: {
+      min: 1,
+      max: 2
+    }
   }
 }, {
   tableName: 'asu_weekly_data',
@@ -216,12 +245,9 @@ const ASUWeeklyData = sequelize.define('ASUWeeklyData', {
   createdAt: 'created_at',
   updatedAt: 'updated_at',
   indexes: [
-    {
-      fields: ['machine', 'weekStartDate']
-    },
-    {
-      fields: ['weekStartDate']
-    }
+    { fields: ['machine', 'weekStartDate'] },
+    { fields: ['weekStartDate'] },
+    { fields: ['unit'] }
   ]
 });
 

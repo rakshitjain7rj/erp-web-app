@@ -33,7 +33,9 @@ const authRoutes = require('./routes/authRoutes');
 // const reportRoutes = require('./routes/reportRoutes');
 const dyeingRoutes = require('./routes/dyeingRoutes');
 const partyRoutes = require('./routes/partyRoutes');
-const asuRoutes = require('./routes/asuRoutes');
+const asuUnit1Routes = require('./routes/asuUnit1Routes');
+const asuUnit2Routes = require('./routes/asuUnit2Routes');
+
 
 
 
@@ -71,7 +73,8 @@ app.use('/api/auth', authRoutes);
 // app.use('/api/reports', reportRoutes);
 app.use('/api/dyeing', dyeingRoutes);
 app.use('/api/parties', partyRoutes);
-app.use('/api/asu-unit2', asuRoutes);
+app.use('/api/asu-unit1', asuUnit1Routes);
+app.use('/api/asu-unit2', asuUnit2Routes);
 
 // Error Handler
 app.use(errorHandler);
