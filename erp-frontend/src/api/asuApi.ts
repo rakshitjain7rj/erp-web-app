@@ -29,14 +29,13 @@ const isTokenExpired = (token: string): boolean => {
   }
 };
 
-const getUnitPath = (unit?: number): string => {
-  if (unit === 1) return '/asu-unit1';
-  if (unit === 2) return '/asu-unit2';
+const getUnitPath = (unit?: number | string): string => {
+  const parsed = Number(unit);
+  if (parsed === 1) return '/asu-unit1';
+  if (parsed === 2) return '/asu-unit2';
   console.warn('⚠️ [asuApi] No unit provided, defaulting to Unit 2');
   return '/asu-unit2';
 };
-
-
 
 const apiCall = async <T>(
   endpoint: string,
@@ -66,8 +65,10 @@ const apiCall = async <T>(
         const errorData = await response.json();
         errorMessage = errorData.message || errorData.error || errorMessage;
 
-        if (response.status === 401 &&
-            (errorData.error === 'Invalid token' || errorData.error === 'Unauthorized')) {
+        if (
+          response.status === 401 &&
+          (errorData.error === 'Invalid token' || errorData.error === 'Unauthorized')
+        ) {
           localStorage.removeItem('token');
           errorMessage = 'Session expired. Please login again.';
         }
@@ -94,7 +95,7 @@ const wrapPaginated = <T>(
   page: number,
   limit: number
 ): ApiResponse<PaginatedResponse<T>> => {
-  if (res.success && res.data && typeof res.data === 'object' && res.data !== null) {
+  if (res.success && res.data && typeof res.data === 'object') {
     const dataObj = res.data as Record<string, unknown>;
     if (!Array.isArray(dataObj.data)) {
       return {
@@ -115,7 +116,7 @@ const wrapPaginated = <T>(
 export const asuApi = {
   submitDailyData: async (
     formData: ASUFormData,
-    unit: 1 | 2 
+    unit: 1 | 2
   ): Promise<ApiResponse<{
     dailyMachine: ASUDailyMachineData;
     production: ASUProductionEfficiency;
@@ -141,15 +142,13 @@ export const asuApi = {
   getDailyMachineData: async (
     filters: ASUFilters = {},
     page = 1,
-    limit = 20,
-    unit: 1 | 2
+    limit = 20
   ): Promise<ApiResponse<PaginatedResponse<ASUDailyMachineData>>> => {
+    const unit = filters.unit ?? 2;
     const params = new URLSearchParams({
       page: page.toString(),
       limit: limit.toString(),
-      ...Object.fromEntries(
-        Object.entries(filters).filter(([, v]) => v !== undefined && v !== '')
-      ),
+      ...Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== undefined && v !== '')),
     });
     const res = await apiCall(`${getUnitPath(unit)}/daily-machine?${params}`);
     return wrapPaginated<ASUDailyMachineData>(res, page, limit);
@@ -158,15 +157,13 @@ export const asuApi = {
   getProductionEfficiency: async (
     filters: ASUFilters = {},
     page = 1,
-    limit = 20,
-    unit: 1 | 2
+    limit = 20
   ): Promise<ApiResponse<PaginatedResponse<ASUProductionEfficiency>>> => {
+    const unit = filters.unit ?? 2;
     const params = new URLSearchParams({
       page: page.toString(),
       limit: limit.toString(),
-      ...Object.fromEntries(
-        Object.entries(filters).filter(([, v]) => v !== undefined && v !== '')
-      ),
+      ...Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== undefined && v !== '')),
     });
     const res = await apiCall(`${getUnitPath(unit)}/production?${params}`);
     return wrapPaginated<ASUProductionEfficiency>(res, page, limit);
@@ -175,15 +172,13 @@ export const asuApi = {
   getMainsReadings: async (
     filters: ASUFilters = {},
     page = 1,
-    limit = 20,
-    unit: 1 | 2
+    limit = 20
   ): Promise<ApiResponse<PaginatedResponse<ASUMainsReading>>> => {
+    const unit = filters.unit ?? 2;
     const params = new URLSearchParams({
       page: page.toString(),
       limit: limit.toString(),
-      ...Object.fromEntries(
-        Object.entries(filters).filter(([, v]) => v !== undefined && v !== '')
-      ),
+      ...Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== undefined && v !== '')),
     });
     const res = await apiCall(`${getUnitPath(unit)}/mains?${params}`);
     return wrapPaginated<ASUMainsReading>(res, page, limit);
@@ -192,23 +187,20 @@ export const asuApi = {
   getWeeklyData: async (
     filters: ASUFilters = {},
     page = 1,
-    limit = 20,
-    unit: 1 | 2
+    limit = 20
   ): Promise<ApiResponse<PaginatedResponse<ASUWeeklyData>>> => {
+    const unit = filters.unit ?? 2;
     const params = new URLSearchParams({
       page: page.toString(),
       limit: limit.toString(),
-      ...Object.fromEntries(
-        Object.entries(filters).filter(([, v]) => v !== undefined && v !== '')
-      ),
+      ...Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== undefined && v !== '')),
     });
     const res = await apiCall(`${getUnitPath(unit)}/weekly?${params}`);
     return wrapPaginated<ASUWeeklyData>(res, page, limit);
   },
 
   getStats: async (
-    filters: ASUFilters = {},
-    unit: 1 | 2
+    filters: ASUFilters = {}
   ): Promise<ApiResponse<{
     totalMachines: number;
     activeMachines: number;
@@ -221,92 +213,11 @@ export const asuApi = {
       power: { current: number; previous: number; change: number };
     };
   }>> => {
+    const unit = filters.unit ?? 2;
     const params = new URLSearchParams(
-      Object.fromEntries(
-        Object.entries(filters).filter(([, v]) => v !== undefined && v !== '')
-      )
+      Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== undefined && v !== ''))
     );
     return await apiCall(`${getUnitPath(unit)}/stats?${params}`);
-  },
-
-  updateDailyMachineData: async (
-    id: number,
-    unit: 1 | 2,
-    data: Partial<ASUDailyMachineData>
-  ): Promise<ApiResponse<ASUDailyMachineData>> => {
-    return await apiCall(`${getUnitPath(unit)}/daily-machine/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
-  },
-
-  updateProductionEfficiency: async (
-    id: number,
-    unit: 1 | 2,
-    data: Partial<ASUProductionEfficiency>
-  ): Promise<ApiResponse<ASUProductionEfficiency>> => {
-    return await apiCall(`${getUnitPath(unit)}/production/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
-  },
-
-  updateMainsReading: async (
-    id: number,
-    unit: 1 | 2,
-    data: Partial<ASUMainsReading>
-  ): Promise<ApiResponse<ASUMainsReading>> => {
-    return await apiCall(`${getUnitPath(unit)}/mains/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
-  },
-
-  updateWeeklyData: async (
-    id: number,
-    unit: 1 | 2,
-    data: Partial<ASUWeeklyData>
-  ): Promise<ApiResponse<ASUWeeklyData>> => {
-    return await apiCall(`${getUnitPath(unit)}/weekly/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
-  },
-
-  deleteDailyMachineData: async (
-    id: number,
-    unit: 1 | 2
-  ): Promise<ApiResponse<void>> => {
-    return await apiCall(`${getUnitPath(unit)}/daily-machine/${id}`, {
-      method: 'DELETE',
-    });
-  },
-
-  deleteProductionEfficiency: async (
-    id: number,
-    unit: 1 | 2
-  ): Promise<ApiResponse<void>> => {
-    return await apiCall(`${getUnitPath(unit)}/production/${id}`, {
-      method: 'DELETE',
-    });
-  },
-
-  deleteMainsReading: async (
-    id: number,
-    unit: 1 | 2
-  ): Promise<ApiResponse<void>> => {
-    return await apiCall(`${getUnitPath(unit)}/mains/${id}`, {
-      method: 'DELETE',
-    });
-  },
-
-  deleteWeeklyData: async (
-    id: number,
-    unit: 1 | 2
-  ): Promise<ApiResponse<void>> => {
-    return await apiCall(`${getUnitPath(unit)}/weekly/${id}`, {
-      method: 'DELETE',
-    });
   },
 };
 

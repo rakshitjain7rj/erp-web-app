@@ -57,13 +57,16 @@ export interface ASUFormData {
 
 // Filtering utilities
 export interface ASUFilters {
+  page?: number;
+  limit?: number;
   machine?: number;
-  karigarName?: string;
   dateFrom?: string;
   dateTo?: string;
   weekStartDate?: string;
-  page?: number;
-  limit?: number;
+  karigarName?: string;
+  machineStart?: number;
+  machineEnd?: number;
+  unit?: 1 | 2; // ✅ Add this line
 }
 
 // API response wrapper

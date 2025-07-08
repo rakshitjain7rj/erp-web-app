@@ -13,6 +13,6 @@ export const registerUser = async (data: {
   password: string;
   role: string;
 }) => {
-  const res = await axios.post(`${API}/register`, data);
+  const res = await axios.post(`${API}/auth/register`, data);
   return res.data;
 };

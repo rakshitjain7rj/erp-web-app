@@ -23,6 +23,8 @@ import Users from "./pages/Users";
 import Settings from "./pages/Settings";
 import DyeingSummary from "./pages/DyeingSummary";
 import PartyMaster from "./pages/PartyMaster";
+import ASUUnit1Page from "./pages/ASUUnit1Page";
+import ASUAuthTest from "./components/ASUAuthTest";
 import ASUUnit from './pages/ASUUnit';
 import ApiTest from "./components/ApiTest";
 import SimplePartyTest from "./components/SimplePartyTest";
@@ -169,6 +171,22 @@ const App = () => {
                   element={
                     <PrivateRoute roles={["admin", "manager"]}>
                       <PartyMaster />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/production/asu-unit-1"
+                  element={
+                    <PrivateRoute roles={["admin", "manager", "operator"]}>
+                      <ASUUnit1Page />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/test/asu-auth"
+                  element={
+                    <PrivateRoute roles={["admin", "manager", "operator"]}>
+                      <ASUAuthTest />
                     </PrivateRoute>
                   }
                 />

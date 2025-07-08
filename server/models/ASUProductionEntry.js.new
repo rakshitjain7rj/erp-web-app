@@ -1,0 +1,84 @@
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('./config/postgres');
+
+/**
+ * This model represents production entries for ASU machines in Units 1 and 2.
+ * It uses a direct table name in queries to avoid alias issues.
+ */
+const ASUProductionEntry = sequelize.define('ASUProductionEntry', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
+  // Comment out unit field since it might not exist in the database yet
+  /*
+  unit: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    validate: {
+      isIn: [[1, 2]]
+    }
+  },
+  */
+  machineNumber: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    field: 'machine_number'
+  },
+  date: {
+    type: DataTypes.DATEONLY,
+    allowNull: false
+  },
+  shift: {
+    type: DataTypes.STRING(10),
+    allowNull: false,
+    validate: {
+      isIn: [['day', 'night']]
+    }
+  },
+  actualProduction: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: true,
+    field: 'actual_production'
+  },
+  theoreticalProduction: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: true,
+    field: 'theoretical_production'
+  },
+  efficiency: {
+    type: DataTypes.DECIMAL(5, 2),
+    allowNull: true
+  },
+  remarks: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  }
+}, {
+  tableName: 'asu_production_entries',
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: 'updated_at',
+  indexes: [
+    {
+      unique: true,
+      fields: ['machine_number', 'date', 'shift'],
+      name: 'unique_machine_date_shift'
+    },
+    {
+      fields: ['date']
+    },
+    {
+      fields: ['machine_number']
+    }
+  ]
+});
+
+// Define associations
+ASUProductionEntry.associate = (models) => {
+  // No direct foreign key relationship since we use machine_number instead of machine_id
+  // We'll handle the relationship through queries when needed
+};
+
+module.exports = ASUProductionEntry;

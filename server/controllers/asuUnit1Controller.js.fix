@@ -1,0 +1,146 @@
+// Update to asuUnit1Controller.js to fix the column issue
+const { getProductionStats } = (function() {
+  return async (req, res) => {
+    try {
+      const { unit = 1, machineNumber, dateFrom, dateTo } = req.query;
+      const { sequelize } = require('../config/postgres');
+      const { QueryTypes } = require('sequelize');
+      const ASUMachine = require('../models/ASUMachine');
+
+      // Check if tables exist before querying
+      const tableCheck = await sequelize.query(`
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name IN ('asu_machines', 'asu_production_entries')
+      `, { type: QueryTypes.SELECT });
+
+      if (tableCheck.length < 2) {
+        return res.status(500).json({
+          success: false,
+          error: 'Database tables not found. Please run the ASU Unit 1 migration script first.',
+          missingTables: ['asu_machines', 'asu_production_entries'].filter(
+            table => !tableCheck.find(t => t.table_name === table)
+          )
+        });
+      }
+
+      // Get total and active machines count for the unit
+      const totalMachines = await ASUMachine.count({
+        where: { unit: parseInt(unit) }
+      });
+
+      const activeMachines = await ASUMachine.count({
+        where: { unit: parseInt(unit), isActive: true }
+      });
+
+      // Build query conditions for the production entries
+      let conditions = '';
+      if (machineNumber) {
+        conditions += ` AND machine_number = ${parseInt(machineNumber)}`;
+      }
+      
+      if (dateFrom && dateTo) {
+        conditions += ` AND date BETWEEN '${dateFrom}' AND '${dateTo}'`;
+      } else {
+        // Default to last 30 days
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const defaultDate = thirtyDaysAgo.toISOString().split('T')[0];
+        conditions += ` AND date >= '${defaultDate}'`;
+      }
+
+      // Check if unit column exists
+      const columnCheck = await sequelize.query(`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name = 'asu_production_entries'
+        AND column_name = 'unit'
+      `, { type: QueryTypes.SELECT });
+
+      // Only add unit condition if column exists
+      if (columnCheck.length > 0) {
+        conditions += ` AND unit = ${parseInt(unit)}`;
+      }
+
+      // Get today's entries count for the unit
+      const today = new Date().toISOString().split('T')[0];
+      const todayQuery = await sequelize.query(`
+        SELECT COUNT(*) as count
+        FROM asu_production_entries
+        WHERE date = '${today}'
+        ${columnCheck.length > 0 ? `AND unit = ${parseInt(unit)}` : ''}
+      `, { type: QueryTypes.SELECT });
+      
+      const todayEntries = parseInt(todayQuery[0].count || 0);
+
+      // Get aggregated statistics
+      const statsQuery = await sequelize.query(`
+        SELECT 
+          AVG(efficiency) as avg_efficiency,
+          SUM(actual_production) as total_actual_production,
+          SUM(theoretical_production) as total_theoretical_production,
+          COUNT(*) as total_entries
+        FROM asu_production_entries
+        WHERE 1=1 ${conditions}
+      `, { type: QueryTypes.SELECT });
+      
+      const stats = statsQuery[0];
+
+      // Get top performing machine by average efficiency
+      const topMachineQuery = await sequelize.query(`
+        SELECT 
+          machine_number,
+          AVG(efficiency) as avg_efficiency,
+          COUNT(*) as entry_count
+        FROM asu_production_entries 
+        WHERE efficiency IS NOT NULL ${conditions}
+        GROUP BY machine_number 
+        HAVING COUNT(*) > 0
+        ORDER BY AVG(efficiency) DESC 
+        LIMIT 1
+      `, { type: QueryTypes.SELECT });
+
+      const topMachine = topMachineQuery[0] || null;
+
+      // Calculate overall efficiency from totals
+      const totalActual = parseFloat(stats?.total_actual_production || 0);
+      const totalTheoretical = parseFloat(stats?.total_theoretical_production || 0);
+      const overallEfficiency = totalTheoretical > 0 ? (totalActual / totalTheoretical) * 100 : 0;
+
+      res.json({
+        success: true,
+        data: {
+          totalMachines: totalMachines || 0,
+          activeMachines: activeMachines || 0,
+          todayEntries: todayEntries || 0,
+          averageEfficiency: parseFloat(stats?.avg_efficiency || 0),
+          overallEfficiency: parseFloat(overallEfficiency.toFixed(2)),
+          totalActualProduction: totalActual,
+          totalTheoreticalProduction: totalTheoretical,
+          totalEntries: parseInt(stats?.total_entries || 0),
+          topPerformingMachine: topMachine ? {
+            machineNumber: parseInt(topMachine.machine_number),
+            avgEfficiency: parseFloat(topMachine.avg_efficiency || 0),
+            entryCount: parseInt(topMachine.entry_count || 0)
+          } : null
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching production stats:', error);
+      
+      // Provide helpful error message for missing tables
+      if (error.message && error.message.includes('does not exist')) {
+        return res.status(500).json({
+          success: false,
+          error: 'Database tables not found or column issue. Please run the ASU Unit 1 migration script first.',
+          details: error.message
+        });
+      }
+      
+      res.status(500).json({ success: false, error: error.message });
+    }
+  };
+})();
+
+module.exports = { getProductionStats };

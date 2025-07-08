@@ -1,13 +1,58 @@
--- Database verification script
--- Run this to check your current database state
+-- ASU Tables Verification Script
+-- Run this in Neon SQL Editor to verify the migration worked
 
--- 1. Check all tables
-SELECT table_name, table_type 
+-- =============================================================================
+-- 1. Check if ASU tables exist
+-- =============================================================================
+SELECT 
+    table_name,
+    table_schema
 FROM information_schema.tables 
-WHERE table_schema = 'public' 
-ORDER BY table_name;
+WHERE table_name IN ('asu_machines', 'asu_production_entries')
+AND table_schema = 'public';
 
--- 2. Check Users table structure and data
+-- =============================================================================
+-- 2. Check table structures
+-- =============================================================================
+
+-- Check asu_machines structure
+SELECT 
+    column_name,
+    data_type,
+    is_nullable,
+    column_default
+FROM information_schema.columns 
+WHERE table_name = 'asu_machines' 
+AND table_schema = 'public'
+ORDER BY ordinal_position;
+
+-- Check asu_production_entries structure  
+SELECT 
+    column_name,
+    data_type,
+    is_nullable,
+    column_default
+FROM information_schema.columns 
+WHERE table_name = 'asu_production_entries' 
+AND table_schema = 'public'
+ORDER BY ordinal_position;
+
+-- =============================================================================
+-- 3. Check data counts
+-- =============================================================================
+SELECT 'asu_machines' as table_name, COUNT(*) as record_count FROM asu_machines
+UNION ALL
+SELECT 'asu_production_entries' as table_name, COUNT(*) as record_count FROM asu_production_entries;
+
+-- =============================================================================
+-- 4. Sample data preview
+-- =============================================================================
+
+-- Preview asu_machines data
+SELECT * FROM asu_machines ORDER BY unit, machine_no LIMIT 10;
+
+-- Preview asu_production_entries data
+SELECT * FROM asu_production_entries ORDER BY date DESC, unit, machine_number LIMIT 10;
 SELECT * FROM information_schema.columns 
 WHERE table_name = 'Users' 
 ORDER BY ordinal_position;

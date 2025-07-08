@@ -1,7 +1,9 @@
-// src/models/ASUModels.js
-
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/postgres');
+
+// Import new ASU Unit 1 models
+const ASUMachine = require('./ASUMachine');
+const ASUProductionEntry = require('./ASUProductionEntry');
 
 const ASUDailyMachineData = sequelize.define('ASUDailyMachineData', {
   id: {
@@ -12,10 +14,7 @@ const ASUDailyMachineData = sequelize.define('ASUDailyMachineData', {
   machine: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    validate: {
-      min: 1,
-      max: 21
-    }
+    validate: { min: 1, max: 21 }
   },
   karigarName: {
     type: DataTypes.STRING,
@@ -38,20 +37,14 @@ const ASUDailyMachineData = sequelize.define('ASUDailyMachineData', {
     type: DataTypes.DECIMAL(4, 1),
     allowNull: false,
     defaultValue: 0,
-    validate: {
-      min: 0,
-      max: 24
-    },
+    validate: { min: 0, max: 24 },
     field: 'machine_hours_worked'
   },
   extraHours: {
     type: DataTypes.DECIMAL(4, 1),
     allowNull: true,
     defaultValue: 0,
-    validate: {
-      min: 0,
-      max: 24
-    },
+    validate: { min: 0, max: 24 },
     field: 'extra_hours'
   },
   yarn: {
@@ -66,10 +59,7 @@ const ASUDailyMachineData = sequelize.define('ASUDailyMachineData', {
     type: DataTypes.INTEGER,
     allowNull: false,
     defaultValue: 2,
-    validate: {
-      min: 1,
-      max: 2
-    }
+    validate: { min: 1, max: 2 }
   }
 }, {
   tableName: 'asu_daily_machine_data',
@@ -78,9 +68,10 @@ const ASUDailyMachineData = sequelize.define('ASUDailyMachineData', {
   updatedAt: 'updated_at',
   indexes: [
     { fields: ['machine', 'date'] },
-    { fields: ['karigar_name'] },
+    { fields: ['karigarName'] }, // ✅ fixed index key
     { fields: ['date'] },
-    { fields: ['unit'] }
+    { fields: ['unit'] },
+    { fields: ['unit', 'date'] } // ✅ recommended for filtering
   ]
 });
 
@@ -93,10 +84,7 @@ const ASUProductionEfficiency = sequelize.define('ASUProductionEfficiency', {
   machine: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    validate: {
-      min: 1,
-      max: 21
-    }
+    validate: { min: 1, max: 21 }
   },
   kgsProduced: {
     type: DataTypes.DECIMAL(10, 2),
@@ -108,10 +96,7 @@ const ASUProductionEfficiency = sequelize.define('ASUProductionEfficiency', {
     type: DataTypes.DECIMAL(4, 1),
     allowNull: false,
     defaultValue: 0,
-    validate: {
-      min: 0,
-      max: 24
-    },
+    validate: { min: 0, max: 24 },
     field: 'machine_hours_working'
   },
   date: {
@@ -122,10 +107,7 @@ const ASUProductionEfficiency = sequelize.define('ASUProductionEfficiency', {
     type: DataTypes.INTEGER,
     allowNull: false,
     defaultValue: 2,
-    validate: {
-      min: 1,
-      max: 2
-    }
+    validate: { min: 1, max: 2 }
   }
 }, {
   tableName: 'asu_production_efficiency',
@@ -135,7 +117,8 @@ const ASUProductionEfficiency = sequelize.define('ASUProductionEfficiency', {
   indexes: [
     { fields: ['machine', 'date'] },
     { fields: ['date'] },
-    { fields: ['unit'] }
+    { fields: ['unit'] },
+    { fields: ['unit', 'date'] } // ✅ added for consistency
   ]
 });
 
@@ -166,10 +149,7 @@ const ASUMainsReading = sequelize.define('ASUMainsReading', {
     type: DataTypes.INTEGER,
     allowNull: false,
     defaultValue: 2,
-    validate: {
-      min: 1,
-      max: 2
-    }
+    validate: { min: 1, max: 2 }
   }
 }, {
   tableName: 'asu_mains_readings',
@@ -178,7 +158,8 @@ const ASUMainsReading = sequelize.define('ASUMainsReading', {
   updatedAt: 'updated_at',
   indexes: [
     { fields: ['date'] },
-    { fields: ['unit'] }
+    { fields: ['unit'] },
+    { fields: ['unit', 'date'] } // ✅ optional perf boost
   ]
 });
 
@@ -191,10 +172,7 @@ const ASUWeeklyData = sequelize.define('ASUWeeklyData', {
   machine: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    validate: {
-      min: 1,
-      max: 21
-    }
+    validate: { min: 1, max: 21 }
   },
   numberOfThreads: {
     type: DataTypes.INTEGER,
@@ -234,10 +212,7 @@ const ASUWeeklyData = sequelize.define('ASUWeeklyData', {
     type: DataTypes.INTEGER,
     allowNull: false,
     defaultValue: 2,
-    validate: {
-      min: 1,
-      max: 2
-    }
+    validate: { min: 1, max: 2 }
   }
 }, {
   tableName: 'asu_weekly_data',
@@ -251,9 +226,15 @@ const ASUWeeklyData = sequelize.define('ASUWeeklyData', {
   ]
 });
 
+// Setup associations
+// Note: ASUProductionEntry uses machine_number field instead of foreign key relationship
+// Associations will be handled through queries when needed
+
 module.exports = {
   ASUDailyMachineData,
   ASUProductionEfficiency,
   ASUMainsReading,
-  ASUWeeklyData
+  ASUWeeklyData,
+  ASUMachine,
+  ASUProductionEntry
 };

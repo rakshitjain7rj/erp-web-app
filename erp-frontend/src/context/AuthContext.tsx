@@ -12,7 +12,7 @@ type User = {
   originalRole?: string;
   name?: string;
   email?: string;
-  id?: string; // ✅ NEW: User ID for tracking who added/updated follow-ups
+  id?: string; // Decoded user ID from JWT
 };
 
 type AuthContextType = {
@@ -25,6 +25,7 @@ type AuthContextType = {
 };
 
 const USER_KEY = "user";
+const TOKEN_KEY = "token";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -32,40 +33,38 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const initializeAuth = () => {
-      try {
-        const storedUser = localStorage.getItem(USER_KEY);
-        if (storedUser) {
-          const parsedUser = JSON.parse(storedUser);
-          if (parsedUser.token && isTokenValid(parsedUser.token)) {
-            setUser(parsedUser);
-          } else {
-            localStorage.removeItem(USER_KEY);
-          }
-        }
-      } catch (err) {
-        console.error("❌ Invalid user data in localStorage");
-        localStorage.removeItem(USER_KEY);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    initializeAuth();
-  }, []);
-
+  // ✅ Validate JWT expiration
   const isTokenValid = (token: string): boolean => {
     try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
+      const payload = JSON.parse(atob(token.split(".")[1]));
       const currentTime = Math.floor(Date.now() / 1000);
-      if (payload.exp && payload.exp < currentTime) return false;
-      return true;
-    } catch (error) {
+      return payload.exp && payload.exp > currentTime;
+    } catch {
       return false;
     }
   };
 
+  // ✅ Restore user from localStorage
+  useEffect(() => {
+    const storedUser = localStorage.getItem(USER_KEY);
+    if (storedUser) {
+      try {
+        const parsed: User = JSON.parse(storedUser);
+        if (parsed.token && isTokenValid(parsed.token)) {
+          setUser(parsed);
+          localStorage.setItem(TOKEN_KEY, parsed.token); // ensure token is restored
+        } else {
+          localStorage.removeItem(USER_KEY);
+          localStorage.removeItem(TOKEN_KEY);
+        }
+      } catch (err) {
+        console.error("Failed to parse stored user:", err);
+      }
+    }
+    setIsLoading(false);
+  }, []);
+
+  // ✅ Login handler
   const login = (userData: User) => {
     let preservedOriginalRole = userData.role;
 
@@ -79,12 +78,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     }
 
-    // ✅ Try to decode user ID from token payload
+    // ✅ Decode ID from token
     let decodedId: string | undefined;
     try {
       const payload = JSON.parse(atob(userData.token.split(".")[1]));
-      decodedId = payload.id || payload._id; // JWT might have id or _id
-    } catch (e) {
+      decodedId = payload.id || payload._id;
+    } catch {
       decodedId = undefined;
     }
 
@@ -95,16 +94,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     localStorage.setItem(USER_KEY, JSON.stringify(enrichedUser));
+    localStorage.setItem(TOKEN_KEY, userData.token);
+
     setUser(enrichedUser);
   };
 
+  // ✅ Logout handler
   const logout = () => {
     localStorage.removeItem(USER_KEY);
+    localStorage.removeItem(TOKEN_KEY);
     setUser(null);
   };
 
+  // ✅ Headers for secure API usage
   const getAuthHeaders = (): HeadersInit => {
-    return user?.token ? { Authorization: `Bearer ${user.token}` } : {};
+    const token = user?.token || localStorage.getItem(TOKEN_KEY);
+    return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
   const value = useMemo<AuthContextType>(
@@ -119,7 +124,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     [user, isLoading]
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
 export const useAuth = () => {

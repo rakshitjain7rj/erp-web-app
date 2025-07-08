@@ -24,6 +24,7 @@ interface ASUSummaryTableProps {
   onFiltersChange?: (filters: ASUFilters) => void;
   filters: ASUFilters;
   isLoading?: boolean;
+  activeTab: 'daily' | 'production' | 'mains' | 'weekly';
 }
 
 const ASUSummaryTable: React.FC<ASUSummaryTableProps> = ({
