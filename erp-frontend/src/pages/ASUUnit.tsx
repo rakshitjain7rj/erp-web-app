@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 
 interface ASUUnitProps {
-  unit: 1 | 2;
+  unit: 1; // Always Unit 1, Unit 2 functionality has been removed
 }
 
 type TabType = "daily" | "production" | "mains" | "weekly";

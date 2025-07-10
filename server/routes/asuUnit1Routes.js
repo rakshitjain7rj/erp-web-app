@@ -8,6 +8,12 @@ router.use(auth);
 
 // ASU Machine routes
 router.get('/machines', asuUnit1Controller.getASUMachines);
+router.post('/machines', asuUnit1Controller.createMachine);
+router.put('/machines/:id', asuUnit1Controller.updateMachine);
+
+// New dedicated API endpoints for machines
+router.get('/asu-machines', asuUnit1Controller.getAllMachines);
+router.put('/asu-machines/:id', asuUnit1Controller.updateMachineYarnTypeAndCount);
 
 // Production Entry routes
 router.get('/production-entries', asuUnit1Controller.getProductionEntries);

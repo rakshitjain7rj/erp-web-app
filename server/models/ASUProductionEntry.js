@@ -7,18 +7,19 @@ const ASUProductionEntry = sequelize.define('ASUProductionEntry', {
     primaryKey: true,
     autoIncrement: true
   },
-  // unit field is referenced in a raw SQL query but might not exist in DB yet
   unit: {
     type: DataTypes.INTEGER,
-    allowNull: true, // Changed to allow null for compatibility 
+    allowNull: false,
+    defaultValue: 1,
+    // Removed Unit 2 option from validation
     validate: {
-      isIn: [[1, 2]]
+      isIn: [[1]]
     }
   },
   machineNumber: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    field: 'machine_number'
+    field: 'machine_no'
   },
   date: {
     type: DataTypes.DATEONLY,
@@ -57,25 +58,17 @@ const ASUProductionEntry = sequelize.define('ASUProductionEntry', {
   indexes: [
     {
       unique: true,
-      fields: ['unit', 'machine_number', 'date', 'shift'],
+      fields: ['unit', 'machine_no', 'date', 'shift'],
       name: 'unique_unit_machine_date_shift'
     },
-    {
-      fields: ['date']
-    },
-    {
-      fields: ['unit']
-    },
-    {
-      fields: ['machine_number']
-    }
+    { fields: ['date'] },
+    { fields: ['unit'] },
+    { fields: ['machine_no'] }
   ]
 });
 
-// Define associations
 ASUProductionEntry.associate = (models) => {
-  // No direct foreign key relationship since we use machine_number instead of machine_id
-  // We'll handle the relationship through queries when needed
+  // No direct FK, handled via raw queries
 };
 
 module.exports = ASUProductionEntry;

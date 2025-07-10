@@ -1,8 +1,9 @@
 const { Op } = require('sequelize');
-// Utility to filter by unit - Only for Unit 1 now
+// Utility to filter by unit
 const getMachineRange = (unit) => {
-  // We only support Unit 1 machines (1-9)
-  return { [Op.between]: [1, 9] };
+  if (unit === '1' || unit === 1) return { [Op.between]: [1, 9] };
+  if (unit === '2' || unit === 2) return { [Op.between]: [10, 21] };
+  return undefined;
 };
 
 const {

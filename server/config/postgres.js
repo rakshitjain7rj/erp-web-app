@@ -22,5 +22,7 @@ const connectPostgres = async () => {
     console.error('❌ PostgreSQL connection error:', err);
   }
 };
+console.log('Connected to DB:', sequelize.config.host);
+
 
 module.exports = { sequelize, connectPostgres };

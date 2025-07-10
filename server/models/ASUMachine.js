@@ -18,6 +18,12 @@ const ASUMachine = sequelize.define('ASUMachine', {
     allowNull: false,
     defaultValue: 0
   },
+  yarnType: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    defaultValue: 'Cotton',
+    field: 'yarn_type'
+  },
   spindles: {
     type: DataTypes.INTEGER,
     allowNull: false,
@@ -26,20 +32,21 @@ const ASUMachine = sequelize.define('ASUMachine', {
   speed: {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: false,
-    defaultValue: 0
+    defaultValue: 0.00
   },
   productionAt100: {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: false,
-    defaultValue: 0,
+    defaultValue: 0.00,
     field: 'production_at_100'
   },
   unit: {
     type: DataTypes.INTEGER,
     allowNull: false,
     defaultValue: 1,
+    // Removed Unit 2 option from validation
     validate: {
-      isIn: [[1, 2]]
+      isIn: [[1]]
     }
   },
   isActive: {
@@ -54,5 +61,9 @@ const ASUMachine = sequelize.define('ASUMachine', {
   createdAt: 'created_at',
   updatedAt: 'updated_at'
 });
+
+ASUMachine.associate = (models) => {
+  // No direct foreign key associations currently
+};
 
 module.exports = ASUMachine;

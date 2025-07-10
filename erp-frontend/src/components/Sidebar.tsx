@@ -31,7 +31,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         <Link to="/dyeing-orders" onClick={onClose}>Dyeing Orders</Link>
         <Link to="/dyeing-summary" onClick={onClose}>Dyeing Summary</Link>
         <Link to="/party-master" onClick={onClose}>Party Master</Link>
-        <Link to="/asu-unit-2" onClick={onClose}>ASU Unit 2</Link>
         <Link to="/users" onClick={onClose}>Users</Link>
       </nav>
     </div>

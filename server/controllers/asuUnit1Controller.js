@@ -3,14 +3,13 @@ const ASUMachine = require('../models/ASUMachine');
 const ASUProductionEntry = require('../models/ASUProductionEntry');
 const { sequelize } = require('../config/postgres');
 
-// Get all ASU machines for Unit 1
+// Get all ASU machines (always Unit 1)
 const getASUMachines = async (req, res) => {
   try {
-    const { unit = 1 } = req.query;
-    
+    // Always use unit 1, removed query param
     const machines = await ASUMachine.findAll({
       where: {
-        unit: unit,
+        unit: 1,
         isActive: true
       },
       order: [['machineNo', 'ASC']]
@@ -26,13 +25,35 @@ const getASUMachines = async (req, res) => {
   }
 };
 
+// Get all ASU machines with complete details (for dedicated API endpoint)
+const getAllMachines = async (req, res) => {
+  try {
+    // Find all machines with unit 1 (both active and inactive)
+    const machines = await ASUMachine.findAll({
+      where: {
+        unit: 1
+      },
+      order: [['machineNo', 'ASC']]
+    });
+
+    res.json({
+      success: true,
+      data: machines
+    });
+  } catch (error) {
+    console.error('Error fetching all ASU machines:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 // Get production entries for specific criteria
 const getProductionEntries = async (req, res) => {
   try {
-    const { machineNumber, unit = 1, dateFrom, dateTo, page = 1, limit = 50 } = req.query;
+    // Removed unit parameter - always use unit 1
+    const { machineNumber, dateFrom, dateTo, page = 1, limit = 50 } = req.query;
     const offset = (page - 1) * limit;
 
-    const where = { unit: parseInt(unit) };
+    const where = { unit: 1 };
     
     if (machineNumber) {
       where.machineNumber = parseInt(machineNumber);
@@ -73,7 +94,7 @@ const getProductionEntries = async (req, res) => {
 const createProductionEntry = async (req, res) => {
   try {
     const { 
-      unit = 1, 
+      // Removed unit param - always use unit 1
       machineNumber, 
       date, 
       shift, 
@@ -106,7 +127,7 @@ const createProductionEntry = async (req, res) => {
     // Check if entry already exists for this combination
     const existingEntry = await ASUProductionEntry.findOne({
       where: { 
-        unit: parseInt(unit),
+        unit: 1,
         machineNumber: parseInt(machineNumber), 
         date, 
         shift 
@@ -116,12 +137,12 @@ const createProductionEntry = async (req, res) => {
     if (existingEntry) {
       return res.status(409).json({ 
         success: false, 
-        error: 'Production entry already exists for this machine, date, and shift combination' 
+        error: `Production entry for Machine ${machineNumber} on ${date} (${shift} shift) already exists. Please edit the existing entry instead.` 
       });
     }
 
     const entry = await ASUProductionEntry.create({
-      unit: parseInt(unit),
+      unit: 1, // Always use unit 1
       machineNumber: parseInt(machineNumber),
       date,
       shift,
@@ -205,7 +226,8 @@ const deleteProductionEntry = async (req, res) => {
 // Get production statistics
 const getProductionStats = async (req, res) => {
   try {
-    const { unit = 1, machineNumber, dateFrom, dateTo } = req.query;
+    // Removed unit parameter - always use unit 1
+    const { machineNumber, dateFrom, dateTo } = req.query;
     const { QueryTypes } = require('sequelize');
 
     // Check if tables exist before querying
@@ -250,7 +272,7 @@ const getProductionStats = async (req, res) => {
     // Build SQL conditions
     let conditions = '';
     if (machineNumber) {
-      conditions += ` AND machine_number = ${parseInt(machineNumber)}`;
+      conditions += ` AND machine_no = ${parseInt(machineNumber)}`;
     }
     
     // Date conditions
@@ -265,27 +287,27 @@ const getProductionStats = async (req, res) => {
       conditions += ` AND date >= '${defaultDate}'`;
     }
     
-    // Unit condition (now we know it exists)
-    conditions += ` AND unit = ${parseInt(unit)}`;
+    // Hardcoded to unit 1 only
+    conditions += ` AND unit = 1`;
     
-    // Get total and active machines count for the unit using raw SQL
+    // Get total and active machines count for unit 1 using raw SQL
     const [machinesResult] = await sequelize.query(`
       SELECT 
         COUNT(*) as total_machines,
         SUM(CASE WHEN is_active = true THEN 1 ELSE 0 END) as active_machines
       FROM asu_machines
-      WHERE unit = ${parseInt(unit)}
+      WHERE unit = 1
     `, { type: QueryTypes.SELECT });
     
     const totalMachines = parseInt(machinesResult.total_machines || 0);
     const activeMachines = parseInt(machinesResult.active_machines || 0);
 
-    // Get today's entries count for the unit using raw SQL
+    // Get today's entries count for unit 1 using raw SQL
     const today = new Date().toISOString().split('T')[0];
     const [todayResult] = await sequelize.query(`
       SELECT COUNT(*) as today_entries 
       FROM asu_production_entries
-      WHERE date = '${today}' AND unit = ${parseInt(unit)}
+      WHERE date = '${today}' AND unit = 1
     `, { type: QueryTypes.SELECT });
     
     const todayEntries = parseInt(todayResult.today_entries || 0);
@@ -298,18 +320,18 @@ const getProductionStats = async (req, res) => {
         SUM(theoretical_production) as total_theoretical_production,
         COUNT(*) as total_entries
       FROM asu_production_entries
-      WHERE unit = ${parseInt(unit)} ${conditions}
+      WHERE unit = 1 ${conditions}
     `, { type: QueryTypes.SELECT });
 
     // Get top performing machine by average efficiency
     const [topMachine] = await sequelize.query(`
       SELECT 
-        machine_number,
+        machine_no,
         AVG(efficiency) as avg_efficiency,
         COUNT(*) as entry_count
       FROM asu_production_entries 
-      WHERE unit = ${parseInt(unit)} AND efficiency IS NOT NULL ${conditions}
-      GROUP BY machine_number 
+      WHERE unit = 1 AND efficiency IS NOT NULL ${conditions}
+      GROUP BY machine_no 
       HAVING COUNT(*) > 0
       ORDER BY AVG(efficiency) DESC 
       LIMIT 1
@@ -332,7 +354,7 @@ const getProductionStats = async (req, res) => {
         totalTheoreticalProduction: totalTheoretical,
         totalEntries: parseInt(stats?.total_entries || 0),
         topPerformingMachine: topMachine ? {
-          machineNumber: parseInt(topMachine.machine_number),
+          machineNumber: parseInt(topMachine.machine_no),
           avgEfficiency: parseFloat(topMachine.avg_efficiency || 0),
           entryCount: parseInt(topMachine.entry_count || 0)
         } : null
@@ -354,11 +376,185 @@ const getProductionStats = async (req, res) => {
   }
 };
 
+// Create a new ASU Machine
+const createMachine = async (req, res) => {
+  try {
+    const { 
+      machineNo, 
+      count, 
+      yarnType,
+      spindles, 
+      speed, 
+      productionAt100
+    } = req.body;
+
+    // Validate required fields
+    if (!machineNo || !count) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Machine number and count are required' 
+      });
+    }
+
+    // Create machine with unit always set to 1
+    const machine = await ASUMachine.create({
+      machineNo,
+      count,
+      yarnType: yarnType || 'Cotton',
+      spindles,
+      speed,
+      productionAt100,
+      unit: 1,
+      isActive: true
+    });
+
+    res.status(201).json({
+      success: true,
+      data: machine
+    });
+  } catch (error) {
+    console.error('Error creating ASU machine:', error);
+    
+    // Check for unique constraint violation
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      return res.status(409).json({
+        success: false,
+        error: `Machine with number ${req.body.machineNo} already exists`
+      });
+    }
+    
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// Update an ASU Machine
+const updateMachine = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { 
+      machineNo, 
+      count, 
+      yarnType,
+      spindles, 
+      speed, 
+      productionAt100,
+      isActive
+    } = req.body;
+
+    const machine = await ASUMachine.findByPk(id);
+    
+    if (!machine) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Machine not found' 
+      });
+    }
+
+    await machine.update({
+      machineNo: machineNo || machine.machineNo,
+      count: count !== undefined ? count : machine.count,
+      yarnType: yarnType || machine.yarnType,
+      spindles: spindles !== undefined ? spindles : machine.spindles,
+      speed: speed !== undefined ? speed : machine.speed,
+      productionAt100: productionAt100 !== undefined ? productionAt100 : machine.productionAt100,
+      isActive: isActive !== undefined ? isActive : machine.isActive
+    });
+
+    res.json({
+      success: true,
+      data: machine
+    });
+  } catch (error) {
+    console.error('Error updating ASU machine:', error);
+    
+    // Check for unique constraint violation
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      return res.status(409).json({
+        success: false,
+        error: `Machine with number ${req.body.machineNo} already exists`
+      });
+    }
+    
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// Update machine yarn type and count (dedicated API endpoint)
+const updateMachineYarnTypeAndCount = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { yarnType, count } = req.body;
+
+    // Validate input
+    if (!yarnType && count === undefined) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Either yarnType or count must be provided' 
+      });
+    }
+
+    // Find the machine
+    const machine = await ASUMachine.findOne({
+      where: {
+        id,
+        unit: 1
+      }
+    });
+    
+    if (!machine) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Machine not found' 
+      });
+    }
+
+    // Prepare update data
+    const updateData = {};
+    
+    if (yarnType !== undefined) {
+      // Validate yarnType is a non-empty string
+      if (typeof yarnType !== 'string' || !yarnType.trim()) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'yarnType must be a non-empty string' 
+        });
+      }
+      updateData.yarnType = yarnType;
+    }
+    
+    if (count !== undefined) {
+      // Validate count is a number
+      if (isNaN(parseInt(count))) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'count must be a number' 
+        });
+      }
+      updateData.count = parseInt(count);
+    }
+
+    // Update the machine
+    await machine.update(updateData);
+
+    res.json({
+      success: true,
+      data: machine
+    });
+  } catch (error) {
+    console.error('Error updating ASU machine yarn type and count:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 module.exports = {
   getASUMachines,
+  getAllMachines,
   getProductionEntries,
   createProductionEntry,
   updateProductionEntry,
   deleteProductionEntry,
-  getProductionStats
+  getProductionStats,
+  createMachine,
+  updateMachine,
+  updateMachineYarnTypeAndCount
 };

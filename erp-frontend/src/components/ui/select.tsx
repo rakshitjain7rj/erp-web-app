@@ -6,6 +6,7 @@ interface SelectProps {
   children: React.ReactNode;
   onValueChange?: (value: string) => void;
   value?: string;
+  defaultValue?: string;
 }
 
 interface SelectContextType {
@@ -17,9 +18,16 @@ interface SelectContextType {
 
 const SelectContext = React.createContext<SelectContextType | undefined>(undefined);
 
-export const Select: React.FC<SelectProps> = ({ children, onValueChange, value }) => {
-  const [internalValue, setInternalValue] = useState(value || '');
+export const Select: React.FC<SelectProps> = ({ children, onValueChange, value, defaultValue }) => {
+  const [internalValue, setInternalValue] = useState(value || defaultValue || '');
   const [open, setOpen] = useState(false);
+  
+  // Update internal value when value prop changes
+  useEffect(() => {
+    if (value !== undefined) {
+      setInternalValue(value);
+    }
+  }, [value]);
 
   const handleValueChange = (newValue: string) => {
     setInternalValue(newValue);
@@ -45,7 +53,7 @@ export const SelectTrigger: React.FC<{ children: React.ReactNode; className?: st
       type="button"
       onClick={() => context.setOpen(!context.open)}
       className={cn(
-        'flex h-10 w-full items-center justify-between rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+        'flex h-10 w-full items-center justify-between rounded-md border border-gray-300 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 px-3 py-2 text-sm ring-offset-white dark:ring-offset-gray-900 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
         className
       )}
     >
@@ -62,7 +70,7 @@ export const SelectValue: React.FC<{ placeholder?: string; className?: string }>
   if (!context) throw new Error('SelectValue must be used within Select');
 
   return (
-    <span className={cn('block truncate', className)}>
+    <span className={cn('block truncate dark:text-gray-200', className)}>
       {context.value || placeholder}
     </span>
   );
@@ -76,7 +84,7 @@ export const SelectContent: React.FC<{ children: React.ReactNode; className?: st
 
   return (
     <div className={cn(
-      'absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-gray-300 bg-white py-1 text-base shadow-lg focus:outline-none sm:text-sm',
+      'absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-gray-300 bg-white dark:bg-gray-800 dark:border-gray-700 py-1 text-base shadow-lg focus:outline-none sm:text-sm',
       className
     )}>
       {children}
@@ -93,8 +101,8 @@ export const SelectItem: React.FC<{ value: string; children: React.ReactNode; cl
       type="button"
       onClick={() => context.onValueChange(value)}
       className={cn(
-        'relative w-full cursor-default select-none py-2 pl-3 pr-9 text-left hover:bg-gray-100 focus:bg-gray-100',
-        context.value === value && 'bg-blue-50 text-blue-900',
+        'relative w-full cursor-default select-none py-2 pl-3 pr-9 text-left hover:bg-gray-100 dark:hover:bg-gray-600 dark:text-gray-200 focus:bg-gray-100 dark:focus:bg-gray-600',
+        context.value === value && 'bg-blue-50 dark:bg-blue-900/30 text-blue-900 dark:text-blue-100',
         className
       )}
     >
