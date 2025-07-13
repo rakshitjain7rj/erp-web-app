@@ -71,7 +71,12 @@ const getProductionEntries = async (req, res) => {
       where,
       limit: parseInt(limit),
       offset: parseInt(offset),
-      order: [['date', 'DESC'], ['machineNumber', 'ASC'], ['shift', 'ASC']]
+      order: [['date', 'DESC'], ['machineNumber', 'ASC'], ['shift', 'ASC']],
+      include: [{
+        model: ASUMachine,
+        as: 'machine',
+        attributes: ['id', 'machineNo', 'productionAt100', 'isActive', 'spindles', 'speed', 'count', 'yarnType']
+      }]
     });
 
     res.json({
@@ -103,6 +108,9 @@ const createProductionEntry = async (req, res) => {
       remarks 
     } = req.body;
 
+    console.log('Creating production entry with data:', req.body);
+    console.log('actualProduction value:', actualProduction, 'type:', typeof actualProduction);
+
     if (!machineNumber || !date || !shift) {
       return res.status(400).json({ 
         success: false, 
@@ -118,10 +126,30 @@ const createProductionEntry = async (req, res) => {
       });
     }
 
+    // Find the machine to get productionAt100 if theoreticalProduction is not provided
+    let finalTheoreticalProduction = theoreticalProduction;
+    
+    if (!finalTheoreticalProduction) {
+      try {
+        const machine = await ASUMachine.findOne({
+          where: { 
+            machineNo: parseInt(machineNumber),
+            unit: 1 
+          }
+        });
+        
+        if (machine && machine.productionAt100) {
+          finalTheoreticalProduction = machine.productionAt100;
+        }
+      } catch (error) {
+        console.error('Error finding machine for theoretical production:', error);
+      }
+    }
+    
     // Calculate efficiency
     let efficiency = null;
-    if (actualProduction && theoreticalProduction && theoreticalProduction > 0) {
-      efficiency = parseFloat(((actualProduction / theoreticalProduction) * 100).toFixed(2));
+    if (actualProduction && finalTheoreticalProduction && finalTheoreticalProduction > 0) {
+      efficiency = parseFloat(((actualProduction / finalTheoreticalProduction) * 100).toFixed(2));
     }
 
     // Check if entry already exists for this combination
@@ -146,8 +174,8 @@ const createProductionEntry = async (req, res) => {
       machineNumber: parseInt(machineNumber),
       date,
       shift,
-      actualProduction: actualProduction ? parseFloat(actualProduction) : null,
-      theoreticalProduction: theoreticalProduction ? parseFloat(theoreticalProduction) : null,
+      actualProduction: actualProduction !== undefined && actualProduction !== null ? parseFloat(actualProduction) : null,
+      theoreticalProduction: finalTheoreticalProduction ? parseFloat(finalTheoreticalProduction) : null,
       efficiency,
       remarks: remarks || null
     });
@@ -177,7 +205,27 @@ const updateProductionEntry = async (req, res) => {
     // Calculate new efficiency
     let efficiency = entry.efficiency;
     const newActual = actualProduction !== undefined ? parseFloat(actualProduction) : entry.actualProduction;
-    const newTheoretical = theoreticalProduction !== undefined ? parseFloat(theoreticalProduction) : entry.theoreticalProduction;
+    
+    // Try to get theoreticalProduction from the machine's productionAt100 if not provided
+    let newTheoretical = theoreticalProduction !== undefined ? parseFloat(theoreticalProduction) : entry.theoreticalProduction;
+    
+    // If still no theoretical production, try to get it from the machine
+    if (!newTheoretical) {
+      try {
+        const machine = await ASUMachine.findOne({
+          where: { 
+            machineNo: entry.machineNumber,
+            unit: 1 
+          }
+        });
+        
+        if (machine && machine.productionAt100) {
+          newTheoretical = machine.productionAt100;
+        }
+      } catch (error) {
+        console.error('Error finding machine for theoretical production on update:', error);
+      }
+    }
     
     if (newActual && newTheoretical && newTheoretical > 0) {
       efficiency = parseFloat(((newActual / newTheoretical) * 100).toFixed(2));
@@ -205,6 +253,11 @@ const updateProductionEntry = async (req, res) => {
 const deleteProductionEntry = async (req, res) => {
   try {
     const { id } = req.params;
+    console.log('Attempting to delete production entry with ID:', id);
+
+    // Log the entry we're trying to delete
+    const entryToDelete = await ASUProductionEntry.findByPk(id);
+    console.log('Entry to delete:', entryToDelete);
 
     const deleted = await ASUProductionEntry.destroy({
       where: { id }
@@ -483,13 +536,13 @@ const updateMachine = async (req, res) => {
 const updateMachineYarnTypeAndCount = async (req, res) => {
   try {
     const { id } = req.params;
-    const { yarnType, count } = req.body;
+    const { yarnType, count, productionAt100 } = req.body;
 
     // Validate input
-    if (!yarnType && count === undefined) {
+    if (!yarnType && count === undefined && productionAt100 === undefined) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Either yarnType or count must be provided' 
+        error: 'At least one of yarnType, count, or productionAt100 must be provided' 
       });
     }
 
@@ -531,6 +584,17 @@ const updateMachineYarnTypeAndCount = async (req, res) => {
         });
       }
       updateData.count = parseInt(count);
+    }
+    
+    if (productionAt100 !== undefined) {
+      // Validate productionAt100 is a number
+      if (isNaN(parseFloat(productionAt100))) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'productionAt100 must be a number' 
+        });
+      }
+      updateData.productionAt100 = parseFloat(productionAt100);
     }
 
     // Update the machine

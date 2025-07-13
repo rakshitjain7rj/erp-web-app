@@ -26,7 +26,6 @@ import PartyMaster from "./pages/PartyMaster";
 import ASUUnit1Page from "./pages/ASUUnit1Page";
 import ASUMachineManagerPage from "./pages/ASUMachineManagerPage";
 import ASUAuthTest from "./components/ASUAuthTest";
-import ASUUnit from './pages/ASUUnit';
 import ApiTest from "./components/ApiTest";
 import SimplePartyTest from "./components/SimplePartyTest";
 import RawDataTest from "./components/RawDataTest";
@@ -199,14 +198,6 @@ const App = () => {
                     </PrivateRoute>
                   }
                 />
-                <Route
-  path="/asu-unit1"
-  element={
-    <PrivateRoute roles={["admin", "manager"]}>
-      <ASUUnit unit={1} />
-    </PrivateRoute>
-  }
-/>
                 <Route
                   path="/users"
                   element={

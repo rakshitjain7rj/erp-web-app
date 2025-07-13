@@ -68,7 +68,12 @@ const ASUProductionEntry = sequelize.define('ASUProductionEntry', {
 });
 
 ASUProductionEntry.associate = (models) => {
-  // No direct FK, handled via raw queries
+  // Add association with ASUMachine
+  ASUProductionEntry.belongsTo(models.ASUMachine, {
+    foreignKey: 'machineNumber',
+    targetKey: 'machineNo',
+    as: 'machine'
+  });
 };
 
 module.exports = ASUProductionEntry;

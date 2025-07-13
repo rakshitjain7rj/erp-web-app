@@ -17,6 +17,7 @@ interface EditingMachine {
   id: number;
   yarnType: string;
   count: number;
+  productionAt100: number;
 }
 
 const ASUMachineManagerPage: React.FC = () => {
@@ -49,7 +50,8 @@ const ASUMachineManagerPage: React.FC = () => {
     setEditingMachine({
       id: machine.id,
       yarnType: machine.yarnType || 'Cotton',
-      count: machine.count || 0
+      count: machine.count || 0,
+      productionAt100: machine.productionAt100 || 0
     });
   };
 
@@ -76,10 +78,16 @@ const ASUMachineManagerPage: React.FC = () => {
         return;
       }
       
+      if (isNaN(editingMachine.productionAt100) || editingMachine.productionAt100 < 0) {
+        toast.error('Production at 100% must be a valid non-negative number');
+        return;
+      }
+      
       // Prepare data for update
       const updateData: UpdateASUMachineData = {
         yarnType: editingMachine.yarnType,
-        count: editingMachine.count
+        count: editingMachine.count,
+        productionAt100: editingMachine.productionAt100
       };
       
       // Update the machine
@@ -125,6 +133,35 @@ const ASUMachineManagerPage: React.FC = () => {
           </div>
         </div>
 
+        {/* Information Panel */}
+        <div className="mb-6 overflow-hidden bg-white border border-blue-200 shadow-sm rounded-xl dark:bg-gray-800 dark:border-blue-900">
+          <div className="p-4 bg-blue-50 border-b border-blue-100 dark:bg-blue-900/20 dark:border-blue-800">
+            <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-300">Machine Parameters</h3>
+          </div>
+          <div className="p-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="p-3 bg-blue-50 rounded-lg dark:bg-blue-900/20">
+                <h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300">Yarn Type</h4>
+                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                  The type of yarn processed by this machine, e.g. Cotton, Polyester, Blend, etc.
+                </p>
+              </div>
+              <div className="p-3 bg-blue-50 rounded-lg dark:bg-blue-900/20">
+                <h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300">Count</h4>
+                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                  The yarn count number representing the thickness/fineness of the yarn being produced.
+                </p>
+              </div>
+              <div className="p-3 bg-blue-50 rounded-lg dark:bg-blue-900/20">
+                <h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300">Production @ 100%</h4>
+                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                  The expected output in kg when the machine operates at 100% efficiency. Used to calculate daily efficiency.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
         {/* Controls */}
         <div className="flex justify-between mb-6">
           <div className="flex items-center gap-2">
@@ -155,6 +192,9 @@ const ASUMachineManagerPage: React.FC = () => {
         <div className="overflow-hidden bg-white border border-gray-200 shadow-sm rounded-xl dark:bg-gray-800 dark:border-gray-700">
           <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 dark:border-gray-700">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">ASU Unit 1 Machines</h2>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Configure machine properties. "Production @ 100%" is the expected output in kg when the machine operates at 100% efficiency.
+            </p>
           </div>
 
           {loading ? (
@@ -187,6 +227,7 @@ const ASUMachineManagerPage: React.FC = () => {
                       <TableHead className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase dark:text-gray-400">Machine No</TableHead>
                       <TableHead className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase dark:text-gray-400">Yarn Type</TableHead>
                       <TableHead className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase dark:text-gray-400">Count</TableHead>
+                      <TableHead className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase dark:text-gray-400">Prod. @ 100% (kg)</TableHead>
                       <TableHead className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase dark:text-gray-400">Spindles</TableHead>
                       <TableHead className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase dark:text-gray-400">Speed (RPM)</TableHead>
                       <TableHead className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase dark:text-gray-400">Status</TableHead>
@@ -230,6 +271,24 @@ const ASUMachineManagerPage: React.FC = () => {
                           ) : (
                             <span className="text-gray-700 dark:text-gray-300">
                               {machine.count || 0}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="px-6 py-4 whitespace-nowrap">
+                          {editingMachine?.id === machine.id ? (
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={editingMachine.productionAt100}
+                              onChange={(e) => setEditingMachine({ 
+                                ...editingMachine, 
+                                productionAt100: parseFloat(e.target.value) || 0 
+                              })}
+                              className="w-24 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                            />
+                          ) : (
+                            <span className="text-gray-700 dark:text-gray-300">
+                              {machine.productionAt100 || 0}
                             </span>
                           )}
                         </TableCell>
