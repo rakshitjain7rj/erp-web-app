@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .result { background: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
+</head>
+<body>
+    <h1>API Endpoint Testing</h1>
+    <button onclick="testEndpoints()">Test Endpoints</button>
+    <div id="results"></div>
+
+    <script>
+        async function testEndpoints() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<div>Testing...</div>';
+            
+            try {
+                // Get token from localStorage (like the app does)
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    resultsDiv.innerHTML = '<div class="error">No token found in localStorage. Please login first.</div>';
+                    return;
+                }
+                
+                const headers = {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                };
+                
+                // Test ASU machines endpoint
+                console.log('Testing ASU machines...');
+                const machinesResponse = await fetch('/api/asu-machines', { headers });
+                const machinesData = await machinesResponse.json();
+                
+                // Test yarn production entries endpoint
+                console.log('Testing yarn production entries...');
+                const entriesResponse = await fetch('/api/yarn/production-entries', { headers });
+                const entriesData = await entriesResponse.json();
+                
+                let html = '<h3>Results:</h3>';
+                
+                if (machinesResponse.ok) {
+                    html += `<div class="result success">
+                        <h4>✅ ASU Machines (${machinesData.data?.length || 0} records)</h4>
+                        <pre>${JSON.stringify(machinesData.data?.slice(0, 2), null, 2)}</pre>
+                    </div>`;
+                } else {
+                    html += `<div class="result error">
+                        <h4>❌ ASU Machines Failed</h4>
+                        <pre>${JSON.stringify(machinesData, null, 2)}</pre>
+                    </div>`;
+                }
+                
+                if (entriesResponse.ok) {
+                    html += `<div class="result success">
+                        <h4>✅ Yarn Production Entries (${entriesData.data?.length || 0} records)</h4>
+                        <pre>${JSON.stringify(entriesData.data?.slice(0, 2), null, 2)}</pre>
+                    </div>`;
+                } else {
+                    html += `<div class="result error">
+                        <h4>❌ Yarn Production Entries Failed</h4>
+                        <pre>${JSON.stringify(entriesData, null, 2)}</pre>
+                    </div>`;
+                }
+                
+                resultsDiv.innerHTML = html;
+                
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+        
+        // Auto-run test on page load
+        window.onload = () => {
+            setTimeout(testEndpoints, 500);
+        };
+    </script>
+</body>
+</html>

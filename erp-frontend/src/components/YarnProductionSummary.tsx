@@ -19,16 +19,22 @@ import axios from "axios";
 const normalizeYarnType = (type: string | undefined): string => {
   if (!type) return "";
   return type.trim().toLowerCase();
-};
-
-// Format yarn type for display (capitalize words)
+};  // Format yarn type for display (capitalize words)
 const formatYarnTypeDisplay = (yarnType: string | undefined): string => {
   if (!yarnType) return "Unknown";
   
-  // Split by spaces, hyphens, or slashes and capitalize each word
+  // Common abbreviations that should remain uppercase
+  const upperCaseWords = ['pp', 'cvc', 'pc'];
+  
   return yarnType
-    .split(/[\s\-\/]+/) // Split on spaces, hyphens, or slashes
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .split(' ')
+    .map(word => {
+      const lowerWord = word.toLowerCase();
+      if (upperCaseWords.includes(lowerWord)) {
+        return lowerWord.toUpperCase();
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
     .join(' ');
 };
 
@@ -80,7 +86,8 @@ const getYarnTypeColor = (type: string | undefined): string => {
 };
 
 
-interface MachineConfig {
+// Define machine interface
+interface Machine {
   id: number;
   name: string;
   yarnType: string;
@@ -90,12 +97,11 @@ interface MachineConfig {
 }
 
 interface YarnProductionEntry {
-  id: number;
   date: string;
-  yarnType: string;
+  yarnBreakdown: { [key: string]: number };
   totalProduction: number;
-  efficiency: number;
-  machineId: number;
+  machines: number;
+  avgEfficiency: number;
 }
 
 interface YarnProductionSummaryRow {
@@ -114,9 +120,6 @@ interface YarnSummaryStats {
 }
 
 const YarnProductionSummary: React.FC = () => {
-  const [productionEntries, setProductionEntries] = useState<
-    YarnProductionEntry[]
-  >([]);
   const [summaryData, setSummaryData] = useState<YarnProductionSummaryRow[]>(
     []
   );
@@ -142,89 +145,32 @@ const YarnProductionSummary: React.FC = () => {
   const processProductionData = (
     entries: YarnProductionEntry[]
   ): YarnProductionSummaryRow[] => {
-    // Use productionEntries in this function to satisfy the linter
-    console.debug(
-      `Processing ${entries.length} entries, stored ${productionEntries.length} in state`
-    );
-    
-    // Normalize entry yarn types for consistency
-    const normalizedEntries = entries.map(entry => ({
-      ...entry,
-      yarnType: normalizeYarnType(entry.yarnType),
-    }));
-    
-    // Group entries by date
-    const dateGroups = normalizedEntries.reduce((groups, entry) => {
-      const date = entry.date;
-      if (!groups[date]) {
-        groups[date] = [];
-      }
-      groups[date].push(entry);
-      return groups;
-    }, {} as { [key: string]: YarnProductionEntry[] });
-
-    // Convert to summary format
-    const summaryRows: YarnProductionSummaryRow[] = Object.entries(
-      dateGroups
-    ).map(([date, entries]) => {
-      // Group by yarn type for this date
-      const yarnTypeGroups = entries.reduce((types, entry) => {
-        // Ensure we're using properly normalized types
-        const normalizedType = normalizeYarnType(entry.yarnType);
-        
-        if (!normalizedType) {
-          // Skip entries with empty yarn types
-          return types;
-        }
-        
-        if (!types[normalizedType]) {
-          types[normalizedType] = {
-            production: 0,
-            machines: new Set<number>(),
-            efficiencies: [],
-          };
-        }
-        types[normalizedType].production += entry.totalProduction;
-        types[normalizedType].machines.add(entry.machineId);
-        types[normalizedType].efficiencies.push(entry.efficiency);
-        return types;
-      }, {} as { [key: string]: { production: number; machines: Set<number>; efficiencies: number[] } });
-
-      // Calculate yarn types production
+    // The backend already returns data in the correct format, we just need to transform it
+    const summaryRows: YarnProductionSummaryRow[] = entries.map((entry) => {
+      // The backend returns yarnBreakdown which is exactly what we need
       const yarnTypes: { [key: string]: number } = {};
-      let totalProductionForDate = 0;
-
+      
       // Initialize all distinct yarn types with zero production
       distinctYarnTypes.forEach(yarnType => {
         yarnTypes[yarnType] = 0;
       });
       
-      // Fill in the actual production data where available
-      Object.entries(yarnTypeGroups).forEach(([type, data]) => {
-        yarnTypes[type] = data.production;
-        totalProductionForDate += data.production;
-      });
-
-      // Calculate unique machines and average efficiency for this date
-      const allMachines = new Set<number>();
-      const allEfficiencies: number[] = [];
-      entries.forEach((entry) => {
-        allMachines.add(entry.machineId);
-        allEfficiencies.push(entry.efficiency);
-      });
-
-      const averageEfficiency =
-        allEfficiencies.length > 0
-          ? allEfficiencies.reduce((sum, eff) => sum + eff, 0) /
-            allEfficiencies.length
-          : 0;
+      // Fill in the actual production data from yarnBreakdown
+      if (entry.yarnBreakdown) {
+        Object.entries(entry.yarnBreakdown).forEach(([type, production]) => {
+          const normalizedType = normalizeYarnType(type);
+          if (normalizedType) {
+            yarnTypes[normalizedType] = production || 0;
+          }
+        });
+      }
 
       return {
-        date,
+        date: entry.date,
         yarnTypes,
-        totalProductionForDate,
-        machineCount: allMachines.size,
-        averageEfficiency,
+        totalProductionForDate: entry.totalProduction || 0,
+        machineCount: entry.machines || 0,
+        averageEfficiency: entry.avgEfficiency || 0,
       };
     });
 
@@ -266,74 +212,53 @@ const YarnProductionSummary: React.FC = () => {
         ? entriesResponse.data.data
         : entriesResponse.data;
 
-      setProductionEntries(entries);
-
       // Extract and normalize yarn types from machine configurations
-      const machines = machinesResponse.data.success 
+      const machines: Machine[] = machinesResponse.data.success 
         ? machinesResponse.data.data 
         : machinesResponse.data;
       
-      console.log('Fetched machines:', machines);
-      
       // Get all yarn types from machines (both active and inactive)
       const allMachineYarnTypes = machines
-        .filter((machine: any) => machine.yarnType)
-        .map((machine: any) => normalizeYarnType(machine.yarnType));
-        
-      // Get specifically active machine yarn types for highlighting
-      const activeMachines = machines.filter((machine: any) => machine.isActive);
-      const activeMachineYarnTypes = activeMachines
-        .filter((machine: any) => machine.yarnType)
-        .map((machine: any) => normalizeYarnType(machine.yarnType));
+        .filter((machine: Machine) => machine.yarnType)
+        .map((machine: Machine) => normalizeYarnType(machine.yarnType));
       
-      console.log('Active machine yarn types:', activeMachineYarnTypes);
-      console.log('All machine yarn types:', allMachineYarnTypes);
+      // Get yarn types specifically from active machines for special highlighting
+      const activeMachines = machines.filter((machine: Machine) => machine.isActive);
+      const activeMachineYarnTypes = activeMachines
+        .filter((machine: Machine) => machine.yarnType)
+        .map((machine: Machine) => normalizeYarnType(machine.yarnType));
       
       // Store active machine yarn types separately (for validation/highlighting)
       setActiveMachineYarnTypes(activeMachineYarnTypes);
       
-      // Get all yarn types from production entries 
-      const entryYarnTypes = entries.map(entry => normalizeYarnType(entry.yarnType))
-        .filter(Boolean); // Remove empty types
-      
-      console.log('Entry yarn types:', entryYarnTypes);
-      
-      // Create a map of original casing for display purposes
-      // This preserves the best casing from either machine configs or entries
-      const yarnTypeDisplayMap = new Map<string, string>();
-      
-      // First add machine yarn types as they're likely more consistently formatted
-      machines.forEach((machine: any) => {
-        if (machine.yarnType) {
-          const normalizedType = normalizeYarnType(machine.yarnType);
-          if (!yarnTypeDisplayMap.has(normalizedType)) {
-            yarnTypeDisplayMap.set(normalizedType, machine.yarnType.trim());
-          }
-        }
-      });
-      
-      // Then add any entry types that might be missing
+      // Extract yarn types from the breakdown data in entries
+      const breakdownYarnTypes: string[] = [];
       entries.forEach(entry => {
-        if (entry.yarnType) {
-          const normalizedType = normalizeYarnType(entry.yarnType);
-          if (!yarnTypeDisplayMap.has(normalizedType)) {
-            yarnTypeDisplayMap.set(normalizedType, entry.yarnType.trim());
-          }
+        if (entry.yarnBreakdown && typeof entry.yarnBreakdown === 'object') {
+          Object.keys(entry.yarnBreakdown).forEach(key => {
+            const normalizedKey = normalizeYarnType(key);
+            if (normalizedKey) breakdownYarnTypes.push(normalizedKey);
+          });
         }
       });
       
-      console.log('Yarn type display map:', Object.fromEntries(yarnTypeDisplayMap));
-      
-      // Combine, normalize, and deduplicate yarn types, prioritizing active machine types first
+      // Combine all sources, normalize, deduplicate and sort
       const normalizedYarnTypes = [...new Set([
-        ...activeMachineYarnTypes, // Put active machine yarn types first
-        ...allMachineYarnTypes,    // Then other machine yarn types
-        ...entryYarnTypes          // Then any remaining entry yarn types
+        ...allMachineYarnTypes,
+        ...breakdownYarnTypes
       ])]
         .filter(Boolean)
-        .sort();
-      
-      console.log('Final normalized yarn types:', normalizedYarnTypes);
+        .sort((a, b) => {
+          // Prioritize active machine yarn types
+          const aIsActive = activeMachineYarnTypes.includes(a);
+          const bIsActive = activeMachineYarnTypes.includes(b);
+          
+          if (aIsActive && !bIsActive) return -1;
+          if (!aIsActive && bIsActive) return 1;
+          
+          // Then sort alphabetically
+          return a.localeCompare(b);
+        });
       
       // Use this unified, normalized list of yarn types
       setDistinctYarnTypes(normalizedYarnTypes);
@@ -402,6 +327,11 @@ const YarnProductionSummary: React.FC = () => {
 
   // Get efficiency badge color
   const getEfficiencyBadgeClass = (efficiency: number) => {
+    // Handle invalid values
+    if (efficiency === null || efficiency === undefined || isNaN(efficiency)) {
+      return "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300";
+    }
+    
     if (efficiency >= 90) {
       return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300";
     } else if (efficiency >= 80) {
@@ -415,6 +345,11 @@ const YarnProductionSummary: React.FC = () => {
 
   // Get efficiency color class for the indicator
   const getEfficiencyColorClass = (efficiency: number): string => {
+    // Handle invalid values
+    if (efficiency === null || efficiency === undefined || isNaN(efficiency)) {
+      return "bg-gray-500";
+    }
+    
     if (efficiency >= 90) {
       return "bg-green-500";
     } else if (efficiency >= 80) {
@@ -552,7 +487,7 @@ const YarnProductionSummary: React.FC = () => {
       {/* Production Summary Table */}
       <div className="overflow-hidden bg-white border border-gray-200 shadow-sm rounded-xl dark:bg-gray-800 dark:border-gray-700">
         <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 dark:border-gray-700">
-          <div className="flex justify-between items-center">
+          <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 Yarn Production Summary
@@ -642,7 +577,7 @@ const YarnProductionSummary: React.FC = () => {
 
                     <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-center text-indigo-600 uppercase sm:px-6 dark:text-indigo-400">
                       <div className="flex flex-col items-center justify-center">
-                        <span className="inline-block w-2 h-2 mb-1 rounded-full bg-indigo-500"></span>
+                        <span className="inline-block w-2 h-2 mb-1 bg-indigo-500 rounded-full"></span>
                         Total (All Types)
                       </div>
                     </TableHead>
@@ -669,46 +604,55 @@ const YarnProductionSummary: React.FC = () => {
                         </div>
                       </TableCell>
                       {/* Dynamic yarn type data columns */}
-                      {distinctYarnTypes.map((yarnType, typeIndex) => {
-                        // Normalize the yarn type to ensure consistent matching
-                        const normalizedType = normalizeYarnType(yarnType);
-                        
-                        // Check if this yarn type exists in the row data, using normalized comparison
-                        const productionValue = Object.entries(row.yarnTypes)
-                          .find(([key]) => normalizeYarnType(key) === normalizedType)?.[1] || 0;
-                        
-                        return (
-                          <TableCell
-                            key={`row-${index}-type-${normalizedType}-${typeIndex}`}
-                            className="px-4 py-4 font-medium text-center whitespace-nowrap sm:px-6"
-                          >
-                            {(() => {
-                              // Check if this is an active yarn type from machines
-                              const isActiveMachineYarn = activeMachineYarnTypes.includes(normalizedType);
-                              const hasValue = productionValue > 0;
-                              
-                              return (
-                                <span
-                                  className={`${
-                                    hasValue
-                                      ? isActiveMachineYarn 
-                                        ? "text-blue-600 dark:text-blue-400 font-medium"
-                                        : "text-blue-500 dark:text-blue-300" 
-                                      : "text-gray-400 dark:text-gray-500"
-                                  }`}
-                                >
-                                  {hasValue ? productionValue.toFixed(2) : "0.00"}
-                                  <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
-                                    kg
-                                  </span>
+                      {distinctYarnTypes.map((yarnType, typeIndex) => (
+                        <TableCell
+                          key={`row-${index}-type-${yarnType}-${typeIndex}`}
+                          className="px-4 py-4 font-medium text-center whitespace-nowrap sm:px-6"
+                        >
+                          {(() => {
+                            // Find the proper value for this yarn type (handle normalization)
+                            let productionValue = 0;
+                            
+                            // Try exact match first
+                            if (yarnType in row.yarnTypes) {
+                              productionValue = row.yarnTypes[yarnType] || 0;
+                            } else {
+                              // If no exact match, try normalized matching
+                              for (const [key, value] of Object.entries(row.yarnTypes)) {
+                                if (normalizeYarnType(key) === yarnType) {
+                                  productionValue = value || 0;
+                                  break;
+                                }
+                              }
+                            }
+                            
+                            // Check if this is an active yarn type from machines
+                            const isActiveMachineYarn = activeMachineYarnTypes.includes(yarnType);
+                            const hasValue = productionValue > 0;
+                            
+                            return (
+                              <span
+                                className={`${
+                                  hasValue
+                                    ? isActiveMachineYarn 
+                                      ? "text-blue-600 dark:text-blue-400 font-medium"
+                                      : "text-blue-500 dark:text-blue-300" 
+                                    : "text-gray-400 dark:text-gray-500"
+                                }`}
+                              >
+                                {hasValue
+                                  ? productionValue.toFixed(2)
+                                  : "0.00"}
+                                <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
+                                  kg
                                 </span>
-                              );
-                            })()}
-                          </TableCell>
-                        );
-                      })}
+                              </span>
+                            );
+                          })()}
+                        </TableCell>
+                      ))}
                       <TableCell className="px-4 py-4 font-medium text-center whitespace-nowrap sm:px-6">
-                        <span className="text-indigo-600 dark:text-indigo-400 font-semibold">
+                        <span className="font-semibold text-indigo-600 dark:text-indigo-400">
                           {row.totalProductionForDate.toFixed(2)}
                           <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
                             kg
@@ -725,18 +669,24 @@ const YarnProductionSummary: React.FC = () => {
                       </TableCell>
                       <TableCell className="px-4 py-4 text-center whitespace-nowrap sm:px-6">
                         <div className="flex items-center justify-center gap-2">
-                          <div
-                            className={`w-3 h-3 rounded-full ${getEfficiencyColorClass(
-                              row.averageEfficiency
-                            )}`}
-                          ></div>
-                          <Badge
-                            className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${getEfficiencyBadgeClass(
-                              row.averageEfficiency
-                            )}`}
-                          >
-                            {row.averageEfficiency.toFixed(1)}%
-                          </Badge>
+                          {(() => {
+                            const efficiency = row.averageEfficiency;
+                            const isValidEfficiency = !isNaN(efficiency) && efficiency !== null && efficiency !== undefined;
+                            const displayEfficiency = isValidEfficiency ? efficiency : 0;
+                            
+                            return (
+                              <>
+                                <div
+                                  className={`w-3 h-3 rounded-full ${getEfficiencyColorClass(displayEfficiency)}`}
+                                ></div>
+                                <Badge
+                                  className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${getEfficiencyBadgeClass(displayEfficiency)}`}
+                                >
+                                  {isValidEfficiency ? displayEfficiency.toFixed(1) : "0.0"}%
+                                </Badge>
+                              </>
+                            );
+                          })()}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -744,22 +694,29 @@ const YarnProductionSummary: React.FC = () => {
 
                   {/* Total row */}
                   <TableRow className="transition-colors bg-gray-50 dark:bg-gray-800/50">
-                    <TableCell className="px-4 py-4 font-semibold whitespace-nowrap sm:px-6 text-gray-700 dark:text-gray-200">
+                    <TableCell className="px-4 py-4 font-semibold text-gray-700 whitespace-nowrap sm:px-6 dark:text-gray-200">
                       Total Production
                     </TableCell>
                     {distinctYarnTypes.map((yarnType, typeIndex) => {
-                      // Normalize the yarn type to ensure consistent matching
-                      const normalizedType = normalizeYarnType(yarnType);
-                      
-                      // Calculate total for this yarn type using normalized comparison
+                      // Calculate total for this yarn type (handle normalization)
                       const total = summaryData.reduce((sum, row) => {
-                        const matchingYarnType = Object.entries(row.yarnTypes)
-                          .find(([key]) => normalizeYarnType(key) === normalizedType);
-                        return sum + (matchingYarnType?.[1] || 0);
+                        // Try exact match first
+                        if (yarnType in row.yarnTypes) {
+                          return sum + (row.yarnTypes[yarnType] || 0);
+                        }
+                        
+                        // If no exact match, try to find a match with normalization
+                        for (const [key, value] of Object.entries(row.yarnTypes)) {
+                          if (normalizeYarnType(key) === yarnType) {
+                            return sum + (value || 0);
+                          }
+                        }
+                        
+                        return sum;
                       }, 0);
                       
                       // Check if this is an active yarn type from machines
-                      const isActiveMachineYarn = activeMachineYarnTypes.includes(normalizedType);
+                      const isActiveMachineYarn = activeMachineYarnTypes.includes(yarnType);
 
                       return (
                         <TableCell
@@ -768,7 +725,15 @@ const YarnProductionSummary: React.FC = () => {
                             isActiveMachineYarn ? "border-b-2 border-blue-200 dark:border-blue-800/30" : ""
                           }`}
                         >
-                          <span className="text-blue-700 dark:text-blue-300">
+                          <span 
+                            className={`${
+                              total > 0
+                                ? isActiveMachineYarn 
+                                  ? "text-blue-700 dark:text-blue-300 font-bold"
+                                  : "text-blue-600 dark:text-blue-400"
+                                : "text-gray-500 dark:text-gray-500"
+                            }`}
+                          >
                             {total.toFixed(2)}
                             <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
                               kg
@@ -778,7 +743,7 @@ const YarnProductionSummary: React.FC = () => {
                       );
                     })}
                     <TableCell className="px-4 py-4 font-semibold text-center whitespace-nowrap sm:px-6">
-                      <span className="text-indigo-700 dark:text-indigo-300 font-bold">
+                      <span className="font-bold text-indigo-700 dark:text-indigo-300">
                         {summaryData
                           .reduce(
                             (sum, row) => sum + row.totalProductionForDate,
@@ -805,26 +770,57 @@ const YarnProductionSummary: React.FC = () => {
                       {stats && (
                         <div className="flex items-center justify-center gap-2">
                           {(() => {
-                            const weightedAvgEff =
-                              summaryData.reduce(
-                                (sum, row) => sum + row.averageEfficiency * row.machineCount,
-                                0
-                              ) /
-                              (summaryData.reduce((sum, row) => sum + row.machineCount, 0) || 1);
+                            // Calculate weighted average efficiency with safety checks
+                            console.log('Summary data for weighted average:', summaryData.map(row => ({ 
+                              date: row.date, 
+                              efficiency: row.averageEfficiency, 
+                              machineCount: row.machineCount 
+                            })));
+                            
+                            const validRows = summaryData.filter(row => 
+                              !isNaN(row.averageEfficiency) && 
+                              row.averageEfficiency !== null && 
+                              row.averageEfficiency !== undefined
+                            );
+                            
+                            console.log('Valid rows for weighted average:', validRows.length);
+                            
+                            if (validRows.length === 0) {
+                              console.log('No valid efficiency data available');
+                              return (
+                                <>
+                                  <div className="w-3 h-3 rounded-full bg-gray-500"></div>
+                                  <Badge className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300">
+                                    No Data
+                                  </Badge>
+                                </>
+                              );
+                            }
+                            
+                            const weightedSum = validRows.reduce((sum, row) => 
+                              sum + (row.averageEfficiency * row.machineCount), 0);
+                            const totalMachines = validRows.reduce((sum, row) => sum + row.machineCount, 0);
+                            
+                            const weightedAvgEff = totalMachines > 0 ? weightedSum / totalMachines : 0;
+                            
+                            console.log('Weighted average efficiency:', weightedAvgEff);
+                            
+                            // Ensure we have a valid number for display
+                            const displayEfficiency = isNaN(weightedAvgEff) ? 0 : weightedAvgEff;
                             
                             return (
                               <>
                                 <div
                                   className={`w-3 h-3 rounded-full ${getEfficiencyColorClass(
-                                    weightedAvgEff
+                                    displayEfficiency
                                   )}`}
                                 ></div>
                                 <Badge
                                   className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${getEfficiencyBadgeClass(
-                                    weightedAvgEff
+                                    displayEfficiency
                                   )}`}
                                 >
-                                  {weightedAvgEff.toFixed(1)}%
+                                  {displayEfficiency.toFixed(1)}%
                                 </Badge>
                               </>
                             );
