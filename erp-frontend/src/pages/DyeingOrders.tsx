@@ -1,5 +1,4 @@
-// DyeingOrders.tsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react"; 
 import {
   getAllDyeingRecords,
   deleteDyeingRecord,
@@ -10,11 +9,11 @@ import {
 import { DyeingRecord } from "../types/dyeing";
 import CreateDyeingOrderForm from "../components/CreateDyeingOrderForm";
 import { Button } from "../components/ui/Button";
-import { ChevronDown, ChevronUp } from "lucide-react";
-import { FaEdit, FaTrash, FaBell, FaCheckCircle, FaRecycle } from "react-icons/fa";
+import { ChevronDown, ChevronUp, MoreVertical } from "lucide-react";
 import { toast } from "sonner";
 import FollowUpModal from "../components/FollowUpModal";
 import { exportDataToCSV } from "../utils/exportUtils";
+import ActionDropdown from "../components/ActionDropdown";
 
 const DyeingOrders: React.FC = () => {
   const [records, setRecords] = useState<DyeingRecord[]>([]);
@@ -29,6 +28,10 @@ const DyeingOrders: React.FC = () => {
   const [firmFilter, setFirmFilter] = useState<string>("");
   const [partyFilter, setPartyFilter] = useState<string>("");
 
+  const [openDropdownRecord, setOpenDropdownRecord] = useState<DyeingRecord | null>(null);
+  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     fetchRecords();
   }, []);
@@ -41,6 +44,40 @@ const DyeingOrders: React.FC = () => {
       console.error("Failed to fetch dyeing records:", error);
     }
   };
+
+  const handleActionClick = (
+    record: DyeingRecord,
+    e: React.MouseEvent<HTMLButtonElement>
+  ) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const dropdownWidth = 180;
+    const dropdownHeight = dropdownRef.current?.offsetHeight || 250;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openAbove = spaceBelow < dropdownHeight;
+
+    setDropdownPosition({
+      top: openAbove
+        ? rect.top + window.scrollY - dropdownHeight
+        : rect.bottom + window.scrollY,
+      left: rect.left + window.scrollX - dropdownWidth + 32,
+    });
+
+    setOpenDropdownRecord(openDropdownRecord?.id === record.id ? null : record);
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setOpenDropdownRecord(null);
+      }
+    };
+    if (openDropdownRecord) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [openDropdownRecord]);
 
   const filteredRecords = records.filter((r) => {
     const query = searchQuery.toLowerCase();
@@ -88,6 +125,7 @@ const DyeingOrders: React.FC = () => {
   const handleEdit = (record: DyeingRecord) => {
     setRecordToEdit(record);
     setIsFormOpen(true);
+    setOpenDropdownRecord(null);
   };
 
   const handleDelete = async (record: DyeingRecord) => {
@@ -97,6 +135,7 @@ const DyeingOrders: React.FC = () => {
       await deleteDyeingRecord(record.id);
       toast.success("Record deleted!");
       fetchRecords();
+      setOpenDropdownRecord(null);
     } catch (error) {
       console.error("Delete failed:", error);
       toast.error("Failed to delete");
@@ -106,6 +145,7 @@ const DyeingOrders: React.FC = () => {
   const handleFollowUp = (record: DyeingRecord) => {
     setSelectedRecord(record);
     setIsFollowUpModalOpen(true);
+    setOpenDropdownRecord(null);
   };
 
   const handleMarkArrived = async (record: DyeingRecord) => {
@@ -113,6 +153,7 @@ const DyeingOrders: React.FC = () => {
       await markAsArrived(record.id);
       toast.success("Marked as Arrived");
       fetchRecords();
+      setOpenDropdownRecord(null);
     } catch (error) {
       console.error("Mark Arrived error:", error);
       toast.error("Failed to mark as arrived");
@@ -126,6 +167,7 @@ const DyeingOrders: React.FC = () => {
       await completeReprocessing(record.id, { reprocessingReason: reason });
       toast.success("Marked as Reprocessing");
       fetchRecords();
+      setOpenDropdownRecord(null);
     } catch (error) {
       console.error("Reprocessing error:", error);
       toast.error("Failed to complete reprocessing");
@@ -157,7 +199,7 @@ const DyeingOrders: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen p-6 bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen p-6 bg-gray-50 dark:bg-gray-900 relative">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">🪨 Dyeing Orders Overview</h1>
         <div className="flex gap-2">
@@ -173,57 +215,37 @@ const DyeingOrders: React.FC = () => {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="🔍 Search by party, firm, yarn, lot, shade, count"
-          className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring focus:border-blue-500 dark:bg-gray-800 dark:text-white dark:border-gray-700"
+          className="w-full px-4 py-2 border rounded-md dark:bg-gray-800 dark:text-white dark:border-gray-700"
         />
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-4 py-2 border rounded-md dark:bg-gray-800 dark:text-white dark:border-gray-700"
-        >
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-4 py-2 border rounded-md dark:bg-gray-800 dark:text-white dark:border-gray-700">
           <option value="">Filter by Status</option>
-          {uniqueStatuses.map((status) => (
-            <option key={status} value={status}>{status}</option>
-          ))}
+          {uniqueStatuses.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
-        <select
-          value={firmFilter}
-          onChange={(e) => setFirmFilter(e.target.value)}
-          className="px-4 py-2 border rounded-md dark:bg-gray-800 dark:text-white dark:border-gray-700"
-        >
+        <select value={firmFilter} onChange={(e) => setFirmFilter(e.target.value)} className="px-4 py-2 border rounded-md dark:bg-gray-800 dark:text-white dark:border-gray-700">
           <option value="">Filter by Firm</option>
-          {uniqueFirms.map((firm) => (
-            <option key={firm} value={firm}>{firm}</option>
-          ))}
+          {uniqueFirms.map((f) => <option key={f} value={f}>{f}</option>)}
         </select>
-        <select
-          value={partyFilter}
-          onChange={(e) => setPartyFilter(e.target.value)}
-          className="px-4 py-2 border rounded-md dark:bg-gray-800 dark:text-white dark:border-gray-700"
-        >
+        <select value={partyFilter} onChange={(e) => setPartyFilter(e.target.value)} className="px-4 py-2 border rounded-md dark:bg-gray-800 dark:text-white dark:border-gray-700">
           <option value="">Filter by Party</option>
-          {uniqueParties.map((p) => (
-            <option key={p} value={p}>{p}</option>
-          ))}
+          {uniqueParties.map((p) => <option key={p} value={p}>{p}</option>)}
         </select>
       </div>
 
       <div className="space-y-6">
         {Object.entries(groupedByFirm).map(([firm, firmRecords]) => (
-          <div key={firm} className="overflow-hidden shadow-lg rounded-2xl dark:shadow-gray-800">
+          <div key={firm} className="overflow-hidden shadow rounded-2xl">
             <div
               onClick={() => setExpandedFirm((f) => (f === firm ? null : firm))}
-              className="flex items-center justify-between px-6 py-4 bg-white border-b cursor-pointer dark:bg-gray-800 dark:border-gray-700 hover:bg-purple-50"
+              className="flex justify-between items-center px-6 py-4 bg-white dark:bg-gray-800 border-b dark:border-gray-700 cursor-pointer hover:bg-purple-50"
             >
-              <h2 className="text-xl font-semibold text-purple-700 dark:text-purple-400">
-                {firm} ({firmRecords.length} {firmRecords.length === 1 ? "order" : "orders"})
-              </h2>
+              <h2 className="text-lg font-semibold text-purple-700 dark:text-purple-400">{firm} ({firmRecords.length})</h2>
               {expandedFirm === firm ? <ChevronUp /> : <ChevronDown />}
             </div>
 
             {expandedFirm === firm && (
               <div className="overflow-x-auto bg-white dark:bg-gray-800" id="dyeing-orders-table">
                 <table className="min-w-full text-sm">
-                  <thead className="text-left text-gray-600 border-b dark:text-gray-300 dark:border-gray-700">
+                  <thead className="text-gray-600 dark:text-gray-300 border-b dark:border-gray-700">
                     <tr>
                       <th className="px-4 py-2">Party</th>
                       <th className="px-4 py-2">Yarn</th>
@@ -238,36 +260,28 @@ const DyeingOrders: React.FC = () => {
                       <th className="px-4 py-2 text-center">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="text-gray-900 dark:text-gray-100">
+                  <tbody className="text-gray-900 dark:text-white">
                     {firmRecords.map((record) => {
                       const status = getDyeingStatus(record);
-                      const bgClass =
-                        status === "Overdue"
-                          ? "bg-red-50 dark:bg-red-900/30"
-                          : status === "Reprocessing"
-                          ? "bg-blue-50 dark:bg-blue-900/30"
-                          : "";
                       return (
-                        <tr
-                          key={record.id}
-                          className={`${bgClass} border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700`}
-                        >
+                        <tr key={record.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                           <td className="px-4 py-2">{record.partyName}</td>
                           <td className="px-4 py-2">{record.yarnType}</td>
                           <td className="px-4 py-2">{record.lot}</td>
                           <td className="px-4 py-2">{record.shade}</td>
                           <td className="px-4 py-2">{record.count}</td>
-                          <td className="px-4 py-2">{Number(record.quantity).toFixed(2)} kg</td>
+                          <td className="px-4 py-2">{record.quantity} kg</td>
                           <td className="px-4 py-2">{new Date(record.sentDate).toLocaleDateString()}</td>
                           <td className="px-4 py-2">{new Date(record.expectedArrivalDate).toLocaleDateString()}</td>
                           <td className="px-4 py-2">{statusBadge(status)}</td>
                           <td className="px-4 py-2 italic text-gray-500 dark:text-gray-400">{record.remarks || "-"}</td>
-                          <td className="px-4 py-2 flex flex-wrap justify-center items-center gap-2 max-w-[200px]">
-                            <button onClick={() => handleEdit(record)} title="Edit"><FaEdit /></button>
-                            <button onClick={() => handleDelete(record)} title="Delete"><FaTrash /></button>
-                            <button onClick={() => handleFollowUp(record)} title="Follow Up"><FaBell /></button>
-                            <button onClick={() => handleMarkArrived(record)} title="Mark Arrived"><FaCheckCircle /></button>
-                            <button onClick={() => handleReprocessing(record)} title="Reprocessing"><FaRecycle /></button>
+                          <td className="px-4 py-2 text-center">
+                            <button
+                              className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"
+                              onClick={(e) => handleActionClick(record, e)}
+                            >
+                              <MoreVertical />
+                            </button>
                           </td>
                         </tr>
                       );
@@ -279,6 +293,22 @@ const DyeingOrders: React.FC = () => {
           </div>
         ))}
       </div>
+
+        {openDropdownRecord && (
+        <div
+          ref={dropdownRef}
+          className="fixed z-[1000] w-[180px] bg-white dark:bg-gray-800 rounded-lg shadow-lg border dark:border-gray-600"
+          style={{ top: dropdownPosition.top, left: dropdownPosition.left }}
+        >
+          <ActionDropdown
+            onEdit={() => handleEdit(openDropdownRecord)}
+            onDelete={() => handleDelete(openDropdownRecord)}
+            onFollowUp={() => handleFollowUp(openDropdownRecord)}
+            onMarkArrived={() => handleMarkArrived(openDropdownRecord)}
+            onReprocessing={() => handleReprocessing(openDropdownRecord)}
+          />
+        </div>
+      )}
 
       <CreateDyeingOrderForm
         isOpen={isFormOpen}
