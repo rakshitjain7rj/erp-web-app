@@ -27,6 +27,11 @@ const Inventory = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<InventoryItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  // Tooltip state management for better control
+  const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+  
   const [newItem, setNewItem] = useState({
     // Basic Product Information
     productName: "",
@@ -160,6 +165,123 @@ const Inventory = () => {
     });
   };
 
+  // Enhanced tooltip management for better UX
+  const [tooltipData, setTooltipData] = useState<any>(null);
+  
+  // Undo Functionality States - Professional action history management
+  const [historyStack, setHistoryStack] = useState<{
+    items: InventoryItem[];
+    action: string;
+    itemName: string;
+    timestamp: Date;
+  }[]>([]);
+  const [lastAction, setLastAction] = useState<string>("");
+  const [isUndoing, setIsUndoing] = useState(false);
+  
+  const handleTooltipShow = (tooltipId: string, event: React.MouseEvent, data?: any) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    setTooltipPosition({
+      x: rect.left + rect.width / 2,
+      y: rect.top
+    });
+    setActiveTooltip(tooltipId);
+    setTooltipData(data);
+  };
+
+  const handleTooltipHide = () => {
+    setActiveTooltip(null);
+    setTooltipData(null);
+  };
+
+  // Undo Functionality - Professional History Management
+  const saveToHistory = (action: string, itemName: string = "Item") => {
+    const newHistoryEntry = {
+      items: [...items],
+      action,
+      itemName,
+      timestamp: new Date()
+    };
+    
+    setHistoryStack(prev => {
+      // Keep only last 10 actions to prevent memory issues
+      const updatedHistory = [...prev, newHistoryEntry];
+      return updatedHistory.slice(-10);
+    });
+    
+    setLastAction(action);
+    console.log(`📚 History saved: ${action} for "${itemName}"`);
+  };
+
+  const handleUndo = async () => {
+    if (historyStack.length === 0 || isUndoing) {
+      toast.error("❌ No actions to undo", { duration: 2000 });
+      return;
+    }
+
+    setIsUndoing(true);
+    
+    try {
+      const lastHistoryEntry = historyStack[historyStack.length - 1];
+      const { items: previousItems, action, itemName } = lastHistoryEntry;
+      
+      console.log(`🔄 Undoing: ${action} for "${itemName}"`);
+      
+      // Restore previous state
+      setItems(previousItems);
+      
+      // Remove the last entry from history
+      setHistoryStack(prev => prev.slice(0, -1));
+      
+      // Update last action for UI feedback
+      const newLastAction = historyStack.length > 1 
+        ? historyStack[historyStack.length - 2].action 
+        : "";
+      setLastAction(newLastAction);
+      
+      // Show success toast
+      toast.success(
+        `🎯 Successfully undid: ${action}${itemName !== "Item" ? ` (${itemName})` : ""}`, 
+        { 
+          duration: 3000,
+          icon: "↩️"
+        }
+      );
+      
+      // Reset pagination if needed
+      setCurrentPage(1);
+      
+    } catch (error) {
+      console.error("❌ Undo operation failed:", error);
+      toast.error("❌ Failed to undo action. Please try again.", { duration: 3000 });
+    } finally {
+      setIsUndoing(false);
+    }
+  };
+
+  const canUndo = () => {
+    return historyStack.length > 0 && !isUndoing && !isLoading;
+  };
+
+  const getUndoButtonText = () => {
+    if (isUndoing) return "Undoing...";
+    if (historyStack.length === 0) return "No Actions";
+    
+    const lastEntry = historyStack[historyStack.length - 1];
+    return `Undo ${lastEntry.action}`;
+  };
+
+  const getUndoTooltipText = () => {
+    if (historyStack.length === 0) return "No recent actions to undo";
+    
+    const lastEntry = historyStack[historyStack.length - 1];
+    const timeDiff = Math.floor((new Date().getTime() - lastEntry.timestamp.getTime()) / 1000);
+    const timeAgo = timeDiff < 60 
+      ? `${timeDiff}s ago` 
+      : `${Math.floor(timeDiff / 60)}m ago`;
+    
+    return `Undo: ${lastEntry.action} for "${lastEntry.itemName}" (${timeAgo})`;
+  };
+
   const handleModalChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     
@@ -200,6 +322,48 @@ const Inventory = () => {
     setShowModal(true);
   };
 
+  const handleDuplicate = (item: InventoryItem) => {
+    console.log('📋 Duplicating inventory item:', item.id, item.productName);
+    // Clear editing state to ensure we're creating a new item
+    setEditingItem(null);
+    
+    // Pre-fill form with item data but with indicators it's a duplicate
+    setNewItem({
+      productName: `${item.productName} (Copy)`,
+      rawMaterial: item.rawMaterial || "",
+      category: item.category || "",
+      initialQuantity: item.initialQuantity?.toString() || "",
+      currentQuantity: item.currentQuantity?.toString() || "",
+      effectiveYarn: item.effectiveYarn?.toString() || "",
+      count: item.count?.toString() || "",
+      gsm: item.gsm?.toString() || "",
+      costPerKg: item.costPerKg?.toString() || "",
+      totalValue: item.totalValue?.toString() || "",
+      warehouseLocation: item.warehouseLocation || "",
+      batchNumber: item.batchNumber ? `${item.batchNumber}-COPY` : "",
+      supplierName: item.supplierName || "",
+      manualQuantity: item.manualQuantity || false,
+      manualValue: item.manualValue || false,
+      manualYarn: item.manualYarn || false,
+      remarks: item.remarks ? `Duplicated from: ${item.productName}\n${item.remarks}` : `Duplicated from: ${item.productName}`,
+    });
+    
+    setShowModal(true);
+    
+    // Show helpful toast to guide user
+    toast.success("📋 Item duplicated! Modify details as needed and click 'Add Inventory Item' to create.", {
+      duration: 4000,
+      style: {
+        background: '#EBF8FF',
+        color: '#1E40AF',
+        border: '1px solid #93C5FD',
+        borderRadius: '8px',
+        padding: '12px',
+        fontSize: '14px'
+      }
+    });
+  };
+
   const handleDelete = (item: InventoryItem) => {
     setItemToDelete(item);
     setShowDeleteModal(true);
@@ -207,6 +371,9 @@ const Inventory = () => {
 
   const confirmDelete = async () => {
     if (!itemToDelete) return;
+
+    // 📚 Save current state to history before deleting
+    saveToHistory("Delete", itemToDelete.productName);
 
     setIsDeleting(true);
     try {
@@ -239,6 +406,15 @@ const Inventory = () => {
       toast.error("Please fill all required fields marked with *");
       return;
     }
+
+    // 📚 Save current state to history before making changes
+    const actionType = editingItem 
+      ? "Edit" 
+      : newItem.productName.includes('(Copy)') 
+        ? "Duplicate" 
+        : "Add";
+    const itemName = productName || "Unknown Item";
+    saveToHistory(actionType, itemName);
     
     const payloadToSend = {
       // Basic fields (required)
@@ -285,10 +461,14 @@ const Inventory = () => {
         console.log('✅ Update API Success response:', result);
         toast.success("✅ Inventory item updated successfully");
       } else {
-        console.log('🚀 Creating new inventory item...');
+        const isDuplicate = newItem.productName.includes('(Copy)');
+        console.log(isDuplicate ? '� Duplicating inventory item...' : '�🚀 Creating new inventory item...');
         result = await createInventoryItem(payloadToSend);
         console.log('✅ Create API Success response:', result);
-        toast.success("✅ Inventory item added successfully");
+        toast.success(isDuplicate 
+          ? "✅ Inventory item duplicated successfully" 
+          : "✅ Inventory item added successfully"
+        );
       }
       
       // Close modal first (immediate user feedback)
@@ -453,7 +633,132 @@ const Inventory = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-950 px-4 py-6 text-black dark:text-white">
+    <div className="min-h-screen bg-white dark:bg-gray-950 px-4 py-6 text-black dark:text-white relative">
+      {/* Enhanced tooltip styles with proper stacking context */}
+      <style>{`
+        .tooltip-container {
+          position: relative;
+          z-index: 1;
+        }
+        .tooltip-container .tooltip {
+          position: absolute;
+          z-index: 999999 !important;
+          pointer-events: none;
+          transform-style: preserve-3d;
+        }
+        /* Ensure all parent containers allow tooltips to show properly */
+        .table-container {
+          overflow-x: auto;
+          overflow-y: visible;
+          position: relative;
+          z-index: 1;
+        }
+        /* Create new stacking context for tooltips */
+        .tooltip-portal {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          pointer-events: none;
+          z-index: 999999;
+        }
+        /* Enhanced tooltip animations */
+        .tooltip-enter {
+          opacity: 0;
+          transform: scale(0.95) translateY(5px);
+          transition: all 0.2s ease-out;
+        }
+        .tooltip-enter-active {
+          opacity: 1;
+          transform: scale(1) translateY(0);
+        }
+        /* Prevent any overflow issues that might clip tooltips */
+        .inventory-table-wrapper {
+          overflow: visible !important;
+        }
+        .inventory-table-wrapper * {
+          overflow: visible !important;
+        }
+        /* Ensure tooltips render above modals and overlays */
+        .tooltip-overlay {
+          position: fixed !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: 100vw !important;
+          height: 100vh !important;
+          pointer-events: none !important;
+          z-index: 999999 !important;
+        }
+      `}</style>
+      
+      {/* Global Tooltip Portal - renders at highest z-index */}
+      {activeTooltip && (
+        <div className="tooltip-portal">
+          {activeTooltip === 'header-formula' && (
+            <div 
+              className="fixed pointer-events-none z-[999999] transition-all duration-300"
+              style={{
+                left: tooltipPosition.x,
+                top: tooltipPosition.y - 10,
+                transform: 'translate(-50%, -100%)'
+              }}>
+              <div className="px-4 py-3 bg-gray-900 dark:bg-gray-800 text-white text-xs rounded-lg shadow-2xl border border-gray-700 w-80 max-w-sm">
+                <div className="font-semibold mb-2 text-blue-200">📊 Production Capacity Formula</div>
+                <div className="text-xs leading-relaxed text-gray-200 space-y-1">
+                  <div className="font-medium text-yellow-300">Available Yarn (kg) ÷ (Yarn/Unit × Count) = Units</div>
+                  <div className="text-gray-300 text-[10px] space-y-0.5">
+                    <div>• Calculates maximum producible units with current yarn stock</div>
+                    <div>• Results are rounded down to whole units</div>
+                    <div>• Updates automatically based on yarn consumption</div>
+                    <div>• Helps plan production capacity and resource allocation</div>
+                  </div>
+                </div>
+                <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-6 border-r-6 border-t-6 border-transparent border-t-gray-900 dark:border-t-gray-800"></div>
+              </div>
+            </div>
+          )}
+          {activeTooltip?.startsWith('calculation-') && tooltipData && (
+            <div 
+              className="fixed pointer-events-none z-[999999] transition-all duration-300"
+              style={{
+                left: Math.min(tooltipPosition.x + 20, window.innerWidth - 300),
+                top: tooltipPosition.y,
+                transform: 'translateY(-50%)'
+              }}>
+              <div className="px-4 py-3 bg-gray-900 dark:bg-gray-800 text-white text-xs rounded-lg shadow-2xl border border-gray-700 w-72 max-w-sm">
+                <div className="font-semibold mb-2 text-blue-200 flex items-center">
+                  <span className="mr-2">🧮</span>
+                  Live Production Calculation
+                </div>
+                <div className="text-xs leading-relaxed text-gray-200 space-y-2">
+                  <div className="bg-gray-800 dark:bg-gray-700 p-2 rounded">
+                    <div className="flex justify-between items-center">
+                      <span>Available Yarn:</span>
+                      <span className="font-medium text-green-300">{tooltipData.currentYarnBalance?.toFixed(1) || '0.0'}kg</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span>Yarn per Unit:</span>
+                      <span className="font-medium text-blue-300">{tooltipData.yarnPerUnitInKg?.toFixed(3) || '0.000'}kg</span>
+                    </div>
+                  </div>
+                  <div className="border-t border-gray-600 pt-2">
+                    <div className="flex justify-between items-center font-semibold">
+                      <span className="text-yellow-200">Production Capacity:</span>
+                      <span className="text-yellow-300 text-lg">{tooltipData.estimatedProductionLeft || 0} units</span>
+                    </div>
+                  </div>
+                  <div className="text-gray-400 text-[10px] mt-2 flex items-center">
+                    <span className="mr-1">📈</span>
+                    Real-time calculation for "{tooltipData.productName}"
+                  </div>
+                </div>
+                <div className="absolute top-1/2 left-0 transform -translate-x-full -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900 dark:border-r-gray-800"></div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <h2 className="text-3xl font-bold text-blue-700 dark:text-white text-center sm:text-left">Inventory Dashboard</h2>
         <div className="flex gap-2 justify-center sm:justify-end">
@@ -467,6 +772,47 @@ const Inventory = () => {
           >
             ➕ Add Inventory
           </button>
+          
+          {/* Professional Undo Button */}
+          <div className="relative group">
+            <button 
+              onClick={handleUndo}
+              disabled={!canUndo()}
+              className={`text-sm font-semibold py-2 px-4 rounded-lg transition-all duration-200 shadow-sm ${
+                canUndo()
+                  ? 'bg-orange-600 hover:bg-orange-700 text-white hover:shadow-md transform hover:scale-105'
+                  : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+              }`}
+              title={getUndoTooltipText()}
+            >
+              {isUndoing ? (
+                <span className="flex items-center space-x-1">
+                  <span className="animate-spin">🔄</span>
+                  <span>Undoing...</span>
+                </span>
+              ) : (
+                <span className="flex items-center space-x-1">
+                  <span>↩️</span>
+                  <span className="hidden sm:inline">{getUndoButtonText()}</span>
+                  <span className="sm:hidden">Undo</span>
+                </span>
+              )}
+            </button>
+            
+            {/* Enhanced tooltip for undo functionality */}
+            {canUndo() && (
+              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50">
+                <div className="bg-gray-900 dark:bg-gray-800 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap shadow-xl border border-gray-700">
+                  <div className="font-medium">{getUndoTooltipText()}</div>
+                  <div className="text-gray-300 text-[10px] mt-1">
+                    Click to restore previous state
+                  </div>
+                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900 dark:border-t-gray-800"></div>
+                </div>
+              </div>
+            )}
+          </div>
+          
           <button onClick={exportToCSV} className="bg-green-600 hover:bg-green-700 text-white text-sm font-semibold py-2 px-4 rounded-lg transition-colors duration-200 shadow-sm">📥 CSV</button>
           <button onClick={exportToPDF} className="bg-red-600 hover:bg-red-700 text-white text-sm font-semibold py-2 px-4 rounded-lg transition-colors duration-200 shadow-sm">🧾 PDF</button>
         </div>
@@ -485,7 +831,7 @@ const Inventory = () => {
       </div>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow border">
           <div className="text-sm text-gray-600 dark:text-gray-400">Total Products</div>
           <div className="text-2xl font-bold text-blue-600">{items.length}</div>
@@ -512,6 +858,22 @@ const Inventory = () => {
             }).length}
           </div>
         </div>
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow border">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-gray-600 dark:text-gray-400">Action History</div>
+            {historyStack.length > 0 && (
+              <div className="text-xs text-orange-500 dark:text-orange-400 font-medium">
+                {canUndo() ? "↩️ Can Undo" : "📚 Logged"}
+              </div>
+            )}
+          </div>
+          <div className="text-2xl font-bold text-orange-600">{historyStack.length}</div>
+          {historyStack.length > 0 && (
+            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Last: {lastAction || historyStack[historyStack.length - 1]?.action || "N/A"}
+            </div>
+          )}
+        </div>
       </div>
 
       {isLoading ? (
@@ -524,7 +886,7 @@ const Inventory = () => {
       ) : (
         <>
           {/* Inventory Table */}
-          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-lg overflow-hidden">
+          <div className="inventory-table-wrapper bg-white dark:bg-gray-900 rounded-xl shadow-lg overflow-hidden relative">
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Products in Inventory ({filteredItems.length} items)
@@ -584,8 +946,8 @@ const Inventory = () => {
                 </div>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <div className="table-container overflow-x-auto overflow-y-visible">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 relative">
                   <thead className="bg-gray-50 dark:bg-gray-800">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -598,7 +960,21 @@ const Inventory = () => {
                         Inventory Status
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Cost & Capacity
+                        <div className="flex items-center space-x-1">
+                          <span>Production Capacity</span>
+                          <div className="tooltip-container">
+                            <span 
+                              className="text-blue-500 cursor-help hover:text-blue-600 transition-colors duration-200 relative z-10"
+                              onMouseEnter={(e) => handleTooltipShow('header-formula', e)}
+                              onMouseLeave={handleTooltipHide}
+                            >
+                              ℹ️
+                            </span>
+                          </div>
+                        </div>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Cost & Value
                       </th>
                       <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Status
@@ -610,14 +986,33 @@ const Inventory = () => {
                   </thead>
                   <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
                     {paginatedItems.map((item) => {
-                      const consumed = item.unitsProduced * item.effectiveYarn * item.count / 1000;
-                      const left = item.initialQuantity - consumed;
-                      const perUnitYarn = item.effectiveYarn * item.count;
+                      // Ensure all calculations use proper number validation
+                      const unitsProduced = Number(item.unitsProduced) || 0;
+                      const effectiveYarn = Number(item.effectiveYarn) || 0;
+                      const count = Number(item.count) || 0;
+                      const initialQuantity = Number(item.initialQuantity) || 0;
+                      const costPerKg = Number(item.costPerKg) || 0;
+                      
+                      const consumed = unitsProduced * effectiveYarn * count / 1000;
+                      const left = initialQuantity - consumed;
+                      const perUnitYarn = effectiveYarn * count;
                       const estimatedCapacity = perUnitYarn > 0 ? (left * 1000) / perUnitYarn : 0;
-                      const cost = consumed * (item.costPerKg || 0);
-                      const usagePercent = Math.min((consumed / item.initialQuantity) * 100, 100);
+                      const cost = consumed * costPerKg;
+                      const usagePercent = initialQuantity > 0 ? Math.min((consumed / initialQuantity) * 100, 100) : 0;
                       const isLowStock = left < LOW_STOCK_THRESHOLD_KG;
                       const isExpanded = expandedRows.has(item.id);
+
+                      // Enhanced Production Capacity Calculations with proper number validation
+                      const currentYarnBalance = Number(item.currentQuantity) || Number(left) || 0; // Use current quantity if available, otherwise calculated left, fallback to 0
+                      const yarnPerUnitInGrams = (Number(item.effectiveYarn) || 0) * (Number(item.count) || 0); // grams per unit
+                      const yarnPerUnitInKg = yarnPerUnitInGrams / 1000; // kg per unit
+                      const estimatedProductionLeft = yarnPerUnitInKg > 0 ? Math.floor(currentYarnBalance / yarnPerUnitInKg) : 0;
+                      
+                      // Production capacity status indicators
+                      const isHighCapacity = estimatedProductionLeft > 100;
+                      const isMediumCapacity = estimatedProductionLeft > 20 && estimatedProductionLeft <= 100;
+                      const isLowCapacity = estimatedProductionLeft > 0 && estimatedProductionLeft <= 20;
+                      const isNoCapacity = estimatedProductionLeft === 0;
 
                       return (
                         <React.Fragment key={item.id}>
@@ -659,8 +1054,8 @@ const Inventory = () => {
                             {/* Specifications */}
                             <td className="px-6 py-4">
                               <div className="text-sm text-gray-900 dark:text-white">
-                                <div>Yarn: {item.effectiveYarn}m</div>
-                                <div>Count: {item.count} g/m</div>
+                                <div>Yarn: {effectiveYarn}m</div>
+                                <div>Count: {count} g/m</div>
                                 <div className="text-xs text-gray-500">
                                   Per unit: {perUnitYarn.toFixed(2)}g
                                 </div>
@@ -672,7 +1067,7 @@ const Inventory = () => {
                               <div className="space-y-2">
                                 <div className="text-sm">
                                   <span className="text-gray-600 dark:text-gray-400">Initial: </span>
-                                  <span className="font-medium">{item.initialQuantity} kg</span>
+                                  <span className="font-medium">{initialQuantity} kg</span>
                                 </div>
                                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                                   <div 
@@ -687,17 +1082,72 @@ const Inventory = () => {
                               </div>
                             </td>
 
-                            {/* Cost & Capacity */}
+                            {/* Production Capacity */}
+                            <td className="px-6 py-4">
+                              <div className="space-y-2">
+                                <div className="flex items-center space-x-2">
+                                  <div className="flex items-center space-x-1">
+                                    <span className={`text-2xl font-bold transition-colors duration-200 ${
+                                      isHighCapacity ? 'text-green-600 dark:text-green-400' : 
+                                      isMediumCapacity ? 'text-blue-600 dark:text-blue-400' : 
+                                      isLowCapacity ? 'text-orange-600 dark:text-orange-400' : 
+                                      'text-red-600 dark:text-red-400'
+                                    }`}>
+                                      {estimatedProductionLeft.toLocaleString()}
+                                    </span>
+                                    <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">units</span>
+                                  </div>
+                                  <div className="tooltip-container">
+                                    <span 
+                                      className="text-gray-400 cursor-help hover:text-gray-600 dark:hover:text-gray-300 transition-colors duration-200 relative z-10"
+                                      onMouseEnter={(e) => handleTooltipShow(`calculation-${item.id}`, e, {
+                                        currentYarnBalance,
+                                        yarnPerUnitInKg,
+                                        estimatedProductionLeft,
+                                        productName: item.productName
+                                      })}
+                                      onMouseLeave={handleTooltipHide}
+                                    >
+                                      ℹ️
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  <div className={`w-2 h-2 rounded-full transition-colors duration-200 ${
+                                    isHighCapacity ? 'bg-green-500 shadow-green-300 shadow-sm' : 
+                                    isMediumCapacity ? 'bg-blue-500 shadow-blue-300 shadow-sm' : 
+                                    isLowCapacity ? 'bg-orange-500 shadow-orange-300 shadow-sm' : 
+                                    'bg-red-500 shadow-red-300 shadow-sm'
+                                  }`}></div>
+                                  <span className={`text-xs font-medium transition-colors duration-200 ${
+                                    isHighCapacity ? 'text-green-700 dark:text-green-400' : 
+                                    isMediumCapacity ? 'text-blue-700 dark:text-blue-400' : 
+                                    isLowCapacity ? 'text-orange-700 dark:text-orange-400' : 
+                                    'text-red-700 dark:text-red-400'
+                                  }`}>
+                                    {isHighCapacity ? '🚀 High Capacity' : 
+                                     isMediumCapacity ? '⚡ Medium Capacity' : 
+                                     isLowCapacity ? '⚠️ Low Capacity' : 
+                                     '🚫 No Capacity'}
+                                  </span>
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                  {(yarnPerUnitInGrams || 0).toFixed(1)}g yarn per unit
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Cost & Value */}
                             <td className="px-6 py-4">
                               <div className="text-sm">
                                 <div className="text-gray-900 dark:text-white">
                                   Cost: ₹{cost.toFixed(2)}
                                 </div>
                                 <div className="text-gray-600 dark:text-gray-400">
-                                  Rate: ₹{item.costPerKg || 0}/kg
+                                  Rate: ₹{costPerKg}/kg
                                 </div>
                                 <div className="text-xs text-gray-500">
-                                  Capacity: {Math.floor(estimatedCapacity)} units
+                                  Value Left: ₹{((currentYarnBalance || 0) * costPerKg).toFixed(2)}
                                 </div>
                               </div>
                             </td>
@@ -716,22 +1166,32 @@ const Inventory = () => {
 
                             {/* Actions */}
                             <td className="px-6 py-4 text-center">
-                              <div className="flex justify-center space-x-2">
+                              <div className="flex justify-center space-x-1 flex-wrap gap-1">
                                 <button
                                   onClick={() => toggleRow(item.id)}
-                                  className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 text-sm font-medium px-2 py-1 rounded"
+                                  className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 text-xs font-medium px-2 py-1 rounded transition-colors duration-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+                                  title="View detailed information"
                                 >
-                                  {isExpanded ? "Hide Details" : "View Details"}
+                                  {isExpanded ? "👁️ Hide" : "👁️ View"}
                                 </button>
                                 <button
                                   onClick={() => handleEdit(item)}
-                                  className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 text-sm font-medium px-2 py-1 rounded transition-colors duration-200"
+                                  className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 text-xs font-medium px-2 py-1 rounded transition-colors duration-200 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                  title="Edit this item"
                                 >
                                   ✏️ Edit
                                 </button>
                                 <button
+                                  onClick={() => handleDuplicate(item)}
+                                  className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 text-xs font-medium px-2 py-1 rounded transition-colors duration-200 hover:bg-green-50 dark:hover:bg-green-900/20"
+                                  title="Duplicate this item as a new entry"
+                                >
+                                  📋 Copy
+                                </button>
+                                <button
                                   onClick={() => handleDelete(item)}
-                                  className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 text-sm font-medium px-2 py-1 rounded transition-colors duration-200"
+                                  className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 text-xs font-medium px-2 py-1 rounded transition-colors duration-200 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                  title="Delete this item permanently"
                                 >
                                   🗑️ Delete
                                 </button>
@@ -742,12 +1202,12 @@ const Inventory = () => {
                           {/* Expanded Details Row */}
                           {isExpanded && (
                             <tr className="bg-gray-50 dark:bg-gray-800">
-                              <td colSpan={6} className="px-6 py-4">
+                              <td colSpan={7} className="px-6 py-4">
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                   <div>
                                     <h4 className="font-medium text-gray-900 dark:text-white mb-2">Production Info</h4>
                                     <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                                      <div>Units Produced: <span className="font-medium">{item.unitsProduced}</span></div>
+                                      <div>Units Produced: <span className="font-medium">{unitsProduced}</span></div>
                                       <div>Yarn per Unit: <span className="font-medium">{perUnitYarn.toFixed(2)}g</span></div>
                                       <div>Total Yarn Used: <span className="font-medium">{consumed.toFixed(2)}kg</span></div>
                                       {item.gsm && <div>GSM: <span className="font-medium">{item.gsm}</span></div>}
@@ -766,9 +1226,9 @@ const Inventory = () => {
                                   <div>
                                     <h4 className="font-medium text-gray-900 dark:text-white mb-2">Financial Summary</h4>
                                     <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                                      <div>Investment: <span className="font-medium">₹{(item.initialQuantity * (item.costPerKg || 0)).toFixed(2)}</span></div>
+                                      <div>Investment: <span className="font-medium">₹{(initialQuantity * costPerKg).toFixed(2)}</span></div>
                                       <div>Used Value: <span className="font-medium">₹{cost.toFixed(2)}</span></div>
-                                      <div>Remaining Value: <span className="font-medium">₹{(left * (item.costPerKg || 0)).toFixed(2)}</span></div>
+                                      <div>Remaining Value: <span className="font-medium">₹{(left * costPerKg).toFixed(2)}</span></div>
                                       {item.totalValue && <div>Total Value: <span className="font-medium">₹{item.totalValue}</span></div>}
                                     </div>
                                   </div>
@@ -876,24 +1336,76 @@ const Inventory = () => {
             {/* Modal Header */}
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                {editingItem ? "✏️ Edit Inventory Item" : "➕ New Inventory Item"}
+                {editingItem 
+                  ? "✏️ Edit Inventory Item" 
+                  : newItem.productName.includes('(Copy)') 
+                    ? "📋 Duplicate Inventory Item" 
+                    : "➕ New Inventory Item"
+                }
               </h3>
-              {!editingItem && (
-                <div className="flex items-center space-x-2 text-sm text-green-600 dark:text-green-400">
-                  <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                  <span>Fresh Form</span>
-                </div>
-              )}
+              <div className="flex items-center space-x-2 text-sm">
+                {!editingItem && !newItem.productName.includes('(Copy)') && (
+                  <div className="flex items-center space-x-2 text-green-600 dark:text-green-400">
+                    <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                    <span>Fresh Form</span>
+                  </div>
+                )}
+                {!editingItem && newItem.productName.includes('(Copy)') && (
+                  <div className="flex items-center space-x-2 text-blue-600 dark:text-blue-400">
+                    <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                    <span>Duplicating Item</span>
+                  </div>
+                )}
+                {editingItem && (
+                  <div className="flex items-center space-x-2 text-orange-600 dark:text-orange-400">
+                    <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
+                    <span>Editing Mode</span>
+                  </div>
+                )}
+              </div>
             </div>
+            
+            {/* Duplicate Mode Info Banner */}
+            {!editingItem && newItem.productName.includes('(Copy)') && (
+              <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <div className="flex items-start space-x-3">
+                  <div className="flex-shrink-0">
+                    <span className="text-blue-500 dark:text-blue-400 text-lg">📋</span>
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-1">
+                      Duplicating Inventory Item
+                    </h4>
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      All fields have been pre-filled from the original item. Modify any details as needed, then click "Add Inventory Item" to create a new entry.
+                    </p>
+                    <div className="mt-2 flex items-center space-x-4 text-xs text-blue-600 dark:text-blue-400">
+                      <span>💡 Product name and batch number have been automatically modified</span>
+                      <span>⚡ Ready to customize and save</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Basic Product Information */}
               <div className="space-y-4">
                 <h4 className="text-lg font-medium text-gray-900 dark:text-white border-b pb-2 flex items-center">
                   📦 Product Details
-                  {!editingItem && (
-                    <span className="ml-2 text-xs bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 px-2 py-1 rounded-full">
+                  {!editingItem && !newItem.productName.includes('(Copy)') && (
+                    <span className="ml-2 text-xs bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400 px-2 py-1 rounded-full">
                       New
+                    </span>
+                  )}
+                  {!editingItem && newItem.productName.includes('(Copy)') && (
+                    <span className="ml-2 text-xs bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 px-2 py-1 rounded-full">
+                      Duplicate
+                    </span>
+                  )}
+                  {editingItem && (
+                    <span className="ml-2 text-xs bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-400 px-2 py-1 rounded-full">
+                      Edit
                     </span>
                   )}
                 </h4>
@@ -1008,14 +1520,23 @@ const Inventory = () => {
                 {!editingItem && (
                   <button 
                     onClick={() => {
-                      console.log('🧹 Manual form clear requested');
+                      const isDuplicate = newItem.productName.includes('(Copy)');
+                      console.log(isDuplicate ? '🧹 Clearing duplicate form' : '🧹 Manual form clear requested');
                       resetForm();
-                      toast.success('📝 Form cleared', { duration: 1500 });
+                      toast.success(isDuplicate 
+                        ? '📝 Duplicate form cleared - starting fresh' 
+                        : '📝 Form cleared', 
+                        { duration: 1500 }
+                      );
                     }}
-                    className="px-4 py-2 text-sm rounded-lg bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-800 transition-colors duration-200 border border-yellow-300 dark:border-yellow-700"
+                    className={`px-4 py-2 text-sm rounded-lg transition-colors duration-200 border ${
+                      newItem.productName.includes('(Copy)')
+                        ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800 border-blue-300 dark:border-blue-700'
+                        : 'bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-800 border-yellow-300 dark:border-yellow-700'
+                    }`}
                     disabled={isCreating}
                   >
-                    🧹 Clear Form
+                    {newItem.productName.includes('(Copy)') ? '🔄 Start Fresh' : '🧹 Clear Form'}
                   </button>
                 )}
               </div>
@@ -1039,8 +1560,18 @@ const Inventory = () => {
                   disabled={isCreating}
                 >
                   {isCreating 
-                    ? (editingItem ? "🔄 Updating..." : "🔄 Adding...") 
-                    : (editingItem ? "💾 Update Inventory Item" : "➕ Add Inventory Item")
+                    ? (editingItem 
+                        ? "🔄 Updating..." 
+                        : newItem.productName.includes('(Copy)')
+                          ? "🔄 Duplicating..."
+                          : "🔄 Adding..."
+                      ) 
+                    : (editingItem 
+                        ? "💾 Update Inventory Item" 
+                        : newItem.productName.includes('(Copy)')
+                          ? "📋 Create Duplicate Item"
+                          : "➕ Add Inventory Item"
+                      )
                   }
                 </button>
               </div>
