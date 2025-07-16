@@ -7,7 +7,7 @@ export default defineConfig({
   server: {
     host: 'localhost',              // 👈 Ensures proper local binding
     port: 5173,                     // 👈 Optional: force dev server to use this port
-    strictPort: true,              // 👈 Will fail if port is taken instead of picking a random one
+    strictPort: false,              // 👈 Will pick another port if 5173 is taken
     proxy: {
       '/api': {
         target: 'http://localhost:5000',
