@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { getInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem } from "../api/inventoryApi";
 import { InventoryItem } from "../types/inventory";
+import StockManagementModal from "../components/StockManagementModal";
 import toast from "react-hot-toast";
 import Papa from "papaparse";
 import jsPDF from "jspdf";
@@ -178,6 +179,10 @@ const Inventory = () => {
   const [lastAction, setLastAction] = useState<string>("");
   const [isUndoing, setIsUndoing] = useState(false);
   
+  // Stock Management Modal State
+  const [showStockModal, setShowStockModal] = useState(false);
+  const [selectedItemForStock, setSelectedItemForStock] = useState<InventoryItem | null>(null);
+  
   const handleTooltipShow = (tooltipId: string, event: React.MouseEvent, data?: any) => {
     const rect = event.currentTarget.getBoundingClientRect();
     setTooltipPosition({
@@ -280,6 +285,43 @@ const Inventory = () => {
       : `${Math.floor(timeDiff / 60)}m ago`;
     
     return `Undo: ${lastEntry.action} for "${lastEntry.itemName}" (${timeAgo})`;
+  };
+
+  // Stock Management Functions
+  const handleManageStock = (item: InventoryItem) => {
+    console.log('📦 Opening stock management for:', item.productName);
+    setSelectedItemForStock(item);
+    setShowStockModal(true);
+  };
+
+  const handleStockUpdate = async (itemId: number) => {
+    console.log('🔄 Refreshing inventory after stock update for item:', itemId);
+    // Refresh the inventory list to show updated quantities
+    await fetchItems();
+  };
+
+  const closeStockModal = () => {
+    setShowStockModal(false);
+    setSelectedItemForStock(null);
+  };
+
+  // Enhanced stock status calculation for visual indicators
+  const getStockStatus = (item: InventoryItem) => {
+    const totalIn = item.totalYarnIn || item.initialQuantity || 0;
+    const totalOut = item.totalYarnOut || 0;
+    const totalSpoiled = item.totalYarnSpoiled || 0;
+    const balance = totalIn - totalOut - totalSpoiled;
+    
+    const usagePercent = totalIn > 0 ? ((totalOut + totalSpoiled) / totalIn) * 100 : 0;
+    const spoilagePercent = totalIn > 0 ? (totalSpoiled / totalIn) * 100 : 0;
+    
+    return {
+      balance,
+      usagePercent,
+      spoilagePercent,
+      isLowStock: balance < LOW_STOCK_THRESHOLD_KG,
+      hasSpoilage: totalSpoiled > 0
+    };
   };
 
   const handleModalChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -1062,22 +1104,71 @@ const Inventory = () => {
                               </div>
                             </td>
 
-                            {/* Inventory Status */}
+                            {/* Enhanced Inventory Status with Stock Tracking */}
                             <td className="px-6 py-4">
                               <div className="space-y-2">
                                 <div className="text-sm">
                                   <span className="text-gray-600 dark:text-gray-400">Initial: </span>
                                   <span className="font-medium">{initialQuantity} kg</span>
                                 </div>
-                                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                                  <div 
-                                    className={`h-2 rounded-full ${isLowStock ? 'bg-red-500' : 'bg-blue-500'}`}
-                                    style={{ width: `${usagePercent}%` }}
-                                  ></div>
+                                
+                                {/* Enhanced Progress Bar with Stock Tracking */}
+                                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+                                  <div className="flex h-full">
+                                    {/* Used (Production) */}
+                                    <div 
+                                      className="bg-blue-500 transition-all duration-300"
+                                      style={{ width: `${Math.min((consumed / initialQuantity) * 100, 100)}%` }}
+                                      title={`Used for production: ${consumed.toFixed(1)}kg`}
+                                    ></div>
+                                    {/* Spoiled (if any) */}
+                                    {getStockStatus(item).hasSpoilage && (
+                                      <div 
+                                        className="bg-red-500 transition-all duration-300"
+                                        style={{ width: `${Math.min(getStockStatus(item).spoilagePercent, 100)}%` }}
+                                        title={`Spoiled: ${(item.totalYarnSpoiled || 0).toFixed(1)}kg`}
+                                      ></div>
+                                    )}
+                                  </div>
                                 </div>
-                                <div className="text-xs text-gray-500 flex justify-between">
-                                  <span>Used: {consumed.toFixed(1)}kg</span>
-                                  <span>Left: {left.toFixed(1)}kg</span>
+                                
+                                <div className="flex justify-between text-xs text-gray-500">
+                                  <div className="flex items-center space-x-2">
+                                    <span className="flex items-center">
+                                      <div className="w-2 h-2 bg-blue-500 rounded-full mr-1"></div>
+                                      Used: {consumed.toFixed(1)}kg
+                                    </span>
+                                    {getStockStatus(item).hasSpoilage && (
+                                      <span className="flex items-center">
+                                        <div className="w-2 h-2 bg-red-500 rounded-full mr-1"></div>
+                                        Spoiled: {(item.totalYarnSpoiled || 0).toFixed(1)}kg
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="font-medium">
+                                    Left: {left.toFixed(1)}kg
+                                  </span>
+                                </div>
+                                
+                                {/* Stock Status Indicators */}
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center space-x-1">
+                                    {isLowStock && (
+                                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+                                        ⚠️ Low Stock
+                                      </span>
+                                    )}
+                                    {getStockStatus(item).hasSpoilage && (
+                                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+                                        🔥 Has Spoilage
+                                      </span>
+                                    )}
+                                  </div>
+                                  {item.lastStockUpdate && (
+                                    <div className="text-xs text-gray-400">
+                                      Updated: {new Date(item.lastStockUpdate).toLocaleDateString()}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </td>
@@ -1173,6 +1264,13 @@ const Inventory = () => {
                                   title="View detailed information"
                                 >
                                   {isExpanded ? "👁️ Hide" : "👁️ View"}
+                                </button>
+                                <button
+                                  onClick={() => handleManageStock(item)}
+                                  className="text-purple-600 hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-300 text-xs font-medium px-2 py-1 rounded transition-colors duration-200 hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                                  title="Manage stock in/out and spoilage"
+                                >
+                                  📦 Stock
                                 </button>
                                 <button
                                   onClick={() => handleEdit(item)}
@@ -1624,6 +1722,16 @@ const Inventory = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Stock Management Modal */}
+      {showStockModal && selectedItemForStock && (
+        <StockManagementModal
+          item={selectedItemForStock}
+          isOpen={showStockModal}
+          onClose={closeStockModal}
+          onStockUpdate={handleStockUpdate}
+        />
       )}
     </div>
   );

@@ -26,6 +26,27 @@ export interface InventoryItem {
   status: string;
   createdAt?: string;
   updatedAt?: string;
+  
+  // Stock tracking fields
+  totalYarnIn?: number;
+  totalYarnOut?: number;
+  totalYarnSpoiled?: number;
+  yarnBalance?: number;
+  lastStockUpdate?: string;
+}
+
+export interface StockLog {
+  id: number;
+  inventoryId: string;
+  type: 'in' | 'out' | 'spoilage';
+  quantity: number;
+  date: string;
+  remarks?: string;
+  source?: string;
+  usagePurpose?: string;
+  spoilageReason?: string;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export const getMaterials = async () => {
