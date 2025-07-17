@@ -8,8 +8,10 @@ import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Badge } from '../components/ui/badge';
+import { Modal } from '../components/ui/Modal';
+import { Spinner } from '../components/ui/spinner';
 import { toast } from 'react-hot-toast';
-import { Plus, Edit, Trash2, Save, X, Activity, Package } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, X, Activity, Package, Settings, RefreshCw } from 'lucide-react';
 import YarnProductionSummary from '../components/YarnProductionSummary';
 
 import { 
@@ -17,7 +19,8 @@ import {
   ASUMachine, 
   ASUProductionEntry, 
   CreateProductionEntryData,
-  ProductionStats 
+  ProductionStats,
+  UpdateASUMachineData
 } from '../api/asuUnit1Api';
 
 interface EditingEntry {
@@ -27,6 +30,13 @@ interface EditingEntry {
   date: string;
 }
 
+interface EditingMachine {
+  id: number;
+  yarnType: string;
+  count: number;
+  productionAt100: number;
+}
+
 const ASUUnit1Page: React.FC = () => {
   const [machines, setMachines] = useState<ASUMachine[]>([]);
   const [productionEntries, setProductionEntries] = useState<ASUProductionEntry[]>([]);
@@ -34,7 +44,34 @@ const ASUUnit1Page: React.FC = () => {
   const [selectedMachine, setSelectedMachine] = useState<ASUMachine | null>(null);
   const [loading, setLoading] = useState(false);
   const [editingEntry, setEditingEntry] = useState<EditingEntry | null>(null);
-  const [activeTab, setActiveTab] = useState<'production' | 'summary'>('production');
+  const [activeTab, setActiveTab] = useState<'production' | 'summary' | 'machines'>('production');
+  
+  // Machine management states
+  const [editingMachine, setEditingMachine] = useState<ASUMachine | null>(null);
+  
+  // Advanced machine management states
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [machineToDelete, setMachineToDelete] = useState<number | null>(null);
+  
+  // Initial machine for the add form
+  const initialMachine: ASUMachine = {
+    id: 0,
+    machine_name: '',
+    machine_number: '',
+    status: 'active',
+    machineNo: 0,
+    isActive: true,
+    yarnType: '',
+    count: 0,
+    spindles: 0,
+    productionAt100: 0,
+    speed: 0,
+    unit: 1,
+    createdAt: '',
+    updatedAt: ''
+  };
   
   // Form state
   const [formData, setFormData] = useState<CreateProductionEntryData>({
@@ -47,12 +84,17 @@ const ASUUnit1Page: React.FC = () => {
   // Define functions first
   const loadMachines = useCallback(async () => {
     try {
-      const machines = await asuUnit1Api.getMachines();
-      setMachines(machines);
+      // Use getAllMachines to ensure we get all machines including newly added ones
+      const machines = await asuUnit1Api.getAllMachines();
+      console.log("Fetched machines:", machines); // Debug to verify all machines are fetched
+      
+      // Filter out only active machines for the dropdown
+      const activeMachines = machines.filter(m => m.isActive !== false);
+      setMachines(activeMachines);
       
       // If we have machines and no selected machine, select the first one by default
-      if (machines.length > 0 && !selectedMachine) {
-        const firstMachine = machines[0];
+      if (activeMachines.length > 0 && !selectedMachine) {
+        const firstMachine = activeMachines[0];
         setSelectedMachine(firstMachine);
         setFormData(prev => ({ 
           ...prev, 
@@ -135,11 +177,167 @@ const ASUUnit1Page: React.FC = () => {
     }
   };
 
+  // Advanced Machine Management Functions
+  
+  // Get all machines for the machine manager tab
+  const getAllMachines = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await asuUnit1Api.getAllMachines();
+      console.log('getAllMachines fetched:', data);
+      
+      if (!data || data.length === 0) {
+        console.warn('No machines returned from API');
+      }
+      
+      // Make sure we're setting the state even if the array is empty
+      setMachines(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error loading all machines:', error);
+      toast.error('Failed to load machines');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  
+  // Add new machine
+  const handleAddMachine = async () => {
+    if (!editingMachine) return;
+    
+    try {
+      setLoading(true);
+      
+      await asuUnit1Api.addMachine({
+        machine_name: editingMachine.machine_name || '',
+        machine_number: editingMachine.machine_number || '',
+        status: editingMachine.status || 'active',
+        yarnType: editingMachine.yarnType || 'Cotton',
+        count: editingMachine.count || 0,
+        spindles: editingMachine.spindles || 0,
+        speed: editingMachine.speed || 0,
+        productionAt100: editingMachine.productionAt100 || 0
+      });
+      
+      toast.success('Machine added successfully');
+      setIsModalOpen(false);
+      getAllMachines();
+    } catch (error) {
+      console.error('Error adding machine:', error);
+      toast.error('Failed to add machine');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Edit machine
+  const handleEditMachine = (machine: ASUMachine) => {
+    setEditingMachine(machine);
+    setIsModalOpen(true);
+    setModalMode('edit');
+  };
+  
+  // Update machine
+  const handleUpdateMachine = async () => {
+    if (!editingMachine) return;
+    
+    try {
+      setLoading(true);
+      
+      console.log('Updating machine with ID:', editingMachine.id, 'Data:', editingMachine);
+      
+      // Format data to match backend expectations
+      // Convert machine_number to machineNo if it's a number, or keep as is
+      const machineNo = editingMachine.machine_number ? 
+        (isNaN(Number(editingMachine.machine_number)) ? 
+          editingMachine.machineNo : 
+          Number(editingMachine.machine_number)) : 
+        editingMachine.machineNo;
+      
+      // Use updateMachine which now uses the correct /machines/${id} endpoint
+      await asuUnit1Api.updateMachine(editingMachine.id, {
+        machineNo: Number(machineNo) || 0, // Ensure machineNo is a number
+        machine_name: editingMachine.machine_name || '',
+        machine_number: editingMachine.machine_number || '',
+        isActive: editingMachine.status === 'active',
+        yarnType: editingMachine.yarnType || 'Cotton',
+        count: editingMachine.count || 0,
+        spindles: editingMachine.spindles || 0,
+        speed: editingMachine.speed || 0,
+        productionAt100: editingMachine.productionAt100 || 0
+      });
+      
+      toast.success('Machine updated successfully');
+      setIsModalOpen(false);
+      getAllMachines();
+    } catch (error) {
+      console.error('Error updating machine:', error);
+      toast.error('Failed to update machine');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Delete machine
+  const handleDeleteMachine = (id: number) => {
+    setMachineToDelete(id);
+    setShowConfirmDialog(true);
+  };
+  
+  const confirmDeleteMachine = async () => {
+    if (machineToDelete === null) return;
+    
+    try {
+      setLoading(true);
+      
+      await asuUnit1Api.deleteMachine(machineToDelete);
+      
+      toast.success('Machine deleted successfully');
+      setShowConfirmDialog(false);
+      getAllMachines();
+    } catch (error) {
+      console.error('Error deleting machine:', error);
+      toast.error('Failed to delete machine');
+    } finally {
+      setLoading(false);
+      setMachineToDelete(null);
+    }
+  };
+
+  // Toggle edit mode
+  const toggleEditMode = () => {
+    setEditMode(!editMode);
+    if (editingMachine) {
+      setEditingMachine(null);
+    }
+  };
+
   // Load initial data
   useEffect(() => {
-    loadMachines();
+    // Use getAllMachines directly to ensure we get all machines
+    const fetchAllData = async () => {
+      try {
+        const allMachines = await asuUnit1Api.getAllMachines();
+        console.log("Initial machine load - all machines:", allMachines);
+        
+        // Filter active machines for the dropdown
+        const activeMachines = allMachines.filter(m => m.isActive !== false);
+        console.log("Active machines for dropdown:", activeMachines);
+        
+        setMachines(activeMachines);
+        
+        // If we have machines and no selected machine, select the first one
+        if (activeMachines.length > 0 && !selectedMachine) {
+          setSelectedMachine(activeMachines[0]);
+        }
+      } catch (error) {
+        console.error("Error loading machines:", error);
+        toast.error("Failed to load machines");
+      }
+    };
+    
+    fetchAllData();
     loadStats();
-  }, [loadMachines]);
+  }, []);
 
   // Load production entries when machine is selected
   useEffect(() => {
@@ -147,11 +345,33 @@ const ASUUnit1Page: React.FC = () => {
       loadProductionEntries();
     }
   }, [selectedMachine, loadProductionEntries]);
+  
+  // Load machines when machine tab is active
+  useEffect(() => {
+    if (activeTab === 'machines') {
+      getAllMachines();
+    }
+  }, [activeTab, getAllMachines]);
 
   const handleMachineSelect = (machineId: string) => {
-    const machine = machines.find(m => m.id === parseInt(machineId));
-    setSelectedMachine(machine || null);
-    setFormData(prev => ({ ...prev, machineId: parseInt(machineId) }));
+    // Handle empty selection or "no-machines" placeholder
+    if (!machineId || machineId === "no-machines") {
+      setSelectedMachine(null);
+      setFormData(prev => ({ ...prev, machineId: undefined }));
+      return;
+    }
+    
+    const machineIdNum = parseInt(machineId);
+    const machine = machines.find(m => m.id === machineIdNum);
+    
+    if (machine) {
+      console.log("Machine selected:", machine); // Debug to verify selection
+      setSelectedMachine(machine);
+      setFormData(prev => ({ ...prev, machineId: machineIdNum }));
+    } else {
+      console.warn(`Machine with ID ${machineId} not found in machines list`);
+      toast.error("Selected machine not found");
+    }
   };
 
   const handleFormSubmit = async (e: React.FormEvent) => {
@@ -353,6 +573,17 @@ const ASUUnit1Page: React.FC = () => {
               <Package className="inline w-4 h-4 mr-2" />
               Yarn Summary
             </button>
+            <button
+              onClick={() => setActiveTab('machines')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${
+                activeTab === 'machines'
+                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+              }`}
+            >
+              <Settings className="inline w-4 h-4 mr-2" />
+              Machine Manager
+            </button>
           </nav>
         </div>
 
@@ -439,17 +670,24 @@ const ASUUnit1Page: React.FC = () => {
                     <Label htmlFor="machine" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Select Machine</Label>
                     <Select 
                       onValueChange={handleMachineSelect}
-                      value={selectedMachine ? selectedMachine.id.toString() : undefined}
+                      value={selectedMachine ? selectedMachine.id.toString() : ""}
                     >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select a machine" />
+                      <SelectTrigger className="w-full" id="machine-select">
+                        <SelectValue placeholder="-- Select Machine --" />
                       </SelectTrigger>
                       <SelectContent>
-                        {machines.map(machine => (
-                          <SelectItem key={machine.id} value={machine.id.toString()}>
-                            Machine {machine.machineNo} - {machine.count} Count - {machine.yarnType || 'Cotton'}
-                          </SelectItem>
-                        ))}
+                        {machines && machines.length > 0 ? (
+                          machines.map(machine => (
+                            <SelectItem 
+                              key={machine.id} 
+                              value={machine.id.toString()}
+                            >
+                              Machine {machine.machineNo || '?'} - {machine.count || '?'} Count - {machine.yarnType || 'Cotton'}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="no-machines" disabled>No machines available</SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -772,10 +1010,400 @@ const ASUUnit1Page: React.FC = () => {
           </div>
         </div>
         </>
-        ) : (
+        ) : activeTab === 'summary' ? (
           /* Yarn Production Summary Tab */
           <div className="space-y-6">
             <YarnProductionSummary />
+          </div>
+        ) : (
+          /* Machine Manager Tab */
+          <div className="space-y-6">
+            {/* Information Panel */}
+            <div className="mb-6 overflow-hidden bg-white border border-blue-200 shadow-sm rounded-xl dark:bg-gray-800 dark:border-blue-900">
+              <div className="p-4 border-b border-blue-100 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-800">
+                <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-300">Machine Management</h3>
+              </div>
+              <div className="p-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                    <h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300">Machine Management</h4>
+                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                      Create, edit, and manage machines for ASU Unit 1.
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                    <h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300">Machine Status</h4>
+                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                      Active machines are available for production entries. Inactive machines are hidden from the production form.
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                    <h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300">Machine Properties</h4>
+                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                      Configure machine name, number, and status. These properties are used throughout the system.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Controls */}
+            <div className="flex justify-between mb-6">
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={getAllMachines}
+                  className="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700"
+                  disabled={loading}
+                >
+                  Refresh Machines
+                </Button>
+              </div>
+              <div>
+                <Button
+                  onClick={() => {
+                    setEditingMachine(initialMachine);
+                    setIsModalOpen(true);
+                    setModalMode('add');
+                  }}
+                  className="px-4 py-2 text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Machine
+                </Button>
+              </div>
+            </div>
+
+            {/* Machines Table */}
+            <div className="overflow-hidden bg-white border border-gray-200 shadow-sm rounded-xl dark:bg-gray-800 dark:border-gray-700">
+              <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 dark:border-gray-700">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">ASU Unit 1 Machines</h2>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  Manage all machines for ASU Unit 1. Click on a machine to view or edit its details.
+                </p>
+              </div>
+
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
+                    <div className="w-8 h-8 border-b-2 border-blue-500 rounded-full animate-spin"></div>
+                    <span className="text-lg">Loading machines...</span>
+                  </div>
+                </div>
+              ) : machines.length === 0 ? (
+                <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
+                  <div className="p-3 mb-4 rounded-full bg-blue-50 dark:bg-blue-900/30">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 text-blue-500 dark:text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <p className="text-lg font-medium text-gray-700 dark:text-gray-300">
+                    No machines found
+                  </p>
+                  <p className="max-w-md mt-2 text-gray-500 dark:text-gray-400">
+                    There are no ASU machines in the database. Please add machines first.
+                  </p>
+                </div>
+              ) : (
+                <div className="p-6">
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader className="bg-gray-50 dark:bg-gray-800">
+                        <TableRow className="border-b dark:border-gray-700">
+                          <TableHead className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase dark:text-gray-400">Machine Name</TableHead>
+                          <TableHead className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase dark:text-gray-400">Machine Number</TableHead>
+                          <TableHead className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase dark:text-gray-400">Status</TableHead>
+                          <TableHead className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase dark:text-gray-400">Yarn Type</TableHead>
+                          <TableHead className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase dark:text-gray-400">Count</TableHead>
+                          <TableHead className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase dark:text-gray-400">Spindles</TableHead>
+                          <TableHead className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase dark:text-gray-400">Speed</TableHead>
+                          <TableHead className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase dark:text-gray-400">Production @ 100%</TableHead>
+                          <TableHead className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase dark:text-gray-400">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody className="divide-y divide-gray-200 dark:divide-gray-700">
+                        {Array.isArray(machines) && machines.length > 0 ? (
+                          machines.map((machine) => (
+                            <TableRow key={machine.id} className="transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                              <TableCell className="px-6 py-4 whitespace-nowrap">
+                                <span className="font-medium text-gray-900 dark:text-gray-100">
+                                  {machine.machine_name || machine.machineNo || 'Unnamed'}
+                                </span>
+                              </TableCell>
+                              <TableCell className="px-6 py-4 whitespace-nowrap">
+                                <span className="text-gray-700 dark:text-gray-300">
+                                  {machine.machine_number || machine.machineNo || 'Not set'}
+                                </span>
+                              </TableCell>
+                              <TableCell className="px-6 py-4 whitespace-nowrap">
+                                <Badge className={(machine.status === 'active' || machine.isActive) ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
+                                  {(machine.status === 'active' || machine.isActive) ? 'Active' : 'Inactive'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="px-6 py-4 whitespace-nowrap">
+                                <span className="text-gray-700 dark:text-gray-300">{machine.yarnType || 'Not set'}</span>
+                              </TableCell>
+                              <TableCell className="px-6 py-4 whitespace-nowrap">
+                                <span className="text-gray-700 dark:text-gray-300">{machine.count || 'Not set'}</span>
+                              </TableCell>
+                              <TableCell className="px-6 py-4 whitespace-nowrap">
+                                <span className="text-gray-700 dark:text-gray-300">{machine.spindles || 'Not set'}</span>
+                              </TableCell>
+                              <TableCell className="px-6 py-4 whitespace-nowrap">
+                                <span className="text-gray-700 dark:text-gray-300">{machine.speed || 'Not set'}</span>
+                              </TableCell>
+                              <TableCell className="px-6 py-4 whitespace-nowrap">
+                                <span className="text-gray-700 dark:text-gray-300">{machine.productionAt100 || 'Not set'}</span>
+                              </TableCell>
+                              <TableCell className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex items-center space-x-2">
+                                  <Button
+                                    onClick={() => handleEditMachine(machine)}
+                                    className="px-2 py-1 text-xs text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800"
+                                  >
+                                    <Edit className="w-3 h-3 mr-1" />
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    onClick={() => handleDeleteMachine(machine.id)}
+                                    className="px-2 py-1 text-xs text-white bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800"
+                                  >
+                                    <Trash2 className="w-3 h-3 mr-1" />
+                                    Delete
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={6} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                              No machines found. Click "Add Machine" to create a new machine.
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Machine Edit/Add Modal */}
+            {isModalOpen && (
+              <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50">
+                <div className="flex items-center justify-center min-h-screen p-4">
+                  <div className="w-full max-w-2xl p-6 bg-white rounded-lg shadow-xl dark:bg-gray-800">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                        {modalMode === 'add' ? 'Add New Machine' : 'Edit Machine'}
+                      </h3>
+                      <button
+                        onClick={() => setIsModalOpen(false)}
+                        className="p-1.5 text-gray-500 rounded-md hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                    
+                    <div className="overflow-y-auto max-h-[90vh] px-1 py-2">
+                      <div className="space-y-5">
+                      {/* Machine Information Section */}
+                      <div className="p-4 border border-gray-100 rounded-md bg-gray-50 dark:bg-gray-800 dark:border-gray-700">
+                        <h4 className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Basic Machine Information</h4>
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          <div>
+                            <label className="block mb-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
+                              Machine Name
+                            </label>
+                            <Input
+                              type="text"
+                              value={editingMachine?.machine_name || ''}
+                              onChange={(e) => setEditingMachine({
+                                ...editingMachine!,
+                                machine_name: e.target.value
+                              })}
+                              className="w-full text-gray-900 bg-white border-gray-300 dark:text-gray-100 dark:bg-gray-700 dark:border-gray-600 placeholder:text-gray-400 dark:placeholder:text-gray-400"
+                              placeholder="e.g. Main Production Unit"
+                            />
+                          </div>
+                          
+                          <div>
+                            <label className="block mb-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
+                              Machine Number
+                            </label>
+                            <Input
+                              type="text"
+                              value={editingMachine?.machine_number || ''}
+                              onChange={(e) => setEditingMachine({
+                                ...editingMachine!,
+                                machine_number: e.target.value
+                              })}
+                              className="w-full text-gray-900 bg-white border-gray-300 dark:text-gray-100 dark:bg-gray-700 dark:border-gray-600 placeholder:text-gray-400 dark:placeholder:text-gray-400"
+                              placeholder="e.g. ASU-001"
+                            />
+                          </div>
+                          
+                          <div>
+                            <label className="block mb-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
+                              Status
+                            </label>
+                            <select
+                              value={editingMachine?.status || 'active'}
+                              onChange={(e) => setEditingMachine({
+                                ...editingMachine!,
+                                status: e.target.value as 'active' | 'inactive'
+                              })}
+                              className="w-full p-2 text-gray-900 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-gray-100 dark:bg-gray-700 dark:border-gray-600"
+                            >
+                              <option value="active">Active</option>
+                              <option value="inactive">Inactive</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Production Parameters Section */}
+                      <div className="p-4 border border-gray-100 rounded-md bg-gray-50 dark:bg-gray-800 dark:border-gray-700">
+                        <h4 className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Production Parameters</h4>
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          <div>
+                            <label className="block mb-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
+                              Yarn Type
+                            </label>
+                            <Input
+                              type="text"
+                              value={editingMachine?.yarnType || ''}
+                              onChange={(e) => setEditingMachine({
+                                ...editingMachine!,
+                                yarnType: e.target.value
+                              })}
+                              className="w-full text-gray-900 bg-white border-gray-300 dark:text-gray-100 dark:bg-gray-700 dark:border-gray-600 placeholder:text-gray-400 dark:placeholder:text-gray-400"
+                              placeholder="e.g. Cotton"
+                            />
+                          </div>
+                          
+                          <div>
+                            <label className="block mb-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
+                              Count
+                            </label>
+                            <Input
+                              type="number"
+                              value={editingMachine?.count || 0}
+                              onChange={(e) => setEditingMachine({
+                                ...editingMachine!,
+                                count: Number(e.target.value)
+                              })}
+                              className="w-full text-gray-900 bg-white border-gray-300 dark:text-gray-100 dark:bg-gray-700 dark:border-gray-600 placeholder:text-gray-400 dark:placeholder:text-gray-400"
+                              placeholder="e.g. 30"
+                            />
+                          </div>
+                          
+                          <div>
+                            <label className="block mb-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
+                              Spindles
+                            </label>
+                            <Input
+                              type="number"
+                              value={editingMachine?.spindles || 0}
+                              onChange={(e) => setEditingMachine({
+                                ...editingMachine!,
+                                spindles: Number(e.target.value)
+                              })}
+                              className="w-full text-gray-900 bg-white border-gray-300 dark:text-gray-100 dark:bg-gray-700 dark:border-gray-600 placeholder:text-gray-400 dark:placeholder:text-gray-400"
+                              placeholder="e.g. 1000"
+                            />
+                          </div>
+                          
+                          <div>
+                            <label className="block mb-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
+                              Speed (RPM)
+                            </label>
+                            <Input
+                              type="number"
+                              value={editingMachine?.speed || 0}
+                              onChange={(e) => setEditingMachine({
+                                ...editingMachine!,
+                                speed: Number(e.target.value)
+                              })}
+                              className="w-full text-gray-900 bg-white border-gray-300 dark:text-gray-100 dark:bg-gray-700 dark:border-gray-600 placeholder:text-gray-400 dark:placeholder:text-gray-400"
+                              placeholder="e.g. 18000"
+                            />
+                          </div>
+                          
+                          <div className="sm:col-span-2">
+                            <label className="block mb-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
+                              Production @ 100%
+                            </label>
+                            <div className="flex items-center">
+                              <Input
+                                type="number"
+                                value={editingMachine?.productionAt100 || 0}
+                                onChange={(e) => setEditingMachine({
+                                  ...editingMachine!,
+                                  productionAt100: Number(e.target.value)
+                                })}
+                                className="w-full text-gray-900 bg-white border-gray-300 dark:text-gray-100 dark:bg-gray-700 dark:border-gray-600 placeholder:text-gray-400 dark:placeholder:text-gray-400"
+                                placeholder="e.g. 450"
+                              />
+                              <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">kg/day</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex justify-end px-6 py-4 mt-2 space-x-3 border-t border-gray-200 dark:border-gray-700">
+                        <Button
+                          onClick={() => setIsModalOpen(false)}
+                          className="px-4 py-2 text-gray-700 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={modalMode === 'add' ? handleAddMachine : handleUpdateMachine}
+                          className="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700"
+                        >
+                          {modalMode === 'add' ? 'Add Machine' : 'Update Machine'}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Confirmation Dialog */}
+            {showConfirmDialog && (
+              <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50">
+                <div className="flex items-center justify-center min-h-screen">
+                  <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-xl dark:bg-gray-800">
+                    <div className="mb-4">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                        Confirm Delete
+                      </h3>
+                      <p className="mt-2 text-gray-600 dark:text-gray-400">
+                        Are you sure you want to delete this machine? This action cannot be undone.
+                      </p>
+                    </div>
+                    
+                    <div className="flex justify-end space-x-3">
+                      <Button
+                        onClick={() => setShowConfirmDialog(false)}
+                        className="px-4 py-2 text-gray-700 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={confirmDeleteMachine}
+                        className="px-4 py-2 text-white bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700"
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

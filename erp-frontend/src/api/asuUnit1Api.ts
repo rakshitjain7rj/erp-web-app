@@ -44,12 +44,15 @@ api.interceptors.response.use(
 
 export interface ASUMachine {
   id: number;
-  machineNo: number;
-  count: number;
-  yarnType: string;
-  spindles: number;
-  speed: number;
-  productionAt100: number;
+  machineNo?: string | number;
+  count?: number;
+  yarnType?: string;
+  spindles?: number;
+  machine_name?: string;
+  machine_number?: string;
+  status?: 'active' | 'inactive';
+  speed?: number;
+  productionAt100?: number;
   unit: number; // Always 1 (Unit 2 functionality removed)
   isActive: boolean;
   createdAt: string;
@@ -98,11 +101,6 @@ export interface ProductionStats {
   activeMachines: number;
   todayEntries: number;
   averageEfficiency: number;
-  totalProduction: number;
-  topPerformingMachine: {
-    machineNo: number;
-    percentage: number;
-  };
 }
 
 export interface ProductionEntriesFilter {
@@ -113,10 +111,31 @@ export interface ProductionEntriesFilter {
   limit?: number;
 }
 
-export interface UpdateASUMachineData {
+export interface CreateASUMachineData {
+  machine_name: string;
+  machine_number: string;
+  status: 'active' | 'inactive';
   yarnType?: string;
   count?: number;
+  spindles?: number;
+  speed?: number;
   productionAt100?: number;
+}
+
+export interface UpdateASUMachineData {
+  // Original fields
+  machine_name?: string;
+  machine_number?: string;
+  status?: 'active' | 'inactive';
+  
+  // Backend expected fields
+  machineNo?: number;
+  isActive?: boolean;
+  yarnType?: string;
+  count?: number;
+  spindles?: number;
+  speed?: number | string;
+  productionAt100?: number | string;
 }
 
 // API Functions
@@ -133,19 +152,36 @@ export const asuUnit1Api = {
     return response.data.success ? response.data.data : response.data;
   },
   
-  // Update an existing machine
-  updateMachine: async (id: number, data: Partial<ASUMachine>): Promise<ASUMachine> => {
+  // Update an existing machine (deprecated - use updateMachineYarnTypeAndCount instead)
+  // This function uses the wrong endpoint (/machines/${id}) and should not be used
+  // Left for backwards compatibility
+  updateMachineOld: async (id: number, data: Partial<ASUMachine>): Promise<ASUMachine> => {
     const response = await api.put(`/machines/${id}`, data);
     return response.data.success ? response.data.data : response.data;
   },
 
   // New API endpoint for getting all machines (including inactive)
   getAllMachines: async (): Promise<ASUMachine[]> => {
-    const response = await api.get('/asu-machines');
-    return response.data.success ? response.data.data : response.data;
+    try {
+      const response = await api.get('/asu-machines');
+      console.log('API response for getAllMachines:', response.data);
+      
+      // Properly handle various response formats
+      if (response.data.success && Array.isArray(response.data.data)) {
+        return response.data.data;
+      } else if (Array.isArray(response.data)) {
+        return response.data;
+      } else {
+        console.warn('Unexpected response format from /asu-machines:', response.data);
+        return [];
+      }
+    } catch (error) {
+      console.error('Error fetching machines from /asu-machines:', error);
+      throw error;
+    }
   },
   
-  // New API endpoint for updating machine yarn type and count
+  // Update machine yarn type and count only using /asu-machines/:id endpoint
   updateMachineYarnTypeAndCount: async (id: number, data: UpdateASUMachineData): Promise<ASUMachine> => {
     const response = await api.put(`/asu-machines/${id}`, data);
     return response.data.success ? response.data.data : response.data;
@@ -514,5 +550,49 @@ export const asuUnit1Api = {
   getProductionStats: async (): Promise<ProductionStats> => {
     const response = await api.get('/stats');
     return response.data.success ? response.data.data : response.data;
+  },
+
+  // Machine management functions
+  addMachine: async (data: CreateASUMachineData): Promise<ASUMachine> => {
+    // Transform frontend format to backend format
+    const apiData = {
+      machineNo: data.machine_number ? Number(data.machine_number) : undefined,
+      count: data.count,
+      yarnType: data.yarnType || 'Cotton',
+      spindles: data.spindles,
+      speed: data.speed,
+      productionAt100: data.productionAt100,
+      isActive: data.status === 'active'
+    };
+    
+    console.log('Sending machine creation request with data:', apiData);
+    const response = await api.post('/asu-machines', apiData);
+    return response.data.success ? response.data.data : response.data;
+  },
+  
+  // Update machine with all fields using /machines/:id endpoint
+  // This is the correct function to use for updating all machine fields
+  updateMachine: async (id: number, data: UpdateASUMachineData): Promise<ASUMachine> => {
+    // Clean up the data to match what the API expects
+    const apiData = {
+      ...(data.machineNo !== undefined && { machineNo: data.machineNo }),
+      ...(data.machine_name !== undefined && { machine_name: data.machine_name }),
+      ...(data.machine_number !== undefined && { machine_number: data.machine_number }),
+      ...(data.isActive !== undefined && { isActive: data.isActive }),
+      ...(data.yarnType !== undefined && { yarnType: data.yarnType }),
+      ...(data.count !== undefined && { count: data.count }),
+      ...(data.spindles !== undefined && { spindles: data.spindles }),
+      ...(data.speed !== undefined && { speed: data.speed }),
+      ...(data.productionAt100 !== undefined && { productionAt100: data.productionAt100 })
+    };
+    
+    console.log(`Sending update to /machines/${id} with data:`, apiData);
+    const response = await api.put(`/machines/${id}`, apiData);
+    console.log('Update response:', response.data);
+    return response.data.success ? response.data.data : response.data;
+  },
+  
+  deleteMachine: async (id: number): Promise<void> => {
+    await api.delete(`/asu-machines/${id}`);
   },
 };

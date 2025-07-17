@@ -484,14 +484,18 @@ const createMachine = async (req, res) => {
 const updateMachine = async (req, res) => {
   try {
     const { id } = req.params;
+    // Extract fields with support for both frontend and backend naming conventions
     const { 
       machineNo, 
+      machine_number, // Frontend might send machine_number instead of machineNo
+      machine_name, // Additional frontend field
       count, 
       yarnType,
       spindles, 
       speed, 
       productionAt100,
-      isActive
+      isActive,
+      status // Frontend might send status instead of isActive
     } = req.body;
 
     const machine = await ASUMachine.findByPk(id);
@@ -503,15 +507,24 @@ const updateMachine = async (req, res) => {
       });
     }
 
-    await machine.update({
-      machineNo: machineNo || machine.machineNo,
+    // Prepare update data, handling both frontend and backend field names
+    const updateData = {
+      machineNo: machineNo !== undefined ? machineNo : 
+                 machine_number !== undefined ? Number(machine_number) : 
+                 machine.machineNo,
       count: count !== undefined ? count : machine.count,
       yarnType: yarnType || machine.yarnType,
       spindles: spindles !== undefined ? spindles : machine.spindles,
       speed: speed !== undefined ? speed : machine.speed,
       productionAt100: productionAt100 !== undefined ? productionAt100 : machine.productionAt100,
-      isActive: isActive !== undefined ? isActive : machine.isActive
-    });
+      isActive: isActive !== undefined ? isActive : 
+                status !== undefined ? status === 'active' : 
+                machine.isActive
+    };
+    
+    // We don't store machine_name in the database, as it's a frontend display convention
+    
+    await machine.update(updateData);
 
     res.json({
       success: true,
