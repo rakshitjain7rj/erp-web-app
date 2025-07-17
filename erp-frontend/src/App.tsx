@@ -23,6 +23,7 @@ import Users from "./pages/Users";
 import Settings from "./pages/Settings";
 import DyeingSummary from "./pages/DyeingSummary";
 import PartyMaster from "./pages/PartyMaster";
+import ArchivedParties from "./pages/ArchivedParties";
 import ASUUnit1Page from "./pages/ASUUnit1Page";
 import ASUMachineManagerPage from "./pages/ASUMachineManagerPage";
 import ASUAuthTest from "./components/ASUAuthTest";
@@ -86,6 +87,7 @@ const App = () => {
             <Route path="/unauthorized" element={<Unauthorized />} />
             <Route path="/products" element={<Product />} />
             <Route path="/party-test" element={<PartyMaster />} />
+            <Route path="/archived-parties" element={<ArchivedParties />} />
             <Route path="/simple-test" element={<SimplePartyTest />} />
             <Route path="/raw-test" element={<RawDataTest />} />
             <Route path="/api-test" element={<ApiTest />} />
@@ -216,6 +218,7 @@ const App = () => {
                 />
                 <Route path="/products" element={<Product />} />
                 <Route path="/party-test" element={<PartyMaster />} />
+                <Route path="/archived-parties" element={<ArchivedParties />} />
                 <Route path="/simple-test" element={<SimplePartyTest />} />
                 <Route path="/raw-test" element={<RawDataTest />} />
                 <Route path="/api-test" element={<ApiTest />} />

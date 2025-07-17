@@ -5,8 +5,14 @@ const { sequelize } = require('../config/postgres');
 
 // ✅ Get all parties summary (main party dashboard data)
 const getAllPartiesSummary = asyncHandler(async (req, res) => {
-  const { startDate, endDate } = req.query;
+  const { startDate, endDate, includeArchived } = req.query;
   let whereClause = 'WHERE "partyName" IS NOT NULL AND "partyName" != \'\'';
+  
+  // Filter out archived parties unless explicitly requested
+  if (!includeArchived || includeArchived === 'false') {
+    whereClause += ' AND "partyName" NOT IN (SELECT "name" FROM "Parties" WHERE "isArchived" = true)';
+  }
+  
   if (startDate && endDate) {
     whereClause += ` AND "sentDate" BETWEEN '${startDate}' AND '${endDate}'`;
   } else if (startDate) {
@@ -35,6 +41,63 @@ const getAllPartiesSummary = asyncHandler(async (req, res) => {
   `);
 
   res.status(200).json(results);
+});
+
+// ✅ Get archived parties summary
+const getArchivedPartiesSummary = asyncHandler(async (req, res) => {
+  try {
+    // Get all archived parties from the Parties table
+    const archivedParties = await Party.findAll({
+      where: { isArchived: true },
+      order: [['archivedAt', 'DESC']]
+    });
+
+    // For each archived party, get their historical data from DyeingRecords
+    const archivedSummary = await Promise.all(
+      archivedParties.map(async (party) => {
+        const [results] = await sequelize.query(`
+          SELECT
+            INITCAP(TRIM("partyName")) AS "partyName",
+            COUNT(*) AS "totalOrders",
+            SUM("quantity") AS "totalYarn",
+            SUM(CASE 
+              WHEN "arrivalDate" IS NULL AND "isReprocessing" = false THEN "quantity"
+              ELSE 0 
+            END) AS "pendingYarn",
+            SUM(CASE WHEN "isReprocessing" = true THEN "quantity" ELSE 0 END) AS "reprocessingYarn",
+            SUM(CASE WHEN "arrivalDate" IS NOT NULL AND "isReprocessing" = false THEN "quantity" ELSE 0 END) AS "arrivedYarn",
+            MAX("sentDate") AS "lastOrderDate",
+            MIN("sentDate") AS "firstOrderDate"
+          FROM "DyeingRecords"
+          WHERE "partyName" ILIKE '%${party.name}%'
+          GROUP BY INITCAP(TRIM("partyName"))
+        `);
+
+        return results[0] || {
+          partyName: party.name,
+          totalOrders: 0,
+          totalYarn: 0,
+          pendingYarn: 0,
+          reprocessingYarn: 0,
+          arrivedYarn: 0,
+          lastOrderDate: null,
+          firstOrderDate: null,
+          archivedAt: party.archivedAt
+        };
+      })
+    );
+
+    // Filter out any null results and sort by archived date
+    const validArchivedSummary = archivedSummary
+      .filter(summary => summary)
+      .sort((a, b) => new Date(b.archivedAt || 0) - new Date(a.archivedAt || 0));
+
+    res.status(200).json(validArchivedSummary);
+  } catch (error) {
+    console.error('Error fetching archived parties:', error);
+    res.status(500);
+    throw new Error("Failed to fetch archived parties");
+  }
 });
 
 // ✅ Get individual party details
@@ -211,8 +274,79 @@ const deleteParty = asyncHandler(async (req, res) => {
   });
 });
 
-// 🆕 Archive a party (mark as archived instead of deleting)
+// 🆕 Archive a party (mark as archived instead of deleting) - PROFESSIONAL IMPLEMENTATION
 const archiveParty = asyncHandler(async (req, res) => {
+  const { partyName } = req.params;
+
+  console.log(`🔄 ARCHIVE REQUEST: "${partyName}"`);
+
+  if (!partyName || partyName.trim() === '') {
+    console.log(`❌ Invalid party name: "${partyName}"`);
+    res.status(400);
+    throw new Error("Party name is required");
+  }
+
+  try {
+    const cleanPartyName = partyName.trim();
+    console.log(`🔍 Looking for party: "${cleanPartyName}"`);
+    
+    // Check if party already exists in Parties table
+    let existingParty = await Party.findOne({ 
+      where: { name: cleanPartyName }
+    });
+    
+    if (existingParty) {
+      console.log(`✅ Found existing party: ${existingParty.name}`);
+      
+      if (existingParty.isArchived) {
+        console.log(`⚠️ Party already archived: ${existingParty.name}`);
+        return res.status(400).json({
+          message: "Party is already archived",
+          party: existingParty
+        });
+      }
+      
+      // Archive the existing party
+      const archivedParty = await existingParty.update({
+        isArchived: true,
+        archivedAt: new Date(),
+      });
+      
+      console.log(`✅ Successfully archived existing party: ${archivedParty.name}`);
+      return res.status(200).json({
+        message: "Party archived successfully",
+        party: archivedParty,
+        success: true
+      });
+    } else {
+      console.log(`📝 Party not found in Parties table, creating new entry for: "${cleanPartyName}"`);
+      
+      // Create new party entry and immediately archive it
+      const newArchivedParty = await Party.create({
+        name: cleanPartyName,
+        isArchived: true,
+        archivedAt: new Date(),
+      });
+      
+      console.log(`✅ Successfully created and archived new party: ${newArchivedParty.name}`);
+      return res.status(201).json({
+        message: "Party created and archived successfully",
+        party: newArchivedParty,
+        success: true,
+        note: "Party entry was created and immediately archived"
+      });
+    }
+  } catch (error) {
+    console.error(`❌ Archive operation failed for "${partyName}":`, error);
+    console.error(`❌ Error details:`, error.message);
+    console.error(`❌ Stack trace:`, error.stack);
+    res.status(500);
+    throw new Error(`Failed to archive party: ${error.message}`);
+  }
+});
+
+// 🆕 Restore an archived party
+const restoreParty = asyncHandler(async (req, res) => {
   const { partyName } = req.params;
 
   if (!partyName) {
@@ -220,20 +354,23 @@ const archiveParty = asyncHandler(async (req, res) => {
     throw new Error("Party name is required");
   }
 
-  const existingParty = await Party.findOne({ where: { name: partyName } });
+  // Find the archived party
+  const existingParty = await Party.findOne({ where: { name: partyName, isArchived: true } });
+  
   if (!existingParty) {
     res.status(404);
-    throw new Error("Party not found");
+    throw new Error("Archived party not found");
   }
 
-  const updatedParty = await existingParty.update({
-    isArchived: true,
-    archivedAt: new Date(),
+  // Restore the party by setting isArchived to false
+  const restoredParty = await existingParty.update({
+    isArchived: false,
+    archivedAt: null,
   });
 
   res.status(200).json({
-    message: "Party archived successfully",
-    party: updatedParty,
+    message: "Party restored successfully",
+    party: restoredParty,
   });
 });
 
@@ -298,6 +435,7 @@ const exportPartyAsJSON = asyncHandler(async (req, res) => {
 
 module.exports = {
   getAllPartiesSummary,
+  getArchivedPartiesSummary,
   getPartyDetails,
   getAllPartyNames,
   getPartyStatistics,
@@ -305,5 +443,6 @@ module.exports = {
   updateParty,
   deleteParty,
   archiveParty,
+  restoreParty,
   exportPartyAsJSON,
 };

@@ -50,6 +50,15 @@ const Party = sequelize.define('Party', {
       }
     },
   },
+  isArchived: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false,
+  },
+  archivedAt: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
 }, {
   tableName: 'Parties',
   timestamps: true,

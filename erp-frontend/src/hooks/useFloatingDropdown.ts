@@ -151,7 +151,7 @@ export const useFloatingDropdown = ({
     refs,
     floatingStyles: {
       ...floatingStyles,
-      visibility: isHidden ? 'hidden' : 'visible',
+      visibility: (isHidden ? 'hidden' : 'visible') as 'hidden' | 'visible',
     },
     getReferenceProps,
     getFloatingProps,

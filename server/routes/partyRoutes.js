@@ -5,6 +5,7 @@ const router = express.Router({ mergeParams: true });
 // Controllers
 const {
   getAllPartiesSummary,
+  getArchivedPartiesSummary,
   getPartyDetails,
   getAllPartyNames,
   getPartyStatistics,
@@ -12,16 +13,23 @@ const {
   updateParty,
   deleteParty,
   archiveParty,
+  restoreParty,
   exportPartyAsJSON,
 } = require('../controllers/partyController');
 
 // Debug logging
 console.log('🔧 Party routes loading...');
 console.log('🔧 createParty function:', typeof createParty);
+console.log('🔧 archiveParty function:', typeof archiveParty);
+console.log('🔧 updateParty function:', typeof updateParty);
+console.log('🔧 deleteParty function:', typeof deleteParty);
 
 // ===== 🏢 Party Summary Routes =====
 // Main party dashboard data - supports query params like ?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
 router.get('/summary', getAllPartiesSummary);
+
+// Archived parties summary data
+router.get('/archived/summary', getArchivedPartiesSummary);
 
 // Party statistics for dashboard cards
 router.get('/statistics', getPartyStatistics);
@@ -48,7 +56,19 @@ router.put('/:partyName', updateParty);
 router.delete('/:partyName', deleteParty);
 
 // Archive a specific party
-router.post('/:partyName/archive', archiveParty);
+router.post('/:partyName/archive', (req, res, next) => {
+  console.log('🚀 POST /api/parties/:partyName/archive route hit');
+  console.log('📝 Party name from params:', req.params.partyName);
+  console.log('📝 Full URL:', req.originalUrl);
+  next();
+}, archiveParty);
+
+// Restore a specific party
+router.post('/:partyName/restore', (req, res, next) => {
+  console.log('🚀 POST /api/parties/:partyName/restore route hit');
+  console.log('📝 Party name:', req.params.partyName);
+  next();
+}, restoreParty);
 
 // Export party data as JSON
 router.get('/:partyName/export', exportPartyAsJSON);

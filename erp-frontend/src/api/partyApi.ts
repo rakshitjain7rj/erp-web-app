@@ -33,6 +33,11 @@ export const getAllPartiesSummary = async (startDate?: string, endDate?: string)
   return response.data;
 };
 
+export const getArchivedPartiesSummary = async () => {
+  const response = await partyApi.get('/archived/summary');
+  return response.data;
+};
+
 export const getPartyDetails = async (partyName: string) => {
   const response = await partyApi.get(`/${encodeURIComponent(partyName)}/details`);
   return response.data;
@@ -78,6 +83,11 @@ export const archiveParty = async (partyName: string) => {
   return response.data;
 };
 
+export const restoreParty = async (partyName: string) => {
+  const response = await partyApi.post(`/${encodeURIComponent(partyName)}/restore`);
+  return response.data;
+};
+
 export const downloadPartyAsJSON = async (partyName: string) => {
   const response = await partyApi.get(`/${encodeURIComponent(partyName)}/export`, {
     responseType: 'blob'
@@ -90,6 +100,7 @@ export const getDyeingSummaryByParty = getAllPartiesSummary;
 
 export default {
   getAllPartiesSummary,
+  getArchivedPartiesSummary,
   getPartyDetails,
   getAllPartyNames,
   getPartyStatistics,
@@ -97,6 +108,7 @@ export default {
   updateParty,
   deleteParty,
   archiveParty,
+  restoreParty,
   downloadPartyAsJSON,
   getDyeingSummaryByParty, // backward compatibility
 };

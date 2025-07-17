@@ -510,13 +510,12 @@ const AddPartyForm: React.FC<Props> = ({ onSuccess, onClose, existingParties = [
       {/* Professional Success Confirmation Dialog */}
       <ConfirmationDialog
         isOpen={showSuccessDialog}
-        onClose={() => setShowSuccessDialog(false)}
+        onCancel={() => setShowSuccessDialog(false)}
         onConfirm={handleSuccessConfirm}
         title="Party Created Successfully!"
         message={`${createdPartyName} has been successfully added to the system. The party list will be updated automatically.`}
         confirmText="Continue"
         variant="success"
-        icon={<CheckCircle className="w-6 h-6" />}
       />
     </>
   );
