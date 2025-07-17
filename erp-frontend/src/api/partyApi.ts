@@ -58,6 +58,33 @@ export const createParty = async (partyData: {
   return response.data;
 };
 
+export const updateParty = async (partyName: string, partyData: {
+  name?: string;
+  dyeingFirm?: string;
+  address?: string;
+  contact?: string;
+}) => {
+  const response = await partyApi.put(`/${encodeURIComponent(partyName)}`, partyData);
+  return response.data;
+};
+
+export const deleteParty = async (partyName: string) => {
+  const response = await partyApi.delete(`/${encodeURIComponent(partyName)}`);
+  return response.data;
+};
+
+export const archiveParty = async (partyName: string) => {
+  const response = await partyApi.post(`/${encodeURIComponent(partyName)}/archive`);
+  return response.data;
+};
+
+export const downloadPartyAsJSON = async (partyName: string) => {
+  const response = await partyApi.get(`/${encodeURIComponent(partyName)}/export`, {
+    responseType: 'blob'
+  });
+  return response.data;
+};
+
 // For backward compatibility, create an alias
 export const getDyeingSummaryByParty = getAllPartiesSummary;
 
@@ -67,5 +94,9 @@ export default {
   getAllPartyNames,
   getPartyStatistics,
   createParty,
+  updateParty,
+  deleteParty,
+  archiveParty,
+  downloadPartyAsJSON,
   getDyeingSummaryByParty, // backward compatibility
 };

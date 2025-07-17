@@ -150,10 +150,160 @@ const createParty = asyncHandler(async (req, res) => {
   });
 });
 
+// 🆕 Update an existing party
+const updateParty = asyncHandler(async (req, res) => {
+  const { partyName } = req.params;
+  const {
+    name,
+    address,
+    contact,
+    dyeingFirm,
+  } = req.body;
+
+  if (!partyName) {
+    res.status(400);
+    throw new Error("Party name is required");
+  }
+
+  const existingParty = await Party.findOne({ where: { name: partyName } });
+  if (!existingParty) {
+    res.status(404);
+    throw new Error("Party not found");
+  }
+
+  const updatedParty = await existingParty.update({
+    name: name?.trim() || existingParty.name,
+    address: address?.trim() || existingParty.address,
+    contact: contact?.trim() || existingParty.contact,
+    dyeingFirm: dyeingFirm?.trim() || existingParty.dyeingFirm,
+  });
+
+  res.status(200).json({
+    message: "Party updated successfully",
+    party: updatedParty,
+  });
+});
+
+// 🆕 Delete a party
+const deleteParty = asyncHandler(async (req, res) => {
+  const { partyName } = req.params;
+
+  if (!partyName) {
+    res.status(400);
+    throw new Error("Party name is required");
+  }
+
+  const existingParty = await Party.findOne({ where: { name: partyName } });
+  if (!existingParty) {
+    res.status(404);
+    throw new Error("Party not found");
+  }
+
+  // Delete associated dyeing records first (optional - you might want to handle this differently)
+  await DyeingRecord.destroy({ where: { partyName } });
+  
+  // Delete the party
+  await existingParty.destroy();
+
+  res.status(200).json({
+    message: "Party deleted successfully",
+    partyName,
+  });
+});
+
+// 🆕 Archive a party (mark as archived instead of deleting)
+const archiveParty = asyncHandler(async (req, res) => {
+  const { partyName } = req.params;
+
+  if (!partyName) {
+    res.status(400);
+    throw new Error("Party name is required");
+  }
+
+  const existingParty = await Party.findOne({ where: { name: partyName } });
+  if (!existingParty) {
+    res.status(404);
+    throw new Error("Party not found");
+  }
+
+  const updatedParty = await existingParty.update({
+    isArchived: true,
+    archivedAt: new Date(),
+  });
+
+  res.status(200).json({
+    message: "Party archived successfully",
+    party: updatedParty,
+  });
+});
+
+// 🆕 Export party data as JSON
+const exportPartyAsJSON = asyncHandler(async (req, res) => {
+  const { partyName } = req.params;
+
+  if (!partyName) {
+    res.status(400);
+    throw new Error("Party name is required");
+  }
+
+  // Get party details
+  const party = await Party.findOne({ where: { name: partyName } });
+  if (!party) {
+    res.status(404);
+    throw new Error("Party not found");
+  }
+
+  // Get associated dyeing records
+  const dyeingRecords = await DyeingRecord.findAll({
+    where: sequelize.where(
+      sequelize.fn('LOWER', sequelize.col('partyName')), 
+      'LIKE', 
+      `%${partyName.toLowerCase()}%`
+    ),
+    order: [['sentDate', 'DESC']]
+  });
+
+  const exportData = {
+    party: {
+      name: party.name,
+      address: party.address,
+      contact: party.contact,
+      dyeingFirm: party.dyeingFirm,
+      createdAt: party.createdAt,
+      updatedAt: party.updatedAt,
+    },
+    dyeingRecords: dyeingRecords.map(record => ({
+      id: record.id,
+      partyName: record.partyName,
+      dyeingFirm: record.dyeingFirm,
+      yarnType: record.yarnType,
+      shade: record.shade,
+      count: record.count,
+      lot: record.lot,
+      quantity: record.quantity,
+      sentDate: record.sentDate,
+      expectedArrivalDate: record.expectedArrivalDate,
+      arrivalDate: record.arrivalDate,
+      isReprocessing: record.isReprocessing,
+      remarks: record.remarks,
+    })),
+    exportedAt: new Date().toISOString(),
+    exportedBy: 'ERP System'
+  };
+
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Content-Disposition', `attachment; filename="${partyName}_data.json"`);
+  res.status(200).json(exportData);
+});
+
 module.exports = {
   getAllPartiesSummary,
   getPartyDetails,
   getAllPartyNames,
   getPartyStatistics,
   createParty,
+  updateParty,
+  deleteParty,
+  archiveParty,
+  exportPartyAsJSON,
 };

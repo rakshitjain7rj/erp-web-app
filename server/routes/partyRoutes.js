@@ -9,6 +9,10 @@ const {
   getAllPartyNames,
   getPartyStatistics,
   createParty,
+  updateParty,
+  deleteParty,
+  archiveParty,
+  exportPartyAsJSON,
 } = require('../controllers/partyController');
 
 // Debug logging
@@ -36,6 +40,18 @@ router.post('/', (req, res, next) => {
 // ===== 🏢 Individual Party Routes =====
 // Get detailed information about a specific party
 router.get('/:partyName/details', getPartyDetails);
+
+// Update a specific party
+router.put('/:partyName', updateParty);
+
+// Delete a specific party
+router.delete('/:partyName', deleteParty);
+
+// Archive a specific party
+router.post('/:partyName/archive', archiveParty);
+
+// Export party data as JSON
+router.get('/:partyName/export', exportPartyAsJSON);
 
 console.log('✅ Party routes registered successfully');
 

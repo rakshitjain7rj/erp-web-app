@@ -1,8 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Users, Package, Clock, RotateCcw, CheckCircle, Search, Edit3, Eye, MoreVertical, Plus } from 'lucide-react';
-import { getAllPartiesSummary, getPartyStatistics } from '../api/partyApi';
+import { getAllPartiesSummary, getPartyStatistics, deleteParty, archiveParty, downloadPartyAsJSON } from '../api/partyApi';
 import AddPartyForm from '../components/AddPartyForm';
+import PartyFloatingActionDropdown from '../components/PartyFloatingActionDropdown';
+import PartyDetailsModal from '../components/PartyDetailsModal';
+import EditPartyModal from '../components/EditPartyModal';
+import ConfirmationDialog from '../components/ConfirmationDialog';
 
 type PartySummary = {
   partyName: string;
@@ -78,6 +82,16 @@ const PartyMaster = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newlyAddedParty, setNewlyAddedParty] = useState<string>('');
   const [refreshing, setRefreshing] = useState(false);
+
+  // Modal states
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedParty, setSelectedParty] = useState<PartySummary | null>(null);
+  
+  // Confirmation dialog states
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
+  const [partyToDelete, setPartyToDelete] = useState<string>('');
 
   const [debugInfo, setDebugInfo] = useState<string>('Starting...');useEffect(() => {
     const fetchData = async () => {
@@ -208,6 +222,128 @@ const PartyMaster = () => {
   const getSortIcon = (field: keyof PartySummary) => {
     if (sortField !== field) return '↕️';
     return sortDirection === 'asc' ? '↑' : '↓';
+  };
+
+  // Party action handlers
+  const handleViewDetails = (party: PartySummary) => {
+    setSelectedParty(party);
+    setShowDetailsModal(true);
+  };
+
+  const handleEditParty = (party: PartySummary) => {
+    setSelectedParty(party);
+    setShowEditModal(true);
+  };
+
+  const handleDeleteParty = (partyName: string) => {
+    setPartyToDelete(partyName);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDeleteParty = async () => {
+    try {
+      await deleteParty(partyToDelete);
+      
+      // Remove party from local state immediately for instant UI update
+      setSummary(prev => prev.filter(party => party.partyName !== partyToDelete));
+      setFilteredSummary(prev => prev.filter(party => party.partyName !== partyToDelete));
+      
+      toast.success('Party deleted successfully!', {
+        description: `${partyToDelete} has been removed from the system.`
+      });
+      
+      setShowDeleteConfirm(false);
+      setPartyToDelete('');
+    } catch (error: any) {
+      console.error('Error deleting party:', error);
+      toast.error('Failed to delete party', {
+        description: error.response?.data?.message || 'Please try again later.'
+      });
+    }
+  };
+
+  const handleArchiveParty = (partyName: string) => {
+    setPartyToDelete(partyName); // Reuse the same state
+    setShowArchiveConfirm(true);
+  };
+
+  const confirmArchiveParty = async () => {
+    try {
+      await archiveParty(partyToDelete);
+      
+      // Remove party from local state immediately for instant UI update
+      setSummary(prev => prev.filter(party => party.partyName !== partyToDelete));
+      setFilteredSummary(prev => prev.filter(party => party.partyName !== partyToDelete));
+      
+      toast.success('Party archived successfully!', {
+        description: `${partyToDelete} has been archived.`
+      });
+      
+      setShowArchiveConfirm(false);
+      setPartyToDelete('');
+    } catch (error: any) {
+      console.error('Error archiving party:', error);
+      toast.error('Failed to archive party', {
+        description: error.response?.data?.message || 'Please try again later.'
+      });
+    }
+  };
+
+  const handleDownloadJSON = async (partyName: string) => {
+    try {
+      const blob = await downloadPartyAsJSON(partyName);
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${partyName}_data.json`;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+      
+      toast.success('Party data downloaded!', {
+        description: `${partyName} data has been exported to JSON.`
+      });
+    } catch (error: any) {
+      console.error('Error downloading party data:', error);
+      toast.error('Failed to download party data', {
+        description: error.response?.data?.message || 'Please try again later.'
+      });
+    }
+  };
+
+  const refreshData = async () => {
+    setRefreshing(true);
+    try {
+      const [summaryData, statsData] = await Promise.all([
+        getAllPartiesSummary(),
+        getPartyStatistics()
+      ]);
+      
+      const normalizedData = Array.isArray(summaryData) ? summaryData.map(party => ({
+        partyName: party.partyName || 'Unknown Party',
+        totalOrders: Number(party.totalOrders) || 0,
+        totalYarn: Number(party.totalYarn) || 0,
+        pendingYarn: Number(party.pendingYarn) || 0,
+        reprocessingYarn: Number(party.reprocessingYarn) || 0,
+        arrivedYarn: Number(party.arrivedYarn) || 0,
+        lastOrderDate: party.lastOrderDate,
+        firstOrderDate: party.firstOrderDate,
+      })) : [];
+      
+      setSummary(normalizedData);
+      setFilteredSummary(normalizedData);
+      setStatistics(statsData);
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+      toast.error('Failed to refresh data');
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   if (loading) {
@@ -618,41 +754,13 @@ const PartyMaster = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <button
-                            onClick={() => {
-                              toast.info(`Viewing details for ${party.partyName}`, {
-                                description: "Party details feature coming soon!"
-                              });
-                            }}
-                            className="p-2 text-blue-600 transition-colors duration-200 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30"
-                            title="View Details"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              toast.info(`Editing ${party.partyName}`, {
-                                description: "Party editing feature coming soon!"
-                              });
-                            }}
-                            className="p-2 text-purple-600 transition-colors duration-200 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/30"
-                            title="Edit Party"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              toast.info(`More options for ${party.partyName}`, {
-                                description: "Additional party management features coming soon!"
-                              });
-                            }}
-                            className="p-2 text-gray-600 transition-colors duration-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
-                            title="More Options"
-                          >
-                            <MoreVertical className="w-4 h-4" />
-                          </button>
-                        </div>
+                        <PartyFloatingActionDropdown
+                          onView={() => handleViewDetails(party)}
+                          onEdit={() => handleEditParty(party)}
+                          onDelete={() => handleDeleteParty(party.partyName)}
+                          onArchive={() => handleArchiveParty(party.partyName)}
+                          onDownload={() => handleDownloadJSON(party.partyName)}
+                        />
                       </td>
                     </tr>
                     );
@@ -663,6 +771,66 @@ const PartyMaster = () => {
           </div>
         </div>
       </div>
+
+      {/* Party Details Modal */}
+      {selectedParty && (
+        <PartyDetailsModal
+          isOpen={showDetailsModal}
+          onClose={() => {
+            setShowDetailsModal(false);
+            setSelectedParty(null);
+          }}
+          partyName={selectedParty.partyName}
+          partySummary={selectedParty}
+        />
+      )}
+
+      {/* Edit Party Modal */}
+      {selectedParty && (
+        <EditPartyModal
+          isOpen={showEditModal}
+          onClose={() => {
+            setShowEditModal(false);
+            setSelectedParty(null);
+          }}
+          partyName={selectedParty.partyName}
+          onSuccess={() => {
+            setShowEditModal(false);
+            setSelectedParty(null);
+            refreshData();
+          }}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={showDeleteConfirm}
+        title="Delete Party"
+        message={`Are you sure you want to delete "${partyToDelete}"? This action cannot be undone and will remove all associated data.`}
+        confirmText="Delete Party"
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={confirmDeleteParty}
+        onCancel={() => {
+          setShowDeleteConfirm(false);
+          setPartyToDelete('');
+        }}
+      />
+
+      {/* Archive Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={showArchiveConfirm}
+        title="Archive Party"
+        message={`Are you sure you want to archive "${partyToDelete}"? The party will be moved to archived parties and won't appear in the main list.`}
+        confirmText="Archive Party"
+        cancelText="Cancel"
+        variant="warning"
+        onConfirm={confirmArchiveParty}
+        onCancel={() => {
+          setShowArchiveConfirm(false);
+          setPartyToDelete('');
+        }}
+      />
     </div>
   );
 };
