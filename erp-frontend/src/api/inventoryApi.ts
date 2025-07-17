@@ -1,28 +1,97 @@
 import axios from "axios";
 import { InventoryItem } from "../types/inventory";
 
-const API_BASE = "http://localhost:5000/api/inventory";
+// Use relative URL so Vite proxy can handle it
+const API_BASE = "/api/inventory";
 
-export const getInventory = async () => {
-  const res = await axios.get(API_BASE);
-  return res.data;
+// Create axios instance with better error handling
+const api = axios.create({
+  timeout: 10000, // 10 second timeout
+});
+
+// Add response interceptor for better error handling
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response) {
+      // Server responded with error status
+      console.error('API Error Response:', error.response.data);
+    } else if (error.request) {
+      // Request was made but no response received
+      console.error('API Error Request:', error.request);
+    } else {
+      // Something else happened
+      console.error('API Error:', error.message);
+    }
+    return Promise.reject(error);
+  }
+);
+
+// Test connection to backend
+export const testConnection = async () => {
+  try {
+    const res = await api.get("/api/test");
+    console.log("✅ Backend connection test successful:", res.data);
+    return res.data;
+  } catch (error) {
+    console.error("❌ Backend connection test failed:", error);
+    throw error;
+  }
 };
 
-
-export const createInventoryItem = async (item: Omit<InventoryItem, "id">) => {
-  const res = await axios.post(API_BASE, item);
-  return res.data;
+// Get all inventory items
+export const getInventory = async (): Promise<InventoryItem[]> => {
+  try {
+    console.log("📡 Fetching inventory from:", API_BASE);
+    const res = await api.get(API_BASE);
+    console.log("✅ Inventory data received:", res.data);
+    return res.data;
+  } catch (error: any) {
+    console.error("❌ Failed to fetch inventory:", error);
+    if (error.code === 'ERR_NETWORK') {
+      throw new Error('Unable to connect to server. Please ensure the backend is running on port 5000.');
+    }
+    throw error;
+  }
 };
 
-export const updateInventoryItem = async (id: string, item: Partial<InventoryItem>) => {
-  const res = await axios.put(`${API_BASE}/${id}`, item); // ✅ use backticks here
-  return res.data;
+// Create new inventory item
+export const createInventoryItem = async (item: Omit<InventoryItem, "id" | "createdAt" | "updatedAt">): Promise<InventoryItem> => {
+  try {
+    console.log("📡 Creating inventory item:", item);
+    const res = await api.post(API_BASE, item);
+    console.log("✅ Inventory item created:", res.data);
+    return res.data.data || res.data; // Handle different response formats
+  } catch (error: any) {
+    console.error("❌ Failed to create inventory item:", error);
+    if (error.code === 'ERR_NETWORK') {
+      throw new Error('Unable to connect to server. Please ensure the backend is running on port 5000.');
+    }
+    throw error;
+  }
 };
-export const deleteInventoryItem = async (id: string) => {
-  const response = await fetch(`/api/inventory/${id}`, {
-    method: "DELETE",
-  });
-  if (!response.ok) {
-    throw new Error("Failed to delete inventory item");
+
+// Update inventory item
+export const updateInventoryItem = async (id: string, item: Partial<InventoryItem>): Promise<InventoryItem> => {
+  try {
+    console.log("📡 Updating inventory item:", id, item);
+    const res = await api.put(`${API_BASE}/${id}`, item);
+    console.log("✅ Inventory item updated:", res.data);
+    return res.data.data || res.data;
+  } catch (error: any) {
+    console.error("❌ Failed to update inventory item:", error);
+    throw error;
+  }
+};
+
+// Delete inventory item
+export const deleteInventoryItem = async (id: string): Promise<void> => {
+  try {
+    console.log("📡 Deleting inventory item:", id);
+    await api.delete(`${API_BASE}/${id}`);
+    console.log("✅ Inventory item deleted");
+  } catch (error: any) {
+    console.error("❌ Failed to delete inventory item:", error);
+    throw error;
   }
 };

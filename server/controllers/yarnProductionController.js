@@ -1,138 +1,99 @@
+// server/controllers/yarnProductionController.js
 const { Op, fn, col, literal } = require("sequelize");
 const ASUProductionEntry = require("../models/ASUProductionEntry");
 const ASUMachine = require("../models/ASUMachine");
 
 /**
  * Get yarn production entries grouped by date and yarn type
- * @param {object} req - Express request object
- * @param {object} res - Express response object
  */
 const getYarnProductionEntries = async (req, res) => {
   try {
-    // Extract date range filters from query parameters
     const { dateFrom, dateTo } = req.query;
-    const dateFilter = {};
 
+    const dateFilter = {};
     if (dateFrom || dateTo) {
       dateFilter.date = {};
       if (dateFrom) dateFilter.date[Op.gte] = dateFrom;
       if (dateTo) dateFilter.date[Op.lte] = dateTo;
     }
 
-    // Get production entries with their associated machines
     const entries = await ASUProductionEntry.findAll({
       attributes: [
         "date",
         [fn("SUM", col("actual_production")), "productionKg"],
         [fn("AVG", col("efficiency")), "efficiency"],
-        [
-          fn("COUNT", literal('DISTINCT "ASUProductionEntry"."machine_no"')),
-          "machineCount",
-        ],
+        [fn("COUNT", literal('DISTINCT "ASUProductionEntry"."machine_no"')), "machineCount"]
       ],
       include: [
         {
           model: ASUMachine,
           attributes: ["yarnType"],
           as: "machine",
-          required: true,
-        },
+          required: true
+        }
       ],
       where: dateFilter,
-      group: ["date", "machine.yarn_type"],
+      group: ["date", "machine.yarnType"],
       raw: true,
-      nest: true,
+      nest: true
     });
 
-    // Transform the results into the desired format
     const dateMap = new Map();
 
-    // Process each entry and group by date
     entries.forEach((entry) => {
       const { date, productionKg, efficiency, machineCount } = entry;
-      const yarnType = entry.machine?.yarnType || "cotton";
+      const yarnType = entry.machine?.yarnType?.toLowerCase() || "unknown";
 
       if (!dateMap.has(date)) {
         dateMap.set(date, {
           date,
-          yarnBreakdown: {}, // dynamic object for yarn types
+          yarnBreakdown: {},
           totalProduction: 0,
           machineCount: 0,
-          efficiencies: [],
+          efficiencies: []
         });
       }
 
       const dateData = dateMap.get(date);
-      const production = parseFloat(productionKg) || 0;
+      const prod = parseFloat(productionKg) || 0;
 
-      // Add production by yarn type
-      if (yarnType) {
-        const type = yarnType.toLowerCase(); // normalize type
-        if (!dateData.yarnBreakdown[type]) {
-          dateData.yarnBreakdown[type] = 0;
-        }
-        dateData.yarnBreakdown[type] += production;
-      }
+      dateData.yarnBreakdown[yarnType] = (dateData.yarnBreakdown[yarnType] || 0) + prod;
+      dateData.totalProduction += prod;
+      dateData.machineCount = Math.max(dateData.machineCount, parseInt(machineCount || 0));
 
-      // Update totals
-      dateData.totalProduction += production;
-
-      // Track total machine count
-      if (machineCount) {
-        dateData.machineCount = Math.max(
-          dateData.machineCount,
-          parseInt(machineCount)
-        );
-      }
-
-      // Add efficiency for averaging later
       if (efficiency !== null && efficiency !== undefined) {
         dateData.efficiencies.push(parseFloat(efficiency));
       }
     });
 
-    // Convert the map to the final array format
-    const result = Array.from(dateMap.values()).map((item) => {
-      // Calculate average efficiency
-      const avgEfficiency =
-        item.efficiencies.length > 0
-          ? item.efficiencies.reduce((sum, eff) => sum + eff, 0) /
-            item.efficiencies.length
-          : 0;
+    const result = Array.from(dateMap.values()).map((entry) => {
+      const avgEff = entry.efficiencies.length > 0
+        ? entry.efficiencies.reduce((a, b) => a + b, 0) / entry.efficiencies.length
+        : 0;
 
       return {
-        date: item.date,
-        yarnBreakdown: item.yarnBreakdown,
-        totalProduction: parseFloat(item.totalProduction.toFixed(2)),
-        machines: item.machineCount,
-        avgEfficiency: parseFloat(avgEfficiency.toFixed(1)),
+        date: entry.date,
+        yarnBreakdown: entry.yarnBreakdown,
+        totalProduction: parseFloat(entry.totalProduction.toFixed(2)),
+        machines: entry.machineCount,
+        avgEfficiency: parseFloat(avgEff.toFixed(1))
       };
     });
 
-    // Sort by date in descending order
     result.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    res.json({
-      success: true,
-      data: result,
-    });
+    res.json({ success: true, data: result });
+
   } catch (error) {
-    console.error("Error fetching yarn production entries:", error);
-
-    // Log SQL query error if available
-    if (error.original && error.original.detail) {
-      console.error("SQL Error:", error.original.detail);
-    }
-
-    // Send appropriate error response
+    console.error("Error in getYarnProductionEntries:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to fetch yarn production entries",
-      error: error.message,
+      message: "Failed to fetch yarn production data",
+      error: error.message
     });
   }
 };
 
 module.exports = {
-  getYarnProductionEntries,
+  getYarnProductionEntries
 };

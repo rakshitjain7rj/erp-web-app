@@ -4,11 +4,49 @@ const API = "http://localhost:5000/api/inventory";
 
 export interface InventoryItem {
   id: string;
-  name: string;
+  productName: string;
+  rawMaterial: string;
   category: string;
+  effectiveYarn: number;
+  count: number;
+  unitsProduced: number;
+  initialQuantity: number;
+  currentQuantity?: number;
+  gsm?: number;
+  costPerKg?: number;
+  totalValue?: number;
+  location?: string;
+  warehouseLocation?: string;
+  batchNumber?: string;
+  supplierName?: string;
+  manualQuantity?: boolean;
+  manualValue?: boolean;
+  manualYarn?: boolean;
+  remarks?: string;
+  status: string;
+  createdAt?: string;
+  updatedAt?: string;
+  
+  // Stock tracking fields
+  totalYarnIn?: number;
+  totalYarnOut?: number;
+  totalYarnSpoiled?: number;
+  yarnBalance?: number;
+  lastStockUpdate?: string;
+}
+
+export interface StockLog {
+  id: number;
+  inventoryId: string;
+  type: 'in' | 'out' | 'spoilage';
   quantity: number;
-  unitPrice: number;
-  location: string;
+  date: string;
+  remarks?: string;
+  source?: string;
+  usagePurpose?: string;
+  spoilageReason?: string;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export const getMaterials = async () => {
