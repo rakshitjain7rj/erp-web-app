@@ -17,6 +17,7 @@ const DyeingFollowUp = require('./models/DyeingFollowUp');
 const ASUMachine = require('./models/ASUMachine');
 const ASUProductionEntry = require('./models/ASUProductionEntry');
 const Inventory = require('./models/InventoryPostgres'); // Add PostgreSQL Inventory model
+const Party = require('./models/Party'); // Add Party model
 
 // ------------------- Set Up Associations -------------------
 const models = {
@@ -25,6 +26,7 @@ const models = {
   ASUMachine,
   ASUProductionEntry,
   Inventory, // Add Inventory to models
+  Party, // Add Party to models
 };
 
 Object.keys(models).forEach((modelName) => {
@@ -73,7 +75,14 @@ app.use(helmet());
 // Routes must be before errorHandler
 app.use('/api/auth', authRoutes);
 app.use('/api/dyeing', dyeingRoutes);
+
+// Debug party routes registration
+console.log('🔧 Registering party routes at /api/parties...');
+console.log('🔧 partyRoutes type:', typeof partyRoutes);
+console.log('🔧 partyRoutes object:', Object.keys(partyRoutes));
 app.use('/api/parties', partyRoutes);
+console.log('✅ Party routes registered at /api/parties');
+
 app.use('/api/asu-unit1', asuUnit1Routes);
 app.use('/api/asu-machines', asuMachineRoutes);
 app.use('/api/yarn', yarnProductionRoutes);
@@ -91,8 +100,57 @@ app.get('/api/test', (req, res) => {
     availableRoutes: [
       'GET /api/test',
       'GET /api/inventory',
-      'POST /api/inventory'
+      'POST /api/inventory',
+      'GET /api/parties/summary',
+      'POST /api/parties',
+      'POST /api/parties-direct',
+      'POST /api/test-post'
     ]
+  });
+});
+
+// Debug route to check registered routes
+app.get('/api/debug-routes', (req, res) => {
+  const routes = [];
+  app._router.stack.forEach((middleware) => {
+    if (middleware.route) {
+      routes.push({
+        path: middleware.route.path,
+        methods: Object.keys(middleware.route.methods)
+      });
+    } else if (middleware.name === 'router') {
+      middleware.handle.stack.forEach((handler) => {
+        if (handler.route) {
+          routes.push({
+            path: middleware.regexp.source + handler.route.path,
+            methods: Object.keys(handler.route.methods)
+          });
+        }
+      });
+    }
+  });
+  res.json({ routes });
+});
+
+// Simple test POST route
+app.post('/api/test-post', (req, res) => {
+  console.log('🚀 Test POST route hit');
+  console.log('📝 Request body:', req.body);
+  res.json({ 
+    message: 'POST is working!', 
+    body: req.body,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Direct party POST route for testing
+app.post('/api/parties-direct', (req, res) => {
+  console.log('🚀 Direct party POST route hit');
+  console.log('📝 Request body:', req.body);
+  res.json({ 
+    message: 'Direct party POST is working!', 
+    body: req.body,
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -112,12 +170,15 @@ connectPostgres()
   .then(async () => {
     console.log('✅ PostgreSQL connected');
 
-    // Sync Inventory model with database
+    // Sync models with database
     try {
       await Inventory.sync({ alter: true }); // This will create/update the table
       console.log('✅ Inventory table synced');
+      
+      await Party.sync({ alter: true }); // This will create/update the Parties table
+      console.log('✅ Party table synced');
     } catch (error) {
-      console.warn('⚠️ Inventory table sync warning:', error.message);
+      console.warn('⚠️ Table sync warning:', error.message);
     }
 
     console.log('✅ Database setup complete');
@@ -126,6 +187,7 @@ connectPostgres()
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`📡 API endpoints available at http://localhost:${PORT}/api`);
       console.log(`📦 Inventory API: http://localhost:${PORT}/api/inventory`);
+      console.log(`🏢 Party API: http://localhost:${PORT}/api/parties`);
       console.log(`🔧 CORS enabled for: http://localhost:5173, http://localhost:5174`);
     });
   })

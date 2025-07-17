@@ -76,6 +76,8 @@ const PartyMaster = () => {
   const [sortField, setSortField] = useState<keyof PartySummary>('partyName');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [newlyAddedParty, setNewlyAddedParty] = useState<string>('');
+  const [refreshing, setRefreshing] = useState(false);
 
   const [debugInfo, setDebugInfo] = useState<string>('Starting...');useEffect(() => {
     const fetchData = async () => {
@@ -224,18 +226,65 @@ const PartyMaster = () => {
       <div className="mx-auto max-w-7xl">
         {/* Debug Info */}
           {showAddModal && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-    <AddPartyForm
-      onSuccess={() => {
-        toast.success("Refreshing data...");
-        setShowAddModal(false);
-        // Re-fetch data
-        getAllPartiesSummary().then(setSummary);
-      }}
-      onClose={() => setShowAddModal(false)}
-    />
-  </div>
-)}
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="w-full max-w-lg mx-4 transform transition-all duration-300 ease-out">
+              <AddPartyForm
+                existingParties={summary.map(party => party.partyName)}
+                onSuccess={async (newPartyName?: string) => {
+                  console.log('🔄 Party added successfully, refreshing data...');
+                  setShowAddModal(false);
+                  setRefreshing(true);
+                  
+                  // Set the newly added party for highlighting
+                  if (newPartyName) {
+                    setNewlyAddedParty(newPartyName);
+                    // Clear highlight after 5 seconds
+                    setTimeout(() => setNewlyAddedParty(''), 5000);
+                  }
+                  
+                  // Re-fetch all data
+                  try {
+                    const [summaryData, statsData] = await Promise.all([
+                      getAllPartiesSummary(),
+                      getPartyStatistics()
+                    ]);
+                    
+                    const normalizedData = Array.isArray(summaryData) ? summaryData.map(party => ({
+                      partyName: party.partyName || 'Unknown Party',
+                      totalOrders: Number(party.totalOrders) || 0,
+                      totalYarn: Number(party.totalYarn) || 0,
+                      pendingYarn: Number(party.pendingYarn) || 0,
+                      reprocessingYarn: Number(party.reprocessingYarn) || 0,
+                      arrivedYarn: Number(party.arrivedYarn) || 0,
+                      lastOrderDate: party.lastOrderDate,
+                      firstOrderDate: party.firstOrderDate,
+                    })) : [];
+                    
+                    setSummary(normalizedData);
+                    setFilteredSummary(normalizedData);
+                    setStatistics(statsData);
+                    
+                    console.log('✅ Data refreshed successfully');
+                    
+                    // Show success feedback
+                    toast.success('Party List Updated!', {
+                      description: `${newPartyName || 'New party'} is now visible in the list.`,
+                      duration: 3000,
+                    });
+                  } catch (error) {
+                    console.error('❌ Error refreshing data:', error);
+                    toast.error("Failed to refresh data", {
+                      description: "Please refresh the page manually.",
+                    });
+                  } finally {
+                    setRefreshing(false);
+                  }
+                }}
+                onClose={() => setShowAddModal(false)}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Header Section */}
         <div className="relative mb-8 overflow-hidden bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-700 rounded-2xl">
@@ -504,8 +553,17 @@ const PartyMaster = () => {
                     </tr>
                   )
                 ) : (
-                  filteredSummary.map((party) => (
-                    <tr key={party.partyName} className="transition-colors duration-200 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                  filteredSummary.map((party) => {
+                    const isNewlyAdded = newlyAddedParty === party.partyName;
+                    return (
+                      <tr 
+                        key={party.partyName} 
+                        className={`transition-all duration-500 hover:bg-gray-50 dark:hover:bg-gray-700/50 ${
+                          isNewlyAdded 
+                            ? 'bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 animate-pulse' 
+                            : ''
+                        }`}
+                      >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-3">
                           <div className="flex items-center justify-center w-10 h-10 rounded-full shadow-sm bg-gradient-to-r from-purple-100 to-blue-100 dark:from-purple-900/30 dark:to-blue-900/30">
@@ -597,7 +655,8 @@ const PartyMaster = () => {
                         </div>
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>

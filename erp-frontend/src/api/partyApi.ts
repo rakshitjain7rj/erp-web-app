@@ -48,6 +48,16 @@ export const getPartyStatistics = async () => {
   return response.data;
 };
 
+export const createParty = async (partyData: {
+  name: string;
+  dyeingFirm?: string;
+  address?: string;
+  contact?: string;
+}) => {
+  const response = await partyApi.post('/', partyData);
+  return response.data;
+};
+
 // For backward compatibility, create an alias
 export const getDyeingSummaryByParty = getAllPartiesSummary;
 
@@ -56,5 +66,6 @@ export default {
   getPartyDetails,
   getAllPartyNames,
   getPartyStatistics,
+  createParty,
   getDyeingSummaryByParty, // backward compatibility
 };
