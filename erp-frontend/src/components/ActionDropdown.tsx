@@ -24,37 +24,37 @@ const ActionDropdown: React.FC<Props> = ({
   onReprocessing,
 }) => {
   return (
-    <div className="w-48 rounded-md bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-10">
+    <div className="w-48 rounded-md bg-white dark:bg-gray-800 shadow-xl ring-1 ring-black ring-opacity-10 border border-gray-200 dark:border-gray-600 overflow-hidden">
       <ul className="py-1 text-sm text-gray-700 dark:text-gray-200">
         <li
           onClick={onEdit}
-          className="flex items-center px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+          className="flex items-center px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors duration-150"
         >
-          <FaEdit className="mr-2" /> Edit
+          <FaEdit className="mr-3 text-blue-500" /> Edit
         </li>
         <li
           onClick={onDelete}
-          className="flex items-center px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+          className="flex items-center px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors duration-150"
         >
-          <FaTrash className="mr-2" /> Delete
+          <FaTrash className="mr-3 text-red-500" /> Delete
         </li>
         <li
           onClick={onFollowUp}
-          className="flex items-center px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+          className="flex items-center px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors duration-150"
         >
-          <FaBell className="mr-2" /> Follow Up
+          <FaBell className="mr-3 text-yellow-500" /> Follow Up
         </li>
         <li
           onClick={onMarkArrived}
-          className="flex items-center px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+          className="flex items-center px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors duration-150"
         >
-          <FaCheckCircle className="mr-2" /> Mark Arrived
+          <FaCheckCircle className="mr-3 text-green-500" /> Mark Arrived
         </li>
         <li
           onClick={onReprocessing}
-          className="flex items-center px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+          className="flex items-center px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors duration-150"
         >
-          <FaRecycle className="mr-2" /> Reprocessing
+          <FaRecycle className="mr-3 text-purple-500" /> Reprocessing
         </li>
       </ul>
     </div>
