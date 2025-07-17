@@ -285,7 +285,7 @@ const PartyMaster = () => {
     try {
       console.log('🔄 Archiving party:', partyToDelete);
       
-      // Professional archive implementation with fallback
+      // Professional archive implementation with comprehensive data refresh
       let archiveSuccess = false;
       let archiveError = null;
       
@@ -294,6 +294,11 @@ const PartyMaster = () => {
         const response = await archiveParty(partyToDelete);
         console.log('✅ Backend archive successful:', response);
         archiveSuccess = true;
+        
+        // 🚀 CRITICAL: Refresh all data from backend to ensure accuracy
+        console.log('🔄 Refreshing all party data after successful archive...');
+        await refreshData();
+        
       } catch (error: any) {
         console.warn('⚠️ Backend archive failed, implementing professional fallback:', error.message);
         archiveError = error;
@@ -313,14 +318,14 @@ const PartyMaster = () => {
           localStorage.setItem('archivedParties', JSON.stringify(archivedParties));
           console.log('✅ Party stored in local archive:', archivedParty);
           archiveSuccess = true;
+          
+          // Remove from local state as fallback
+          setSummary(prev => prev.filter(party => party.partyName !== partyToDelete));
+          setFilteredSummary(prev => prev.filter(party => party.partyName !== partyToDelete));
         }
       }
       
       if (archiveSuccess) {
-        // Remove party from local state immediately for instant UI update
-        setSummary(prev => prev.filter(party => party.partyName !== partyToDelete));
-        setFilteredSummary(prev => prev.filter(party => party.partyName !== partyToDelete));
-        
         // Professional success notification
         toast.success('Party archived successfully!', {
           description: `${partyToDelete} has been moved to archived parties and is no longer visible in the main list.`,

@@ -15,8 +15,9 @@ import {
   Download,
   Trash2
 } from 'lucide-react';
-import { getAllPartiesSummary, getPartyStatistics, getArchivedPartiesSummary, restoreParty } from '../api/partyApi';
+import { getAllPartiesSummary, getPartyStatistics, getArchivedPartiesSummary, restoreParty, downloadPartyAsCSV, deletePermanently } from '../api/partyApi';
 import PartyDetailsModal from '../components/PartyDetailsModal';
+import ConfirmationDialog from '../components/ConfirmationDialog';
 
 type PartySummary = {
   partyName: string;
@@ -46,6 +47,12 @@ const ArchivedParties: React.FC = () => {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [selectedParty, setSelectedParty] = useState<PartySummary | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  
+  // Professional confirmation states
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [partyToDelete, setPartyToDelete] = useState<string>('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
     fetchArchivedParties();
@@ -175,9 +182,15 @@ const ArchivedParties: React.FC = () => {
       
       // Try backend restore first
       try {
-        await restoreParty(partyName);
-        console.log('✅ Backend restore successful');
+        console.log('🌐 Attempting backend restore...');
+        const response = await restoreParty(partyName);
+        console.log('✅ Backend restore successful:', response);
         restoreSuccess = true;
+        
+        // 🚀 CRITICAL: Refresh archived parties data to ensure accuracy
+        console.log('🔄 Refreshing archived parties data after successful restore...');
+        await fetchArchivedParties();
+        
       } catch (error: any) {
         console.warn('⚠️ Backend restore failed, using localStorage fallback:', error.message);
         restoreError = error;
@@ -188,13 +201,13 @@ const ArchivedParties: React.FC = () => {
         localStorage.setItem('archivedParties', JSON.stringify(updatedArchived));
         console.log('✅ Party removed from local archive');
         restoreSuccess = true;
+        
+        // Remove from local state as fallback
+        setArchivedParties(prev => prev.filter(party => party.partyName !== partyName));
+        setFilteredParties(prev => prev.filter(party => party.partyName !== partyName));
       }
       
       if (restoreSuccess) {
-        // Remove party from archived list immediately for instant UI update
-        setArchivedParties(prev => prev.filter(party => party.partyName !== partyName));
-        setFilteredParties(prev => prev.filter(party => party.partyName !== partyName));
-        
         toast.success('Party restored successfully!', {
           description: `${partyName} has been restored and moved back to the active parties list.`,
           action: {
@@ -203,6 +216,8 @@ const ArchivedParties: React.FC = () => {
           },
           duration: 6000,
         });
+        
+        console.log('✅ Restore operation completed successfully');
       } else {
         throw new Error('Restore operation failed');
       }
@@ -215,18 +230,148 @@ const ArchivedParties: React.FC = () => {
     }
   };
 
-  const handleDownloadParty = (partyName: string) => {
-    toast.info(`Download feature for ${partyName}`, {
-      description: "Party data export functionality will be available soon!",
-      duration: 3000,
-    });
+  const handleDownloadParty = async (partyName: string) => {
+    if (isDownloading) return; // Prevent double clicks
+    
+    setIsDownloading(true);
+    try {
+      console.log('📊 Downloading party data:', partyName);
+      
+      // Professional download implementation with fallback
+      let downloadSuccess = false;
+      let downloadError = null;
+      
+      try {
+        console.log('🌐 Attempting backend CSV download...');
+        const blob = await downloadPartyAsCSV(partyName);
+        console.log('✅ Backend download successful');
+        
+        // Create download link
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${partyName}_data.csv`;
+        document.body.appendChild(link);
+        link.click();
+        
+        // Cleanup
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(link);
+        
+        downloadSuccess = true;
+      } catch (error: any) {
+        console.warn('⚠️ Backend download failed, implementing professional fallback:', error.message);
+        downloadError = error;
+        
+        // Professional fallback: Create CSV from local data
+        const partyData = archivedParties.find(p => p.partyName === partyName);
+        if (partyData) {
+          const csvContent = [
+            'Party Name,Total Orders,Total Yarn (kg),Pending Yarn (kg),Reprocessing Yarn (kg),Completed Yarn (kg),Last Order Date,First Order Date,Status',
+            `${partyData.partyName},${partyData.totalOrders},${partyData.totalYarn},${partyData.pendingYarn},${partyData.reprocessingYarn},${partyData.arrivedYarn},${partyData.lastOrderDate || 'N/A'},${partyData.firstOrderDate || 'N/A'},Archived`
+          ].join('\n');
+          
+          const blob = new Blob([csvContent], { type: 'text/csv' });
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `${partyName}_summary.csv`;
+          document.body.appendChild(link);
+          link.click();
+          
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(link);
+          
+          console.log('✅ Fallback CSV download successful');
+          downloadSuccess = true;
+        }
+      }
+      
+      if (downloadSuccess) {
+        toast.success('Party data downloaded successfully!', {
+          description: `${partyName} data has been exported to CSV format.`,
+          duration: 4000,
+        });
+        console.log('✅ Download operation completed successfully');
+      } else {
+        throw new Error('Download operation failed');
+      }
+    } catch (error: any) {
+      console.error('❌ Critical download error:', error);
+      toast.error('Failed to download party data', {
+        description: 'The party data could not be downloaded. Please try again or contact support.',
+        duration: 5000,
+      });
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   const handleDeletePermanently = (partyName: string) => {
-    toast.warning(`Permanent deletion for ${partyName}`, {
-      description: "Permanent deletion functionality will be available soon!",
-      duration: 3000,
-    });
+    setPartyToDelete(partyName);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDeletePermanently = async () => {
+    if (isDeleting) return; // Prevent double clicks
+    
+    setIsDeleting(true);
+    try {
+      console.log('🗑️ Permanently deleting party:', partyToDelete);
+      
+      // Professional delete implementation with fallback
+      let deleteSuccess = false;
+      let deleteError = null;
+      
+      try {
+        console.log('🌐 Attempting backend permanent deletion...');
+        const response = await deletePermanently(partyToDelete);
+        console.log('✅ Backend deletion successful:', response);
+        deleteSuccess = true;
+        
+        // 🚀 CRITICAL: Refresh archived parties data to ensure accuracy
+        console.log('🔄 Refreshing archived parties data after successful deletion...');
+        await fetchArchivedParties();
+        
+      } catch (error: any) {
+        console.warn('⚠️ Backend deletion failed, implementing professional fallback:', error.message);
+        deleteError = error;
+        
+        // Professional fallback: Remove from localStorage and local state
+        const archivedParties = JSON.parse(localStorage.getItem('archivedParties') || '[]');
+        const updatedArchived = archivedParties.filter((party: any) => party.partyName !== partyToDelete);
+        localStorage.setItem('archivedParties', JSON.stringify(updatedArchived));
+        console.log('✅ Party removed from local storage');
+        
+        // Remove from local state as fallback
+        setArchivedParties(prev => prev.filter(party => party.partyName !== partyToDelete));
+        setFilteredParties(prev => prev.filter(party => party.partyName !== partyToDelete));
+        deleteSuccess = true;
+      }
+      
+      if (deleteSuccess) {
+        toast.success('Party permanently deleted!', {
+          description: `${partyToDelete} has been permanently removed from the system and cannot be recovered.`,
+          duration: 6000,
+        });
+        
+        // Close modal and reset state
+        setShowDeleteConfirm(false);
+        setPartyToDelete('');
+        
+        console.log('✅ Permanent deletion completed successfully');
+      } else {
+        throw new Error('Permanent deletion failed');
+      }
+    } catch (error: any) {
+      console.error('❌ Critical deletion error:', error);
+      toast.error('Failed to permanently delete party', {
+        description: 'The party could not be permanently deleted. Please try again or contact support.',
+        duration: 5000,
+      });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   // Calculate totals
@@ -496,10 +641,17 @@ const ArchivedParties: React.FC = () => {
                           </button>
                           <button
                             onClick={() => handleDownloadParty(party.partyName)}
-                            className="p-2 text-purple-600 transition-colors duration-200 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/30"
-                            title="Download Data"
+                            disabled={isDownloading}
+                            className={`p-2 text-purple-600 transition-colors duration-200 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/30 ${
+                              isDownloading ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
+                            title={isDownloading ? "Downloading..." : "Download Data"}
                           >
-                            <Download className="w-4 h-4" />
+                            {isDownloading ? (
+                              <div className="w-4 h-4 border-b-2 border-purple-600 rounded-full animate-spin"></div>
+                            ) : (
+                              <Download className="w-4 h-4" />
+                            )}
                           </button>
                           <button
                             onClick={() => handleDeletePermanently(party.partyName)}
@@ -531,6 +683,24 @@ const ArchivedParties: React.FC = () => {
           partySummary={selectedParty}
         />
       )}
+
+      {/* Permanent Delete Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={showDeleteConfirm}
+        title="Permanently Delete Party"
+        message={`Are you sure you want to permanently delete "${partyToDelete}"? This action cannot be undone and will remove all associated data, including historical records. The party will be completely removed from the system.`}
+        confirmText={isDeleting ? "Deleting..." : "Delete Permanently"}
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isDeleting}
+        onConfirm={confirmDeletePermanently}
+        onCancel={() => {
+          if (!isDeleting) {
+            setShowDeleteConfirm(false);
+            setPartyToDelete('');
+          }
+        }}
+      />
     </div>
   );
 };

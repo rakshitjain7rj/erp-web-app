@@ -95,6 +95,18 @@ export const downloadPartyAsJSON = async (partyName: string) => {
   return response.data;
 };
 
+export const downloadPartyAsCSV = async (partyName: string) => {
+  const response = await partyApi.get(`/${encodeURIComponent(partyName)}/export/csv`, {
+    responseType: 'blob'
+  });
+  return response.data;
+};
+
+export const deletePermanently = async (partyName: string) => {
+  const response = await partyApi.delete(`/${encodeURIComponent(partyName)}/permanent`);
+  return response.data;
+};
+
 // For backward compatibility, create an alias
 export const getDyeingSummaryByParty = getAllPartiesSummary;
 
@@ -110,5 +122,7 @@ export default {
   archiveParty,
   restoreParty,
   downloadPartyAsJSON,
+  downloadPartyAsCSV,
+  deletePermanently,
   getDyeingSummaryByParty, // backward compatibility
 };

@@ -3,16 +3,28 @@ const DyeingRecord = require("../models/DyeingRecord");
 const Party = require("../models/Party"); // New model for Party table
 const { sequelize } = require('../config/postgres');
 
-// ✅ Get all parties summary (main party dashboard data)
+// ✅ Get all parties summary (main party dashboard data) - ONLY NON-ARCHIVED PARTIES
 const getAllPartiesSummary = asyncHandler(async (req, res) => {
   const { startDate, endDate, includeArchived } = req.query;
+  
+  console.log('🔍 Fetching parties summary...');
+  console.log('📅 Date filters:', { startDate, endDate, includeArchived });
+  
+  // Base query filters
   let whereClause = 'WHERE "partyName" IS NOT NULL AND "partyName" != \'\'';
   
-  // Filter out archived parties unless explicitly requested
+  // 🚫 CRITICAL: Always exclude archived parties unless explicitly requested
   if (!includeArchived || includeArchived === 'false') {
-    whereClause += ' AND "partyName" NOT IN (SELECT "name" FROM "Parties" WHERE "isArchived" = true)';
+    whereClause += ` AND UPPER(TRIM("partyName")) NOT IN (
+      SELECT UPPER(TRIM("name")) FROM "Parties" 
+      WHERE "isArchived" = true
+    )`;
+    console.log('🚫 Excluding archived parties from results (case-insensitive)');
+  } else {
+    console.log('⚠️ Including archived parties (includeArchived=true)');
   }
   
+  // Date range filters
   if (startDate && endDate) {
     whereClause += ` AND "sentDate" BETWEEN '${startDate}' AND '${endDate}'`;
   } else if (startDate) {
@@ -20,6 +32,9 @@ const getAllPartiesSummary = asyncHandler(async (req, res) => {
   } else if (endDate) {
     whereClause += ` AND "sentDate" <= '${endDate}'`;
   }
+  
+  console.log('🔍 Final WHERE clause:', whereClause);
+  
   const [results] = await sequelize.query(`
     SELECT
       INITCAP(TRIM("partyName")) AS "partyName",
@@ -40,6 +55,18 @@ const getAllPartiesSummary = asyncHandler(async (req, res) => {
     ORDER BY "pendingOrders" DESC, "totalOrders" DESC;
   `);
 
+  console.log(`✅ Found ${results.length} non-archived parties`);
+  
+  // Additional debug: List the party names being returned
+  const partyNames = results.map(r => r.partyName);
+  console.log('📋 Parties being returned:', partyNames);
+  
+  // Also check which parties are archived in the database
+  const [archivedParties] = await sequelize.query(`
+    SELECT "name" FROM "Parties" WHERE "isArchived" = true;
+  `);
+  console.log('🗂️ Currently archived parties in DB:', archivedParties.map(p => p.name));
+  
   res.status(200).json(results);
 });
 
@@ -279,6 +306,12 @@ const archiveParty = asyncHandler(async (req, res) => {
   const { partyName } = req.params;
 
   console.log(`🔄 ARCHIVE REQUEST: "${partyName}"`);
+  console.log('📋 Request details:', {
+    partyName,
+    originalUrl: req.originalUrl,
+    method: req.method,
+    timestamp: new Date().toISOString()
+  });
 
   if (!partyName || partyName.trim() === '') {
     console.log(`❌ Invalid party name: "${partyName}"`);
@@ -296,13 +329,14 @@ const archiveParty = asyncHandler(async (req, res) => {
     });
     
     if (existingParty) {
-      console.log(`✅ Found existing party: ${existingParty.name}`);
+      console.log(`✅ Found existing party: ${existingParty.name} (isArchived: ${existingParty.isArchived})`);
       
       if (existingParty.isArchived) {
         console.log(`⚠️ Party already archived: ${existingParty.name}`);
         return res.status(400).json({
           message: "Party is already archived",
-          party: existingParty
+          party: existingParty,
+          success: false
         });
       }
       
@@ -313,6 +347,13 @@ const archiveParty = asyncHandler(async (req, res) => {
       });
       
       console.log(`✅ Successfully archived existing party: ${archivedParty.name}`);
+      console.log(`📊 Archive result:`, {
+        id: archivedParty.id,
+        name: archivedParty.name,
+        isArchived: archivedParty.isArchived,
+        archivedAt: archivedParty.archivedAt
+      });
+      
       return res.status(200).json({
         message: "Party archived successfully",
         party: archivedParty,
@@ -329,6 +370,13 @@ const archiveParty = asyncHandler(async (req, res) => {
       });
       
       console.log(`✅ Successfully created and archived new party: ${newArchivedParty.name}`);
+      console.log(`📊 New party details:`, {
+        id: newArchivedParty.id,
+        name: newArchivedParty.name,
+        isArchived: newArchivedParty.isArchived,
+        archivedAt: newArchivedParty.archivedAt
+      });
+      
       return res.status(201).json({
         message: "Party created and archived successfully",
         party: newArchivedParty,
@@ -345,33 +393,69 @@ const archiveParty = asyncHandler(async (req, res) => {
   }
 });
 
-// 🆕 Restore an archived party
+// 🆕 Restore an archived party - PROFESSIONAL IMPLEMENTATION
 const restoreParty = asyncHandler(async (req, res) => {
   const { partyName } = req.params;
 
-  if (!partyName) {
+  console.log(`🔄 RESTORE REQUEST: "${partyName}"`);
+  console.log('📋 Request details:', {
+    partyName,
+    originalUrl: req.originalUrl,
+    method: req.method,
+    timestamp: new Date().toISOString()
+  });
+
+  if (!partyName || partyName.trim() === '') {
+    console.log(`❌ Invalid party name: "${partyName}"`);
     res.status(400);
     throw new Error("Party name is required");
   }
 
-  // Find the archived party
-  const existingParty = await Party.findOne({ where: { name: partyName, isArchived: true } });
-  
-  if (!existingParty) {
-    res.status(404);
-    throw new Error("Archived party not found");
+  try {
+    const cleanPartyName = partyName.trim();
+    console.log(`🔍 Looking for archived party: "${cleanPartyName}"`);
+
+    // Find the archived party
+    const existingParty = await Party.findOne({ 
+      where: { 
+        name: cleanPartyName, 
+        isArchived: true 
+      } 
+    });
+    
+    if (!existingParty) {
+      console.log(`❌ Archived party not found: "${cleanPartyName}"`);
+      res.status(404);
+      throw new Error("Archived party not found");
+    }
+
+    console.log(`✅ Found archived party: ${existingParty.name} (archived at: ${existingParty.archivedAt})`);
+
+    // Restore the party by setting isArchived to false
+    const restoredParty = await existingParty.update({
+      isArchived: false,
+      archivedAt: null,
+    });
+
+    console.log(`✅ Successfully restored party: ${restoredParty.name}`);
+    console.log(`📊 Restore result:`, {
+      id: restoredParty.id,
+      name: restoredParty.name,
+      isArchived: restoredParty.isArchived,
+      archivedAt: restoredParty.archivedAt
+    });
+
+    res.status(200).json({
+      message: "Party restored successfully",
+      party: restoredParty,
+      success: true
+    });
+  } catch (error) {
+    console.error(`❌ Restore operation failed for "${partyName}":`, error);
+    console.error(`❌ Error details:`, error.message);
+    res.status(500);
+    throw new Error(`Failed to restore party: ${error.message}`);
   }
-
-  // Restore the party by setting isArchived to false
-  const restoredParty = await existingParty.update({
-    isArchived: false,
-    archivedAt: null,
-  });
-
-  res.status(200).json({
-    message: "Party restored successfully",
-    party: restoredParty,
-  });
 });
 
 // 🆕 Export party data as JSON
@@ -433,6 +517,205 @@ const exportPartyAsJSON = asyncHandler(async (req, res) => {
   res.status(200).json(exportData);
 });
 
+// 🆕 Export party data as CSV - PROFESSIONAL IMPLEMENTATION
+const exportPartyAsCSV = asyncHandler(async (req, res) => {
+  const { partyName } = req.params;
+
+  console.log(`📊 CSV EXPORT REQUEST: "${partyName}"`);
+  console.log('📋 Request details:', {
+    partyName,
+    originalUrl: req.originalUrl,
+    method: req.method,
+    timestamp: new Date().toISOString()
+  });
+
+  if (!partyName || partyName.trim() === '') {
+    console.log(`❌ Invalid party name: "${partyName}"`);
+    res.status(400);
+    throw new Error("Party name is required");
+  }
+
+  try {
+    const cleanPartyName = partyName.trim();
+    console.log(`🔍 Looking for party: "${cleanPartyName}"`);
+
+    // Get party details
+    const party = await Party.findOne({ where: { name: cleanPartyName } });
+    if (!party) {
+      console.log(`❌ Party not found: "${cleanPartyName}"`);
+      res.status(404);
+      throw new Error("Party not found");
+    }
+
+    console.log(`✅ Found party: ${party.name}`);
+
+    // Get associated dyeing records
+    const dyeingRecords = await DyeingRecord.findAll({
+      where: sequelize.where(
+        sequelize.fn('UPPER', sequelize.fn('TRIM', sequelize.col('partyName'))), 
+        'LIKE', 
+        `%${cleanPartyName.toUpperCase()}%`
+      ),
+      order: [['sentDate', 'DESC']]
+    });
+
+    console.log(`📊 Found ${dyeingRecords.length} dyeing records for party`);
+
+    // Create CSV content
+    const csvHeaders = [
+      'Party Name',
+      'Dyeing Firm',
+      'Yarn Type',
+      'Shade',
+      'Count',
+      'Lot',
+      'Quantity (kg)',
+      'Sent Date',
+      'Expected Arrival',
+      'Actual Arrival',
+      'Status',
+      'Remarks'
+    ];
+
+    const csvRows = dyeingRecords.map(record => [
+      record.partyName || '',
+      record.dyeingFirm || '',
+      record.yarnType || '',
+      record.shade || '',
+      record.count || '',
+      record.lot || '',
+      record.quantity || 0,
+      record.sentDate ? new Date(record.sentDate).toLocaleDateString() : '',
+      record.expectedArrivalDate ? new Date(record.expectedArrivalDate).toLocaleDateString() : '',
+      record.arrivalDate ? new Date(record.arrivalDate).toLocaleDateString() : '',
+      record.isReprocessing ? 'Reprocessing' : (record.arrivalDate ? 'Completed' : 'Pending'),
+      record.remarks || ''
+    ]);
+
+    // Convert to CSV format
+    const csvContent = [
+      csvHeaders.join(','),
+      ...csvRows.map(row => row.map(field => 
+        typeof field === 'string' && field.includes(',') 
+          ? `"${field.replace(/"/g, '""')}"` 
+          : field
+      ).join(','))
+    ].join('\n');
+
+    console.log(`✅ CSV export successful for party: ${party.name}`);
+    console.log(`📊 Export statistics:`, {
+      totalRecords: dyeingRecords.length,
+      csvSize: csvContent.length,
+      fileName: `${cleanPartyName}_data.csv`
+    });
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${cleanPartyName}_data.csv"`);
+    res.status(200).send(csvContent);
+  } catch (error) {
+    console.error(`❌ CSV export failed for "${partyName}":`, error);
+    console.error(`❌ Error details:`, error.message);
+    res.status(500);
+    throw new Error(`Failed to export party data: ${error.message}`);
+  }
+});
+
+// 🆕 Permanently delete a party - PROFESSIONAL IMPLEMENTATION
+const deletePermanently = asyncHandler(async (req, res) => {
+  const { partyName } = req.params;
+
+  console.log(`🗑️ PERMANENT DELETE REQUEST: "${partyName}"`);
+  console.log('📋 Request details:', {
+    partyName,
+    originalUrl: req.originalUrl,
+    method: req.method,
+    timestamp: new Date().toISOString()
+  });
+
+  if (!partyName || partyName.trim() === '') {
+    console.log(`❌ Invalid party name: "${partyName}"`);
+    res.status(400);
+    throw new Error("Party name is required");
+  }
+
+  try {
+    const cleanPartyName = partyName.trim();
+    console.log(`🔍 Looking for party to delete: "${cleanPartyName}"`);
+
+    // Find the party (archived or not)
+    const existingParty = await Party.findOne({ 
+      where: { name: cleanPartyName } 
+    });
+    
+    if (!existingParty) {
+      console.log(`❌ Party not found: "${cleanPartyName}"`);
+      res.status(404);
+      throw new Error("Party not found");
+    }
+
+    console.log(`✅ Found party: ${existingParty.name} (isArchived: ${existingParty.isArchived})`);
+
+    // Get count of associated dyeing records for logging
+    const dyeingRecordsCount = await DyeingRecord.count({
+      where: sequelize.where(
+        sequelize.fn('UPPER', sequelize.fn('TRIM', sequelize.col('partyName'))), 
+        'LIKE', 
+        `%${cleanPartyName.toUpperCase()}%`
+      )
+    });
+
+    console.log(`📊 Found ${dyeingRecordsCount} associated dyeing records`);
+
+    // Start transaction for safe deletion
+    const transaction = await sequelize.transaction();
+
+    try {
+      // First, delete associated dyeing records
+      if (dyeingRecordsCount > 0) {
+        const deletedRecords = await DyeingRecord.destroy({
+          where: sequelize.where(
+            sequelize.fn('UPPER', sequelize.fn('TRIM', sequelize.col('partyName'))), 
+            'LIKE', 
+            `%${cleanPartyName.toUpperCase()}%`
+          ),
+          transaction
+        });
+        console.log(`🗑️ Deleted ${deletedRecords} dyeing records`);
+      }
+
+      // Then, delete the party itself
+      await existingParty.destroy({ transaction });
+      console.log(`🗑️ Deleted party: ${existingParty.name}`);
+
+      // Commit transaction
+      await transaction.commit();
+
+      console.log(`✅ Permanent deletion successful for party: ${cleanPartyName}`);
+      console.log(`📊 Deletion summary:`, {
+        partyName: cleanPartyName,
+        deletedDyeingRecords: dyeingRecordsCount,
+        deletedAt: new Date().toISOString()
+      });
+
+      res.status(200).json({
+        message: "Party permanently deleted successfully",
+        deletedParty: cleanPartyName,
+        deletedRecords: dyeingRecordsCount,
+        success: true
+      });
+    } catch (transactionError) {
+      // Rollback transaction on error
+      await transaction.rollback();
+      throw transactionError;
+    }
+  } catch (error) {
+    console.error(`❌ Permanent deletion failed for "${partyName}":`, error);
+    console.error(`❌ Error details:`, error.message);
+    res.status(500);
+    throw new Error(`Failed to permanently delete party: ${error.message}`);
+  }
+});
+
 module.exports = {
   getAllPartiesSummary,
   getArchivedPartiesSummary,
@@ -445,4 +728,6 @@ module.exports = {
   archiveParty,
   restoreParty,
   exportPartyAsJSON,
+  exportPartyAsCSV,
+  deletePermanently,
 };

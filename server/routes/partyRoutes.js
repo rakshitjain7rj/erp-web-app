@@ -15,6 +15,8 @@ const {
   archiveParty,
   restoreParty,
   exportPartyAsJSON,
+  exportPartyAsCSV,
+  deletePermanently,
 } = require('../controllers/partyController');
 
 // Debug logging
@@ -23,6 +25,8 @@ console.log('🔧 createParty function:', typeof createParty);
 console.log('🔧 archiveParty function:', typeof archiveParty);
 console.log('🔧 updateParty function:', typeof updateParty);
 console.log('🔧 deleteParty function:', typeof deleteParty);
+console.log('🔧 exportPartyAsCSV function:', typeof exportPartyAsCSV);
+console.log('🔧 deletePermanently function:', typeof deletePermanently);
 
 // ===== 🏢 Party Summary Routes =====
 // Main party dashboard data - supports query params like ?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
@@ -72,6 +76,20 @@ router.post('/:partyName/restore', (req, res, next) => {
 
 // Export party data as JSON
 router.get('/:partyName/export', exportPartyAsJSON);
+
+// Export party data as CSV
+router.get('/:partyName/export/csv', (req, res, next) => {
+  console.log('🚀 GET /api/parties/:partyName/export/csv route hit');
+  console.log('📝 Party name:', req.params.partyName);
+  next();
+}, exportPartyAsCSV);
+
+// Permanently delete a party
+router.delete('/:partyName/permanent', (req, res, next) => {
+  console.log('🚀 DELETE /api/parties/:partyName/permanent route hit');
+  console.log('📝 Party name:', req.params.partyName);
+  next();
+}, deletePermanently);
 
 console.log('✅ Party routes registered successfully');
 
