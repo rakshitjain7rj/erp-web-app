@@ -13,6 +13,7 @@ router.put('/machines/:id', asuUnit1Controller.updateMachine);
 
 // New dedicated API endpoints for machines
 router.get('/asu-machines', asuUnit1Controller.getAllMachines);
+router.post('/asu-machines', asuUnit1Controller.createMachine); // Added POST route for asu-machines
 router.put('/asu-machines/:id', asuUnit1Controller.updateMachineYarnTypeAndCount);
 
 // Production Entry routes
