@@ -528,7 +528,7 @@ const YarnProductionSummary: React.FC = () => {
           </div>
         </div>
 
-        <div className="p-6">
+        <div className="p-6 pb-6">
           {summaryData.length === 0 ? (
             <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
               <div className="p-3 mb-4 rounded-full bg-blue-50 dark:bg-blue-900/30">
@@ -544,13 +544,14 @@ const YarnProductionSummary: React.FC = () => {
             </div>
           ) : (
             <div className="w-full overflow-x-auto">
-              <Table className="w-full min-w-full">
-                <TableHeader className="bg-gray-50 dark:bg-gray-800">
-                  <TableRow className="border-b dark:border-gray-700">
-                    <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400">
-                      Date
-                    </TableHead>
-                    {/* Dynamic yarn type columns */}
+              <div className="max-h-[calc(100vh-280px)] overflow-y-auto relative">
+                <Table className="w-full min-w-full table-fixed">
+                  <TableHeader className="bg-gray-50 dark:bg-gray-800">
+                      <TableRow className="border-b dark:border-gray-700">
+                        <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400 w-[120px]">
+                          Date
+                        </TableHead>
+                        {/* Dynamic yarn type columns */}
                     {distinctYarnTypes.map((yarnType, index) => {
                       // Format the display name using our helper function
                       const displayName = formatYarnTypeDisplay(yarnType);
@@ -561,7 +562,7 @@ const YarnProductionSummary: React.FC = () => {
                       return (
                         <TableHead 
                           key={`yarn-type-${yarnType}-${index}`}
-                          className="px-4 py-3 text-xs font-medium tracking-wider text-center text-gray-500 uppercase sm:px-6 dark:text-gray-400"
+                          className="px-4 py-3 text-xs font-medium tracking-wider text-center text-gray-500 uppercase sm:px-6 dark:text-gray-400 w-[100px]"
                         >
                           <div className="flex flex-col items-center justify-center">
                             <span
@@ -575,16 +576,16 @@ const YarnProductionSummary: React.FC = () => {
                       );
                     })}
 
-                    <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-center text-indigo-600 uppercase sm:px-6 dark:text-indigo-400">
+                    <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-center text-indigo-600 uppercase sm:px-6 dark:text-indigo-400 w-[140px]">
                       <div className="flex flex-col items-center justify-center">
                         <span className="inline-block w-2 h-2 mb-1 bg-indigo-500 rounded-full"></span>
                         Total (All Types)
                       </div>
                     </TableHead>
-                    <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-center text-gray-500 uppercase sm:px-6 dark:text-gray-400">
+                    <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-center text-gray-500 uppercase sm:px-6 dark:text-gray-400 w-[100px]">
                       Machines
                     </TableHead>
-                    <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-center text-gray-500 uppercase sm:px-6 dark:text-gray-400">
+                    <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-center text-gray-500 uppercase sm:px-6 dark:text-gray-400 w-[120px]">
                       Avg Efficiency
                     </TableHead>
                   </TableRow>
@@ -691,146 +692,144 @@ const YarnProductionSummary: React.FC = () => {
                       </TableCell>
                     </TableRow>
                   ))}
-
-                  {/* Total row */}
-                  <TableRow className="transition-colors bg-gray-50 dark:bg-gray-800/50">
-                    <TableCell className="px-4 py-4 font-semibold text-gray-700 whitespace-nowrap sm:px-6 dark:text-gray-200">
-                      Total Production
-                    </TableCell>
-                    {distinctYarnTypes.map((yarnType, typeIndex) => {
-                      // Calculate total for this yarn type (handle normalization)
-                      const total = summaryData.reduce((sum, row) => {
-                        // Try exact match first
-                        if (yarnType in row.yarnTypes) {
-                          return sum + (row.yarnTypes[yarnType] || 0);
-                        }
-                        
-                        // If no exact match, try to find a match with normalization
-                        for (const [key, value] of Object.entries(row.yarnTypes)) {
-                          if (normalizeYarnType(key) === yarnType) {
-                            return sum + (value || 0);
+                  </TableBody>
+                </Table>
+                
+                {/* Sticky Total Production Row - positioned at bottom of scrollable area */}
+                {summaryData.length > 0 && (
+                  <div className="sticky bottom-0 w-full bg-gray-50 dark:bg-gray-800/95 border-t border-gray-200 dark:border-gray-700 shadow-[0_-1px_3px_0_rgba(0,0,0,0.1)] backdrop-blur-sm z-10">
+                    <Table className="w-full min-w-full border-collapse table-fixed">
+                      <TableBody>
+                        <TableRow className="font-semibold transition-colors">
+                        <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6 w-[120px]">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-gray-700 dark:text-gray-200">Total Production</span>
+                          </div>
+                        </TableCell>
+                      {distinctYarnTypes.map((yarnType, typeIndex) => {
+                        // Calculate total for this yarn type (handle normalization)
+                        const total = summaryData.reduce((sum, row) => {
+                          // Try exact match first
+                          if (yarnType in row.yarnTypes) {
+                            return sum + (row.yarnTypes[yarnType] || 0);
                           }
-                        }
+                          
+                          // If no exact match, try to find a match with normalization
+                          for (const [key, value] of Object.entries(row.yarnTypes)) {
+                            if (normalizeYarnType(key) === yarnType) {
+                              return sum + (value || 0);
+                            }
+                          }
+                          
+                          return sum;
+                        }, 0);
                         
-                        return sum;
-                      }, 0);
-                      
-                      // Check if this is an active yarn type from machines
-                      const isActiveMachineYarn = activeMachineYarnTypes.includes(yarnType);
+                        // Check if this is an active yarn type from machines
+                        const isActiveMachineYarn = activeMachineYarnTypes.includes(yarnType);
 
-                      return (
-                        <TableCell
-                          key={`total-type-${yarnType}-${typeIndex}`}
-                          className={`px-4 py-4 font-semibold text-center whitespace-nowrap sm:px-6 ${
-                            isActiveMachineYarn ? "border-b-2 border-blue-200 dark:border-blue-800/30" : ""
-                          }`}
-                        >
-                          <span 
-                            className={`${
-                              total > 0
-                                ? isActiveMachineYarn 
-                                  ? "text-blue-700 dark:text-blue-300 font-bold"
-                                  : "text-blue-600 dark:text-blue-400"
-                                : "text-gray-500 dark:text-gray-500"
+                        return (
+                          <TableCell
+                            key={`total-type-${yarnType}-${typeIndex}`}
+                            className={`px-4 py-4 font-medium text-center whitespace-nowrap sm:px-6 w-[100px] ${
+                              isActiveMachineYarn ? "border-b-2 border-blue-200 dark:border-blue-800/30" : ""
                             }`}
                           >
-                            {total.toFixed(2)}
-                            <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
-                              kg
+                            <span 
+                              className={`${
+                                total > 0
+                                  ? isActiveMachineYarn 
+                                    ? "text-blue-700 dark:text-blue-300 font-bold"
+                                    : "text-blue-600 dark:text-blue-400"
+                                  : "text-gray-500 dark:text-gray-500"
+                              }`}
+                            >
+                              {total.toFixed(2)}
+                              <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
+                                kg
+                              </span>
                             </span>
+                          </TableCell>
+                        );
+                      })}
+                      <TableCell className="px-4 py-4 font-medium text-center whitespace-nowrap sm:px-6 w-[140px]">
+                        <span className="font-bold text-indigo-700 dark:text-indigo-300">
+                          {summaryData
+                            .reduce(
+                              (sum, row) => sum + row.totalProductionForDate,
+                              0
+                            )
+                            .toFixed(2)}
+                          <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
+                            kg
                           </span>
-                        </TableCell>
-                      );
-                    })}
-                    <TableCell className="px-4 py-4 font-semibold text-center whitespace-nowrap sm:px-6">
-                      <span className="font-bold text-indigo-700 dark:text-indigo-300">
-                        {summaryData
-                          .reduce(
-                            (sum, row) => sum + row.totalProductionForDate,
-                            0
-                          )
-                          .toFixed(2)}
-                        <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
-                          kg
                         </span>
-                      </span>
-                    </TableCell>
-                    <TableCell className="px-4 py-4 text-center whitespace-nowrap sm:px-6">
-                      <div className="flex items-center justify-center gap-2">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                        <span className="font-semibold text-gray-700 dark:text-gray-300">
-                          {summaryData.reduce(
-                            (max, row) => Math.max(max, row.machineCount),
-                            0
-                          )}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="px-4 py-4 text-center whitespace-nowrap sm:px-6">
-                      {stats && (
+                      </TableCell>
+                      <TableCell className="px-4 py-4 text-center whitespace-nowrap sm:px-6 w-[100px]">
                         <div className="flex items-center justify-center gap-2">
-                          {(() => {
-                            // Calculate weighted average efficiency with safety checks
-                            console.log('Summary data for weighted average:', summaryData.map(row => ({ 
-                              date: row.date, 
-                              efficiency: row.averageEfficiency, 
-                              machineCount: row.machineCount 
-                            })));
-                            
-                            const validRows = summaryData.filter(row => 
-                              !isNaN(row.averageEfficiency) && 
-                              row.averageEfficiency !== null && 
-                              row.averageEfficiency !== undefined
-                            );
-                            
-                            console.log('Valid rows for weighted average:', validRows.length);
-                            
-                            if (validRows.length === 0) {
-                              console.log('No valid efficiency data available');
+                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                          <span className="font-semibold text-gray-700 dark:text-gray-300">
+                            {summaryData.reduce(
+                              (max, row) => Math.max(max, row.machineCount),
+                              0
+                            )}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="px-4 py-4 text-center whitespace-nowrap sm:px-6 w-[120px]">
+                        {stats && (
+                          <div className="flex items-center justify-center gap-2">
+                            {(() => {
+                              // Calculate weighted average efficiency with safety checks
+                              const validRows = summaryData.filter(row => 
+                                !isNaN(row.averageEfficiency) && 
+                                row.averageEfficiency !== null && 
+                                row.averageEfficiency !== undefined
+                              );
+                              
+                              if (validRows.length === 0) {
+                                return (
+                                  <>
+                                    <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
+                                    <Badge className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300">
+                                      No Data
+                                    </Badge>
+                                  </>
+                                );
+                              }
+                              
+                              const weightedSum = validRows.reduce((sum, row) => 
+                                sum + (row.averageEfficiency * row.machineCount), 0);
+                              const totalMachines = validRows.reduce((sum, row) => sum + row.machineCount, 0);
+                              
+                              const weightedAvgEff = totalMachines > 0 ? weightedSum / totalMachines : 0;
+                              const displayEfficiency = isNaN(weightedAvgEff) ? 0 : weightedAvgEff;
+                              
                               return (
                                 <>
-                                  <div className="w-3 h-3 rounded-full bg-gray-500"></div>
-                                  <Badge className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300">
-                                    No Data
+                                  <div
+                                    className={`w-3 h-3 rounded-full ${getEfficiencyColorClass(
+                                      displayEfficiency
+                                    )}`}
+                                  ></div>
+                                  <Badge
+                                    className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${getEfficiencyBadgeClass(
+                                      displayEfficiency
+                                    )}`}
+                                  >
+                                    {displayEfficiency.toFixed(1)}%
                                   </Badge>
                                 </>
                               );
-                            }
-                            
-                            const weightedSum = validRows.reduce((sum, row) => 
-                              sum + (row.averageEfficiency * row.machineCount), 0);
-                            const totalMachines = validRows.reduce((sum, row) => sum + row.machineCount, 0);
-                            
-                            const weightedAvgEff = totalMachines > 0 ? weightedSum / totalMachines : 0;
-                            
-                            console.log('Weighted average efficiency:', weightedAvgEff);
-                            
-                            // Ensure we have a valid number for display
-                            const displayEfficiency = isNaN(weightedAvgEff) ? 0 : weightedAvgEff;
-                            
-                            return (
-                              <>
-                                <div
-                                  className={`w-3 h-3 rounded-full ${getEfficiencyColorClass(
-                                    displayEfficiency
-                                  )}`}
-                                ></div>
-                                <Badge
-                                  className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${getEfficiencyBadgeClass(
-                                    displayEfficiency
-                                  )}`}
-                                >
-                                  {displayEfficiency.toFixed(1)}%
-                                </Badge>
-                              </>
-                            );
-                          })()}
-                        </div>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
+                            })()}
+                          </div>
+                        )}
+                      </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

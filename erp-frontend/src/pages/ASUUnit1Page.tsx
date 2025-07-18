@@ -84,17 +84,18 @@ const ASUUnit1Page: React.FC = () => {
   // Define functions first
   const loadMachines = useCallback(async () => {
     try {
+      setLoading(true);
       // Use getAllMachines to ensure we get all machines including newly added ones
       const machines = await asuUnit1Api.getAllMachines();
       console.log("Fetched machines:", machines); // Debug to verify all machines are fetched
       
-      // Filter out only active machines for the dropdown
-      const activeMachines = machines.filter(m => m.isActive !== false);
-      setMachines(activeMachines);
+      // Show ALL machines in the dropdown, don't filter
+      setMachines(machines || []);
       
       // If we have machines and no selected machine, select the first one by default
-      if (activeMachines.length > 0 && !selectedMachine) {
-        const firstMachine = activeMachines[0];
+      if (machines && machines.length > 0 && !selectedMachine) {
+        const firstMachine = machines[0];
+        console.log("Selected first machine:", firstMachine);
         setSelectedMachine(firstMachine);
         setFormData(prev => ({ 
           ...prev, 
@@ -104,6 +105,8 @@ const ASUUnit1Page: React.FC = () => {
     } catch (error) {
       console.error('Error loading machines:', error);
       toast.error('Failed to load machines');
+    } finally {
+      setLoading(false);
     }
   }, [selectedMachine]);
 
@@ -316,22 +319,31 @@ const ASUUnit1Page: React.FC = () => {
     // Use getAllMachines directly to ensure we get all machines
     const fetchAllData = async () => {
       try {
+        setLoading(true);
         const allMachines = await asuUnit1Api.getAllMachines();
         console.log("Initial machine load - all machines:", allMachines);
         
-        // Filter active machines for the dropdown
-        const activeMachines = allMachines.filter(m => m.isActive !== false);
-        console.log("Active machines for dropdown:", activeMachines);
+        if (!allMachines || allMachines.length === 0) {
+          console.warn("No machines returned from API or empty array");
+          setMachines([]);
+          return;
+        }
         
-        setMachines(activeMachines);
+        // Show ALL machines in the dropdown, don't filter by isActive
+        // This ensures all machines are visible in the UI
+        setMachines(allMachines);
         
         // If we have machines and no selected machine, select the first one
-        if (activeMachines.length > 0 && !selectedMachine) {
-          setSelectedMachine(activeMachines[0]);
+        if (allMachines.length > 0 && !selectedMachine) {
+          setSelectedMachine(allMachines[0]);
+          setFormData(prev => ({ ...prev, machineId: allMachines[0].id }));
+          console.log("Auto-selected first machine:", allMachines[0]);
         }
       } catch (error) {
         console.error("Error loading machines:", error);
         toast.error("Failed to load machines");
+      } finally {
+        setLoading(false);
       }
     };
     
@@ -667,15 +679,22 @@ const ASUUnit1Page: React.FC = () => {
               <form onSubmit={handleFormSubmit} className="space-y-6">
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                   <div className="lg:col-span-2">
-                    <Label htmlFor="machine" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Select Machine</Label>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <Label htmlFor="machine" className="text-sm font-medium text-gray-700 dark:text-gray-300">Select Machine</Label>
+                      {loading && <span className="w-4 h-4 border-b-2 border-blue-500 rounded-full animate-spin"></span>}
+                    </div>
                     <Select 
                       onValueChange={handleMachineSelect}
                       value={selectedMachine ? selectedMachine.id.toString() : ""}
+                      defaultOpen={machines.length > 0 && !selectedMachine}
                     >
-                      <SelectTrigger className="w-full" id="machine-select">
+                      <SelectTrigger 
+                        className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600" 
+                        id="machine-select"
+                      >
                         <SelectValue placeholder="-- Select Machine --" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="max-h-[300px] overflow-y-auto">
                         {machines && machines.length > 0 ? (
                           machines.map(machine => (
                             <SelectItem 

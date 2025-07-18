@@ -3,7 +3,18 @@ const axios = require('axios');
 // Test the API endpoints
 async function testEndpoints() {
   const BASE_URL = 'http://localhost:5000';
-  const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwibmFtZSI6IkFkbWluIiwiaWF0IjoxNzM3NjQ2MjA5fQ.uUiCUzPQP4RB_fJwKEhc4oXfbL_21P7lQcfpOD3QGjw';
+  // Get token from localStorage if running in browser environment
+  let token;
+  try {
+    // Try to get from environment variable first
+    token = process.env.API_TOKEN || '';
+    
+    // If no token found, use a default test token
+    if (!token) {
+      console.log('⚠️ No token found in environment, using default test token');
+      // This is just an example token, you should replace it with a valid one from your browser's localStorage
+      token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwibmFtZSI6IkFkbWluIiwiZW1haWwiOiJhZG1pbkBlcnAuY29tIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzAzMTMzNjU5fQ.Dq4jFn1puf54NCEpvb-pFykqleex5uyxXYkRbPm9vI4';
+    }
   
   const headers = {
     'Content-Type': 'application/json',

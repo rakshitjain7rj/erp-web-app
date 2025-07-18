@@ -163,21 +163,38 @@ export const asuUnit1Api = {
   // New API endpoint for getting all machines (including inactive)
   getAllMachines: async (): Promise<ASUMachine[]> => {
     try {
-      const response = await api.get('/asu-machines');
-      console.log('API response for getAllMachines:', response.data);
-      
-      // Properly handle various response formats
-      if (response.data.success && Array.isArray(response.data.data)) {
-        return response.data.data;
-      } else if (Array.isArray(response.data)) {
-        return response.data;
-      } else {
-        console.warn('Unexpected response format from /asu-machines:', response.data);
-        return [];
+      // First try the /asu-machines endpoint
+      try {
+        const response = await api.get('/asu-machines');
+        console.log('API response for getAllMachines from /asu-machines:', response.data);
+        
+        // Properly handle various response formats
+        if (response.data.success && Array.isArray(response.data.data)) {
+          return response.data.data;
+        } else if (Array.isArray(response.data)) {
+          return response.data;
+        }
+      } catch (primaryError) {
+        console.warn('Error with /asu-machines endpoint, trying fallback:', primaryError);
       }
+      
+      // Fallback to the /machines endpoint if the first one fails or returns invalid data
+      const fallbackResponse = await api.get('/machines');
+      console.log('Fallback API response from /machines:', fallbackResponse.data);
+      
+      if (fallbackResponse.data.success && Array.isArray(fallbackResponse.data.data)) {
+        return fallbackResponse.data.data;
+      } else if (Array.isArray(fallbackResponse.data)) {
+        return fallbackResponse.data;
+      }
+      
+      // If we get here, both endpoints failed to return valid data
+      console.warn('Neither endpoint returned valid machine data');
+      return [];
     } catch (error) {
-      console.error('Error fetching machines from /asu-machines:', error);
-      throw error;
+      console.error('Error fetching machines from both endpoints:', error);
+      // Return empty array instead of throwing to prevent UI crashes
+      return [];
     }
   },
   

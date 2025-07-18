@@ -2,6 +2,7 @@
 const { Op, fn, col, literal } = require("sequelize");
 const ASUProductionEntry = require("../models/ASUProductionEntry");
 const ASUMachine = require("../models/ASUMachine");
+const { sequelize } = require('../config/postgres');
 
 /**
  * Get yarn production entries grouped by date and yarn type
@@ -17,33 +18,80 @@ const getYarnProductionEntries = async (req, res) => {
       if (dateTo) dateFilter.date[Op.lte] = dateTo;
     }
 
-    const entries = await ASUProductionEntry.findAll({
-      attributes: [
-        "date",
-        [fn("SUM", col("actual_production")), "productionKg"],
-        [fn("AVG", col("efficiency")), "efficiency"],
-        [fn("COUNT", literal('DISTINCT "ASUProductionEntry"."machine_no"')), "machineCount"]
-      ],
-      include: [
-        {
-          model: ASUMachine,
-          attributes: ["yarnType"],
-          as: "machine",
-          required: true
-        }
-      ],
-      where: dateFilter,
-      group: ["date", "machine.yarnType"],
-      raw: true,
-      nest: true
+    // Use raw SQL query to avoid issues with column names
+    const query = `
+      SELECT 
+        "ASUProductionEntry".date,
+        SUM("ASUProductionEntry".actual_production) AS "productionKg",
+        AVG("ASUProductionEntry".efficiency) AS "efficiency",
+        COUNT(DISTINCT "ASUProductionEntry".machine_no) AS "machineCount",
+        "machine"."yarn_type" AS "yarnType"
+      FROM 
+        "asu_production_entries" AS "ASUProductionEntry"
+      LEFT JOIN 
+        "asu_machines" AS "machine" 
+        ON "ASUProductionEntry".machine_no = "machine".machine_no
+      ${(dateFrom || dateTo) ? 'WHERE' : ''}
+        ${dateFrom ? `"ASUProductionEntry".date >= '${dateFrom}'` : ''}
+        ${dateFrom && dateTo ? 'AND' : ''}
+        ${dateTo ? `"ASUProductionEntry".date <= '${dateTo}'` : ''}
+      GROUP BY 
+        "ASUProductionEntry".date, 
+        "machine"."yarn_type"
+    `;
+
+    const entries = await sequelize.query(query, { 
+      type: sequelize.QueryTypes.SELECT,
+      raw: true
     });
+
+    // Yarn type normalization map
+    const normalizeYarnType = (type) => {
+      if (!type) return "unknown";
+      
+      // Trim and convert to lowercase
+      const normalized = type.trim().toLowerCase();
+      
+      // Define common yarn types for consistent mapping
+      const yarnTypeMap = {
+        'cotton': 'cotton',
+        'sharp cotton': 'sharp cotton', 
+        'sharpcotton': 'sharp cotton',
+        'cotton sharp': 'sharp cotton',
+        'mixture': 'mixture',
+        'mix': 'mixture',
+        'polyester': 'polyester',
+        'poly': 'polyester',
+        'poly/cotton': 'polyester cotton blend',
+        'poly cotton': 'polyester cotton blend',
+        'cotton/poly': 'polyester cotton blend',
+        'cotton poly': 'polyester cotton blend',
+        'blend': 'blended',
+        'blended': 'blended'
+      };
+
+      // Try direct mapping first
+      if (yarnTypeMap[normalized]) {
+        return yarnTypeMap[normalized];
+      }
+
+      // Try partial matches for complex types
+      for (const [key, value] of Object.entries(yarnTypeMap)) {
+        if (normalized.includes(key)) {
+          return value;
+        }
+      }
+      
+      // If no match found, return the trimmed lowercase version
+      return normalized;
+    };
 
     const dateMap = new Map();
 
     entries.forEach((entry) => {
       const { date, productionKg, efficiency, machineCount } = entry;
-      const yarnType = entry.machine?.yarnType?.toLowerCase() || "unknown";
-
+      const yarnType = normalizeYarnType(entry.yarnType);
+      
       if (!dateMap.has(date)) {
         dateMap.set(date, {
           date,
@@ -81,6 +129,13 @@ const getYarnProductionEntries = async (req, res) => {
     });
 
     result.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    // Debug information
+    console.log(`✅ Processed ${entries.length} yarn production entries into ${result.length} date groups`);
+    if (result.length > 0) {
+      console.log(`📊 Sample yarnBreakdown for ${result[0].date}:`, result[0].yarnBreakdown);
+      console.log(`🧶 Found yarn types:`, [...new Set(result.flatMap(r => Object.keys(r.yarnBreakdown)))]);
+    }
 
     res.json({ success: true, data: result });
 
