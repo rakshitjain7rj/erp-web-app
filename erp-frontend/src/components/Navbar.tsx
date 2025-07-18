@@ -1,5 +1,4 @@
-import React from "react";
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
@@ -78,7 +77,7 @@ const Navbar = () => {
   const renderNavLinks = () => {
     if (!user) return null;
     const { role } = user;
-    const links: { to: string; label: string; icon: JSX.Element }[] = [];
+    const links: { to: string; label: string; icon: React.ReactNode }[] = [];
 
     if (["admin", "manager", "storekeeper"].includes(role)) links.push({ to: "/dashboard", label: "Dashboard", icon: <FaChartBar /> });
     if (["admin", "manager", "storekeeper"].includes(role)) links.push({ to: "/inventory", label: "Inventory", icon: <FaWarehouse /> });
