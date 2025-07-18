@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react"; 
+import React, { useEffect, useState } from "react"; 
 import {
   getAllDyeingRecords,
   deleteDyeingRecord,
@@ -13,7 +13,7 @@ import { ChevronDown, ChevronUp, MoreVertical } from "lucide-react";
 import { toast } from "sonner";
 import FollowUpModal from "../components/FollowUpModal";
 import { exportDataToCSV } from "../utils/exportUtils";
-import ActionDropdown from "../components/ActionDropdown";
+import FloatingActionDropdown from "../components/FloatingActionDropdown";
 
 const DyeingOrders: React.FC = () => {
   const [records, setRecords] = useState<DyeingRecord[]>([]);
@@ -28,10 +28,6 @@ const DyeingOrders: React.FC = () => {
   const [firmFilter, setFirmFilter] = useState<string>("");
   const [partyFilter, setPartyFilter] = useState<string>("");
 
-  const [openDropdownRecord, setOpenDropdownRecord] = useState<DyeingRecord | null>(null);
-  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
     fetchRecords();
   }, []);
@@ -44,40 +40,6 @@ const DyeingOrders: React.FC = () => {
       console.error("Failed to fetch dyeing records:", error);
     }
   };
-
-  const handleActionClick = (
-    record: DyeingRecord,
-    e: React.MouseEvent<HTMLButtonElement>
-  ) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const dropdownWidth = 180;
-    const dropdownHeight = dropdownRef.current?.offsetHeight || 250;
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const openAbove = spaceBelow < dropdownHeight;
-
-    setDropdownPosition({
-      top: openAbove
-        ? rect.top + window.scrollY - dropdownHeight
-        : rect.bottom + window.scrollY,
-      left: rect.left + window.scrollX - dropdownWidth + 32,
-    });
-
-    setOpenDropdownRecord(openDropdownRecord?.id === record.id ? null : record);
-  };
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setOpenDropdownRecord(null);
-      }
-    };
-    if (openDropdownRecord) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [openDropdownRecord]);
 
   const filteredRecords = records.filter((r) => {
     const query = searchQuery.toLowerCase();
@@ -125,7 +87,6 @@ const DyeingOrders: React.FC = () => {
   const handleEdit = (record: DyeingRecord) => {
     setRecordToEdit(record);
     setIsFormOpen(true);
-    setOpenDropdownRecord(null);
   };
 
   const handleDelete = async (record: DyeingRecord) => {
@@ -135,7 +96,6 @@ const DyeingOrders: React.FC = () => {
       await deleteDyeingRecord(record.id);
       toast.success("Record deleted!");
       fetchRecords();
-      setOpenDropdownRecord(null);
     } catch (error) {
       console.error("Delete failed:", error);
       toast.error("Failed to delete");
@@ -145,7 +105,6 @@ const DyeingOrders: React.FC = () => {
   const handleFollowUp = (record: DyeingRecord) => {
     setSelectedRecord(record);
     setIsFollowUpModalOpen(true);
-    setOpenDropdownRecord(null);
   };
 
   const handleMarkArrived = async (record: DyeingRecord) => {
@@ -153,7 +112,6 @@ const DyeingOrders: React.FC = () => {
       await markAsArrived(record.id);
       toast.success("Marked as Arrived");
       fetchRecords();
-      setOpenDropdownRecord(null);
     } catch (error) {
       console.error("Mark Arrived error:", error);
       toast.error("Failed to mark as arrived");
@@ -167,7 +125,6 @@ const DyeingOrders: React.FC = () => {
       await completeReprocessing(record.id, { reprocessingReason: reason });
       toast.success("Marked as Reprocessing");
       fetchRecords();
-      setOpenDropdownRecord(null);
     } catch (error) {
       console.error("Reprocessing error:", error);
       toast.error("Failed to complete reprocessing");
@@ -276,12 +233,13 @@ const DyeingOrders: React.FC = () => {
                           <td className="px-4 py-2">{statusBadge(status)}</td>
                           <td className="px-4 py-2 italic text-gray-500 dark:text-gray-400">{record.remarks || "-"}</td>
                           <td className="px-4 py-2 text-center">
-                            <button
-                              className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"
-                              onClick={(e) => handleActionClick(record, e)}
-                            >
-                              <MoreVertical />
-                            </button>
+                            <FloatingActionDropdown
+                              onEdit={() => handleEdit(record)}
+                              onDelete={() => handleDelete(record)}
+                              onFollowUp={() => handleFollowUp(record)}
+                              onMarkArrived={() => handleMarkArrived(record)}
+                              onReprocessing={() => handleReprocessing(record)}
+                            />
                           </td>
                         </tr>
                       );
@@ -293,22 +251,6 @@ const DyeingOrders: React.FC = () => {
           </div>
         ))}
       </div>
-
-        {openDropdownRecord && (
-        <div
-          ref={dropdownRef}
-          className="fixed z-[1000] w-[180px] bg-white dark:bg-gray-800 rounded-lg shadow-lg border dark:border-gray-600"
-          style={{ top: dropdownPosition.top, left: dropdownPosition.left }}
-        >
-          <ActionDropdown
-            onEdit={() => handleEdit(openDropdownRecord)}
-            onDelete={() => handleDelete(openDropdownRecord)}
-            onFollowUp={() => handleFollowUp(openDropdownRecord)}
-            onMarkArrived={() => handleMarkArrived(openDropdownRecord)}
-            onReprocessing={() => handleReprocessing(openDropdownRecord)}
-          />
-        </div>
-      )}
 
       <CreateDyeingOrderForm
         isOpen={isFormOpen}

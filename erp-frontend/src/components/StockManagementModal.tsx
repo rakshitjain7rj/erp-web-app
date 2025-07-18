@@ -116,7 +116,7 @@ const StockManagementModal: React.FC<StockManagementModalProps> = ({
 
       // Refresh logs and notify parent
       await fetchStockLogs();
-      onStockUpdate(item.id);
+      onStockUpdate(parseInt(item.id, 10));
       
     } catch (error: any) {
       console.error('Error adding stock:', error);
@@ -165,7 +165,7 @@ const StockManagementModal: React.FC<StockManagementModalProps> = ({
       });
 
       await fetchStockLogs();
-      onStockUpdate(item.id);
+      onStockUpdate(parseInt(item.id, 10));
       
     } catch (error: any) {
       console.error('Error removing stock:', error);
@@ -213,7 +213,7 @@ const StockManagementModal: React.FC<StockManagementModalProps> = ({
       });
 
       await fetchStockLogs();
-      onStockUpdate(item.id);
+      onStockUpdate(parseInt(item.id, 10));
       
     } catch (error: any) {
       console.error('Error logging spoilage:', error);
