@@ -33,7 +33,7 @@ const Reports = () => {
   useEffect(() => {
     if (role === "storekeeper") {
       toast.error("⛔ You are not authorized to view Reports.");
-      navigate("/dashboard");
+      navigate("/home");
     }
   }, [role, navigate]);
 

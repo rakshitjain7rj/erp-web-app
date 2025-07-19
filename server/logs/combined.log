@@ -1,0 +1,40 @@
+2025-07-19 19:24:57 [INFO]: ✅ PostgreSQL connected 
+2025-07-19 19:25:05 [INFO]: ✅ Inventory table synced 
+2025-07-19 19:25:08 [INFO]: ✅ Party table synced 
+2025-07-19 19:25:08 [INFO]: ✅ Database setup complete 
+2025-07-19 19:25:08 [INFO]: Setting up scheduler for 20:00 (0 0 20 * * *) 
+2025-07-19 19:25:08 [INFO]: Production summary scheduler initialized 
+2025-07-19 19:25:08 [INFO]: 📅 Production summary scheduler initialized 
+2025-07-19 19:25:08 [INFO]: 🚀 Server running on port 5000 
+2025-07-19 19:25:08 [INFO]: 📡 API endpoints available at http://localhost:5000/api 
+2025-07-19 19:25:08 [INFO]: 📦 Inventory API: http://localhost:5000/api/inventory 
+2025-07-19 19:25:08 [INFO]: 🏢 Party API: http://localhost:5000/api/parties 
+2025-07-19 19:25:08 [INFO]: 🔧 CORS enabled for: http://localhost:5173, http://localhost:5174 
+2025-07-19 19:27:06 [INFO]: ✅ PostgreSQL connected 
+2025-07-19 19:27:14 [INFO]: ✅ Inventory table synced 
+2025-07-19 19:27:17 [INFO]: ✅ Party table synced 
+2025-07-19 19:27:17 [INFO]: ✅ Database setup complete 
+2025-07-19 19:27:17 [INFO]: Setting up scheduler for 20:00 (0 0 20 * * *) 
+2025-07-19 19:27:17 [INFO]: Production summary scheduler initialized 
+2025-07-19 19:27:17 [INFO]: 📅 Production summary scheduler initialized 
+2025-07-19 19:27:17 [INFO]: 🚀 Server running on port 5000 
+2025-07-19 19:27:17 [INFO]: 📡 API endpoints available at http://localhost:5000/api 
+2025-07-19 19:27:18 [INFO]: 📦 Inventory API: http://localhost:5000/api/inventory 
+2025-07-19 19:27:18 [INFO]: 🏢 Party API: http://localhost:5000/api/parties 
+2025-07-19 19:27:18 [INFO]: 🔧 CORS enabled for: http://localhost:5173, http://localhost:5174 
+2025-07-19 19:29:45 [INFO]: ✅ PostgreSQL connected 
+2025-07-19 19:29:53 [INFO]: ✅ Inventory table synced 
+2025-07-19 19:29:56 [INFO]: ✅ Party table synced 
+2025-07-19 19:29:56 [INFO]: ✅ Database setup complete 
+2025-07-19 19:29:56 [INFO]: Setting up scheduler for 20:00 (0 0 20 * * *) 
+2025-07-19 19:29:56 [INFO]: Production summary scheduler initialized 
+2025-07-19 19:29:56 [INFO]: 📅 Production summary scheduler initialized 
+2025-07-19 19:29:56 [INFO]: 🚀 Server running on port 5000 
+2025-07-19 19:29:56 [INFO]: 📡 API endpoints available at http://localhost:5000/api 
+2025-07-19 19:29:56 [INFO]: 📦 Inventory API: http://localhost:5000/api/inventory 
+2025-07-19 19:29:56 [INFO]: 🏢 Party API: http://localhost:5000/api/parties 
+2025-07-19 19:29:56 [INFO]: 🔧 CORS enabled for: http://localhost:5173, http://localhost:5174 
+2025-07-19 20:06:17 [INFO]: This is an info message from the test script 
+2025-07-19 20:06:18 [DEBUG]: This is a debug message from the test script 
+2025-07-19 20:06:18 [WARN]: This is a warning message from the test script 
+2025-07-19 20:06:18 [ERROR]: This is an error message from the test script 

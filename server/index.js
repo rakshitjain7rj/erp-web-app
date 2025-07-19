@@ -6,6 +6,7 @@ const morgan = require('morgan');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { sequelize, connectPostgres } = require('./config/postgres');
+const logger = require('./utils/logger');
 
 dotenv.config();
 
@@ -43,6 +44,7 @@ const asuUnit1Routes = require('./routes/asuUnit1Routes');
 const asuMachineRoutes = require('./routes/asuMachineRoutes');
 const yarnProductionRoutes = require('./routes/yarnProductionRoutes');
 const inventoryRoutes = require('./routes/inventoryRoutes');
+const settingsRoutes = require('./routes/settingsRoutes');
 // const workOrderRoutes = require('./routes/workOrderRoutes');
 // const bomRoutes = require('./routes/bomRoutes');
 // const costingRoutes = require('./routes/costingRoutes');
@@ -87,6 +89,7 @@ app.use('/api/asu-unit1', asuUnit1Routes);
 app.use('/api/asu-machines', asuMachineRoutes);
 app.use('/api/yarn', yarnProductionRoutes);
 app.use('/api/inventory', inventoryRoutes);
+app.use('/api/settings', settingsRoutes);
 // app.use('/api/workorders', workOrderRoutes);
 // app.use('/api/bom', bomRoutes);
 // app.use('/api/costings', costingRoutes);
@@ -162,33 +165,50 @@ app.get('/health', (req, res) => {
 // ------------------- Error Handler -------------------
 app.use(errorHandler);
 
+// ------------------- Initialize Schedulers -------------------
+const { initializeScheduler, dependencyStatus } = require('./schedulers/productionSummaryScheduler');
+
 // ------------------- Start Server -------------------
 const PORT = process.env.PORT || 5000;
 
 // Connect to PostgreSQL only
 connectPostgres()
   .then(async () => {
-    console.log('✅ PostgreSQL connected');
+    logger.info('✅ PostgreSQL connected');
 
     // Sync models with database
     try {
       await Inventory.sync({ alter: true }); // This will create/update the table
-      console.log('✅ Inventory table synced');
+      logger.info('✅ Inventory table synced');
       
       await Party.sync({ alter: true }); // This will create/update the Parties table
-      console.log('✅ Party table synced');
+      logger.info('✅ Party table synced');
     } catch (error) {
-      console.warn('⚠️ Table sync warning:', error.message);
+      logger.warn('⚠️ Table sync warning:', error.message);
     }
 
-    console.log('✅ Database setup complete');
+    logger.info('✅ Database setup complete');
+
+    // Start the scheduler if dependencies are available
+    if (dependencyStatus.ready) {
+      try {
+        await initializeScheduler();
+        logger.info('📅 Production summary scheduler initialized');
+      } catch (error) {
+        logger.warn('⚠️ Failed to initialize scheduler:', error.message);
+        logger.info('📅 Server will continue running without the scheduler');
+      }
+    } else {
+      logger.warn(`⚠️ Scheduler dependencies missing: cron=${dependencyStatus.cron}, nodemailer=${dependencyStatus.nodemailer}`);
+      logger.info('📅 Server will start without the scheduler. Install missing packages and restart.');
+    }
 
     app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`📡 API endpoints available at http://localhost:${PORT}/api`);
-      console.log(`📦 Inventory API: http://localhost:${PORT}/api/inventory`);
-      console.log(`🏢 Party API: http://localhost:${PORT}/api/parties`);
-      console.log(`🔧 CORS enabled for: http://localhost:5173, http://localhost:5174`);
+      logger.info(`🚀 Server running on port ${PORT}`);
+      logger.info(`📡 API endpoints available at http://localhost:${PORT}/api`);
+      logger.info(`📦 Inventory API: http://localhost:${PORT}/api/inventory`);
+      logger.info(`🏢 Party API: http://localhost:${PORT}/api/parties`);
+      logger.info(`🔧 CORS enabled for: http://localhost:5173, http://localhost:5174`);
     });
   })
   .catch((err) => {

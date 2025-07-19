@@ -1,5 +1,6 @@
-// src/components/Sidebar.tsx
-import React from 'react';
+// src/components/Sideba        <Link to="/dashboard" onClick={onClose}>Dashboard</Link>
+        <Link to="/inventory" onClick={onClose}>Inventory</Link>
+        <Link to="/dyeing-orders" onClick={onClose}>Dyeing Orders</Link>import React from 'react';
 import { X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -22,7 +23,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         </button>
       </div>
       <nav className="p-4 flex flex-col gap-4">
-        <Link to="/dashboard" onClick={onClose}>Dashboard</Link>
+        <Link to="/home" onClick={onClose}>Home</Link>
         <Link to="/inventory" onClick={onClose}>Inventory</Link>
         <Link to="/bom" onClick={onClose}>BOM</Link>
         <Link to="/work-orders" onClick={onClose}>Work Orders</Link>

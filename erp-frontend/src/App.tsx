@@ -11,12 +11,8 @@ import Signup from "./pages/Signup";
 import Unauthorized from "./pages/Unauthorized";
 
 // Core Pages
-import Dashboard from "./pages/Dashboard";
+import Home from "./pages/Home";
 import Inventory from "./pages/Inventory";
-import BOM from "./pages/BOM";
-import WorkOrders from "./pages/WorkOrders";
-import Costing from "./pages/Costing";
-import Reports from "./pages/Reports";
 import DyeingOrders from "./pages/DyeingOrders";
 import Product from "./pages/Product";
 import Users from "./pages/Users";
@@ -102,13 +98,13 @@ const App = () => {
 
             <div className="px-4 pt-16">
               <Routes>
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/" element={<Navigate to="/home" replace />} />
 
                 <Route
-                  path="/dashboard"
+                  path="/home"
                   element={
                     <PrivateRoute roles={["admin", "manager", "storekeeper", "operator"]}>
-                      <Dashboard />
+                      <Home />
                     </PrivateRoute>
                   }
                 />
@@ -117,38 +113,6 @@ const App = () => {
                   element={
                     <PrivateRoute roles={["admin", "manager", "storekeeper"]}>
                       <Inventory />
-                    </PrivateRoute>
-                  }
-                />
-                <Route
-                  path="/bom"
-                  element={
-                    <PrivateRoute roles={["admin", "manager", "storekeeper"]}>
-                      <BOM />
-                    </PrivateRoute>
-                  }
-                />
-                <Route
-                  path="/workorders"
-                  element={
-                    <PrivateRoute roles={["admin", "manager", "storekeeper"]}>
-                      <WorkOrders />
-                    </PrivateRoute>
-                  }
-                />
-                <Route
-                  path="/costing"
-                  element={
-                    <PrivateRoute roles={["admin"]}>
-                      <Costing />
-                    </PrivateRoute>
-                  }
-                />
-                <Route
-                  path="/reports"
-                  element={
-                    <PrivateRoute roles={["admin", "manager"]}>
-                      <Reports />
                     </PrivateRoute>
                   }
                 />
@@ -224,7 +188,7 @@ const App = () => {
                 <Route path="/api-test" element={<ApiTest />} />
 
                 {/* Catch-all */}
-                <Route path="*" element={<Navigate to="/dashboard" />} />
+                <Route path="*" element={<Navigate to="/home" />} />
               </Routes>
             </div>
           </>

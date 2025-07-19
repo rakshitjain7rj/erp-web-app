@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const logger = require('../utils/logger');
 
 // ✅ Middleware to verify token
 const auth = (req, res, next) => {
@@ -14,6 +15,9 @@ const auth = (req, res, next) => {
   }
 };
 
+// Alias for 'auth' for better naming
+const validateToken = auth;
+
 // ✅ Middleware to check role
 const authorizeRoles = (...roles) => {
   return (req, res, next) => {
@@ -24,4 +28,26 @@ const authorizeRoles = (...roles) => {
   };
 };
 
-module.exports = { auth, authorizeRoles };
+// ✅ Middleware to require admin role
+const requireAdmin = (req, res, next) => {
+  if (req.user.role !== 'admin') {
+    logger.warn('Non-admin user attempted to access admin-only route', {
+      userId: req.user.id,
+      username: req.user.name,
+      role: req.user.role
+    });
+    
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. Admin privileges required.'
+    });
+  }
+  next();
+};
+
+module.exports = { 
+  auth, 
+  validateToken, 
+  authorizeRoles, 
+  requireAdmin 
+};

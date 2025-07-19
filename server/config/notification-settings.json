@@ -1,0 +1,9 @@
+{
+  "dailySummaryEnabled": true,
+  "emailEnabled": true,
+  "whatsappEnabled": false,
+  "emailRecipients": "admin@example.com",
+  "whatsappRecipients": "",
+  "scheduledTime": "20:00",
+  "updatedAt": "2025-07-19T12:00:00.000Z"
+}

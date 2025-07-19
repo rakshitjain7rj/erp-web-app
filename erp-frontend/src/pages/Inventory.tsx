@@ -802,7 +802,7 @@ const Inventory = () => {
         </div>
       )}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <h2 className="text-3xl font-bold text-blue-700 dark:text-white text-center sm:text-left">Inventory Dashboard</h2>
+        <h2 className="text-3xl font-bold text-blue-700 dark:text-white text-center sm:text-left">Inventory Management</h2>
         <div className="flex gap-2 justify-center sm:justify-end">
           <button 
             onClick={() => {

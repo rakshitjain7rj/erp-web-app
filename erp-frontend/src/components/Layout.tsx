@@ -9,7 +9,7 @@ const Layout = () => {
       <aside className="w-64 bg-blue-800 text-white p-6 space-y-6">
         <div className="text-2xl font-bold tracking-tight">ERP System</div>
         <nav className="space-y-4">
-          <NavLink to="/dashboard" icon={<LayoutDashboard size={20} />} label="Dashboard" />
+          <NavLink to="/home" icon={<LayoutDashboard size={20} />} label="Home" />
           <NavLink to="/products" icon={<Package size={20} />} label="Products" />
           <NavLink to="/inventory" icon={<Boxes size={20} />} label="Inventory" />
           <NavLink to="/bom" icon={<ClipboardList size={20} />} label="BOM" />

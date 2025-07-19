@@ -52,8 +52,8 @@ const Login = () => {
 
       toast.success("✅ Login successful", { id: loading });
 
-      // Redirect to the dashboard
-      navigate("/dashboard", { replace: true });
+      // Redirect to the home page
+      navigate("/home", { replace: true });
     } catch (err: any) {
       toast.error("❌ Invalid email or password", { id: loading });
     }
