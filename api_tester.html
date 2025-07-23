@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>ERP API Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      line-height: 1.5;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .panel {
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+    h2 {
+      margin-top: 0;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-right: 10px;
+      margin-bottom: 10px;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    input, textarea {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 10px;
+      box-sizing: border-box;
+    }
+    pre {
+      background-color: #f5f5f5;
+      padding: 10px;
+      border-radius: 5px;
+      overflow-x: auto;
+    }
+    .error {
+      color: red;
+    }
+    .success {
+      color: green;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>ERP API Testing Tool</h1>
+
+    <div class="panel">
+      <h2>API Configuration</h2>
+      <div>
+        <label for="apiBaseUrl">API Base URL:</label>
+        <input type="text" id="apiBaseUrl" value="http://localhost:5000/api" />
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>1. Test Connection</h2>
+      <button onclick="testConnection()">Test API Connection</button>
+      <pre id="connectionResult">Results will appear here...</pre>
+    </div>
+
+    <div class="panel">
+      <h2>2. Authentication</h2>
+      <div>
+        <label for="loginEmail">Email:</label>
+        <input type="email" id="loginEmail" value="admin@example.com" />
+        <label for="loginPassword">Password:</label>
+        <input type="password" id="loginPassword" value="admin123" />
+      </div>
+      <button onclick="login()">Test Login</button>
+      <button onclick="testAuthEndpoint()">Test Auth Endpoint</button>
+      <pre id="authResult">Results will appear here...</pre>
+    </div>
+
+    <div class="panel">
+      <h2>3. Custom API Request</h2>
+      <div>
+        <label for="customEndpoint">Endpoint (without base URL):</label>
+        <input type="text" id="customEndpoint" value="/auth/login" />
+        <label for="customMethod">Method:</label>
+        <select id="customMethod">
+          <option value="GET">GET</option>
+          <option value="POST" selected>POST</option>
+          <option value="PUT">PUT</option>
+          <option value="DELETE">DELETE</option>
+        </select>
+        <label for="customBody">Request Body (JSON):</label>
+        <textarea id="customBody" rows="5">{"email": "admin@example.com", "password": "admin123"}</textarea>
+      </div>
+      <button onclick="makeCustomRequest()">Send Request</button>
+      <pre id="customResult">Results will appear here...</pre>
+    </div>
+  </div>
+
+  <script>
+    // Utility function to display results
+    function displayResult(elementId, data, isError = false) {
+      const element = document.getElementById(elementId);
+      if (isError) {
+        element.className = 'error';
+      } else {
+        element.className = 'success';
+      }
+      
+      if (typeof data === 'object') {
+        element.textContent = JSON.stringify(data, null, 2);
+      } else {
+        element.textContent = data;
+      }
+    }
+
+    // Get the base URL from input
+    function getBaseUrl() {
+      return document.getElementById('apiBaseUrl').value.trim();
+    }
+
+    // Test basic API connection
+    async function testConnection() {
+      try {
+        const baseUrl = getBaseUrl();
+        const response = await fetch(`${baseUrl}/test`);
+        const data = await response.json();
+        displayResult('connectionResult', {
+          status: response.status,
+          statusText: response.statusText,
+          data: data
+        });
+      } catch (error) {
+        displayResult('connectionResult', {
+          error: error.message,
+          tip: "Make sure the server is running and the URL is correct"
+        }, true);
+      }
+    }
+
+    // Test login functionality
+    async function login() {
+      try {
+        const baseUrl = getBaseUrl();
+        const email = document.getElementById('loginEmail').value;
+        const password = document.getElementById('loginPassword').value;
+        
+        const response = await fetch(`${baseUrl}/auth/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ email, password })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.message || 'Login failed');
+        }
+        
+        // Store token in localStorage
+        if (data.token) {
+          localStorage.setItem('erpToken', data.token);
+        }
+        
+        displayResult('authResult', {
+          status: response.status,
+          message: 'Login successful',
+          data: data
+        });
+      } catch (error) {
+        displayResult('authResult', {
+          error: error.message,
+          tip: "Check your credentials and make sure the auth endpoint is correct"
+        }, true);
+      }
+    }
+
+    // Test auth endpoint directly
+    async function testAuthEndpoint() {
+      const baseUrl = getBaseUrl();
+      const email = document.getElementById('loginEmail').value;
+      const password = document.getElementById('loginPassword').value;
+      
+      try {
+        // Try with /api/auth/login
+        let url = `${baseUrl}/auth/login`;
+        let response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ email, password })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          displayResult('authResult', {
+            endpoint: url,
+            status: response.status,
+            message: 'Auth endpoint working correctly',
+            data: data
+          });
+          return;
+        }
+        
+        // If first attempt fails, try without /api prefix
+        url = url.replace('/api/auth', '/auth');
+        response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ email, password })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          displayResult('authResult', {
+            endpoint: url,
+            status: response.status,
+            warning: 'Auth endpoint working but with incorrect URL pattern',
+            tip: 'Server expects /api/auth/login but responded to /auth/login',
+            data: data
+          });
+          return;
+        }
+        
+        // If both attempts fail
+        displayResult('authResult', {
+          error: 'Both auth endpoint patterns failed',
+          attempts: [
+            { url: `${baseUrl}/auth/login`, status: 'Failed' },
+            { url: url, status: 'Failed' }
+          ]
+        }, true);
+        
+      } catch (error) {
+        displayResult('authResult', {
+          error: error.message,
+          tip: "Make sure the server is running and auth endpoint is configured correctly"
+        }, true);
+      }
+    }
+
+    // Make a custom API request
+    async function makeCustomRequest() {
+      try {
+        const baseUrl = getBaseUrl();
+        const endpoint = document.getElementById('customEndpoint').value;
+        const method = document.getElementById('customMethod').value;
+        const bodyText = document.getElementById('customBody').value;
+        
+        let body = null;
+        if (bodyText && method !== 'GET') {
+          try {
+            body = JSON.parse(bodyText);
+          } catch (e) {
+            displayResult('customResult', {
+              error: 'Invalid JSON in request body',
+              tip: "Make sure your JSON is properly formatted"
+            }, true);
+            return;
+          }
+        }
+        
+        const url = `${baseUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
+        
+        const options = {
+          method: method,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        };
+        
+        if (body && method !== 'GET') {
+          options.body = JSON.stringify(body);
+        }
+        
+        // Add authorization header if token exists
+        const token = localStorage.getItem('erpToken');
+        if (token) {
+          options.headers['Authorization'] = `Bearer ${token}`;
+        }
+        
+        const response = await fetch(url, options);
+        let data;
+        
+        try {
+          data = await response.json();
+        } catch (e) {
+          data = { text: await response.text() };
+        }
+        
+        displayResult('customResult', {
+          url: url,
+          method: method,
+          status: response.status,
+          statusText: response.statusText,
+          headers: {
+            'content-type': response.headers.get('content-type')
+          },
+          data: data
+        });
+      } catch (error) {
+        displayResult('customResult', {
+          error: error.message,
+          tip: "Check your request parameters and ensure the server is running"
+        }, true);
+      }
+    }
+  </script>
+</body>
+</html>

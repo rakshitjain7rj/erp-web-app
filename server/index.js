@@ -165,33 +165,65 @@ app.use(errorHandler);
 // ------------------- Start Server -------------------
 const PORT = process.env.PORT || 5000;
 
-// Connect to PostgreSQL only
+// Connect to PostgreSQL but start server regardless
 connectPostgres()
-  .then(async () => {
-    console.log('✅ PostgreSQL connected');
+  .then(async (connected) => {
+    if (connected) {
+      console.log('✅ PostgreSQL connected');
 
-    // Sync models with database
-    try {
-      await Inventory.sync({ alter: true }); // This will create/update the table
-      console.log('✅ Inventory table synced');
-      
-      await Party.sync({ alter: true }); // This will create/update the Parties table
-      console.log('✅ Party table synced');
-    } catch (error) {
-      console.warn('⚠️ Table sync warning:', error.message);
+      // Sync models with database
+      try {
+        await User.sync({ alter: true }); // This will create/update the Users table
+        console.log('✅ Users table synced');
+        
+        await Inventory.sync({ alter: true }); // This will create/update the table
+        console.log('✅ Inventory table synced');
+        
+        await Party.sync({ alter: true }); // This will create/update the Parties table
+        console.log('✅ Party table synced');
+        
+        await ASUMachine.sync({ alter: true }); // This will create/update the ASU Machines table
+        console.log('✅ ASU Machines table synced');
+        
+        await ASUProductionEntry.sync({ alter: true }); // This will create/update the ASU Production Entries table
+        console.log('✅ ASU Production Entries table synced');
+        
+        await Machine.sync({ alter: true }); // This will create/update the Machines table
+        console.log('✅ Machines table synced');
+        
+        await DyeingRecord.sync({ alter: true }); // This will create/update the Dyeing Records table
+        console.log('✅ Dyeing Records table synced');
+        
+        await DyeingFollowUp.sync({ alter: true }); // This will create/update the Dyeing Follow Up table
+        console.log('✅ Dyeing Follow Up table synced');
+        
+        console.log('✅ Database setup complete');
+      } catch (error) {
+        console.warn('⚠️ Table sync warning:', error.message);
+      }
+    } else {
+      console.warn('⚠️ Running without database - some features will not work');
     }
 
-    console.log('✅ Database setup complete');
-
+    // Start server regardless of database connection
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`📡 API endpoints available at http://localhost:${PORT}/api`);
       console.log(`📦 Inventory API: http://localhost:${PORT}/api/inventory`);
       console.log(`🏢 Party API: http://localhost:${PORT}/api/parties`);
+      console.log(`🧪 Test API route: http://localhost:${PORT}/api/test`);
       console.log(`🔧 CORS enabled for: http://localhost:5173, http://localhost:5174`);
     });
   })
   .catch((err) => {
     console.error('❌ Database connection error:', err);
-    process.exit(1);
+    console.warn('⚠️ Starting server without database connection - some features will not work');
+    
+    // Start server even if database connection fails
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT} (without database)`);
+      console.log(`📡 API endpoints available at http://localhost:${PORT}/api`);
+      console.log(`🧪 Test API route: http://localhost:${PORT}/api/test`);
+      console.log(`🔧 CORS enabled for: http://localhost:5173, http://localhost:5174`);
+    });
   });
