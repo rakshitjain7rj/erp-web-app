@@ -15,6 +15,31 @@ async function testEndpoints() {
       // This is just an example token, you should replace it with a valid one from your browser's localStorage
       token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwibmFtZSI6IkFkbWluIiwiZW1haWwiOiJhZG1pbkBlcnAuY29tIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzAzMTMzNjU5fQ.Dq4jFn1puf54NCEpvb-pFykqleex5uyxXYkRbPm9vI4';
     }
+    
+    // Test machine performance endpoints
+    console.log('\n===== Testing Machine Performance API =====');
+    
+    try {
+      console.log('\n1. Testing /api/machines endpoint...');
+      const rootResponse = await axios.get(`${BASE_URL}/api/machines`);
+      console.log('Status:', rootResponse.status);
+      console.log('Response:', rootResponse.data);
+    } catch (error) {
+      console.error('Error testing /api/machines:', error.message);
+    }
+    
+    try {
+      console.log('\n2. Testing /api/machines/performance endpoint...');
+      const perfResponse = await axios.get(`${BASE_URL}/api/machines/performance`);
+      console.log('Status:', perfResponse.status);
+      console.log('Success:', perfResponse.data.success);
+      console.log('Data Count:', perfResponse.data.data ? perfResponse.data.data.length : 0);
+      if (perfResponse.data.data && perfResponse.data.data.length > 0) {
+        console.log('Sample Machine:', perfResponse.data.data[0]);
+      }
+    } catch (error) {
+      console.error('Error testing /api/machines/performance:', error.message);
+    }
   
   const headers = {
     'Content-Type': 'application/json',

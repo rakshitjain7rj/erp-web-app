@@ -92,7 +92,7 @@ const Navbar = () => {
     
     // Production Module
     if (["admin", "manager", "operator"].includes(role)) links.push({ to: "/production/asu-unit-1", label: "ASU Unit 1", icon: <FaIndustry /> });
-    if (["admin", "manager"].includes(role)) links.push({ to: "/production/asu-machines", label: "ASU Machines", icon: <FaCogs /> });
+    // ASU Machines link removed - functionality now integrated into ASU Unit 1 page
     
     if (role === "admin") {
       links.push({ to: "/users", label: "Users", icon: <FaUsers /> });

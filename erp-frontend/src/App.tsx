@@ -25,7 +25,7 @@ import DyeingSummary from "./pages/DyeingSummary";
 import PartyMaster from "./pages/PartyMaster";
 import ArchivedParties from "./pages/ArchivedParties";
 import ASUUnit1Page from "./pages/ASUUnit1Page";
-import ASUMachineManagerPage from "./pages/ASUMachineManagerPage";
+// ASUMachineManagerPage removed as functionality is now in ASUUnit1Page
 import ASUAuthTest from "./components/ASUAuthTest";
 import ApiTest from "./components/ApiTest";
 import SimplePartyTest from "./components/SimplePartyTest";
@@ -184,14 +184,7 @@ const App = () => {
                     </PrivateRoute>
                   }
                 />
-                <Route
-                  path="/production/asu-machines"
-                  element={
-                    <PrivateRoute roles={["admin", "manager"]}>
-                      <ASUMachineManagerPage />
-                    </PrivateRoute>
-                  }
-                />
+                {/* ASUMachineManagerPage route removed - functionality now in ASUUnit1Page */}
                 <Route
                   path="/test/asu-auth"
                   element={

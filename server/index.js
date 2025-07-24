@@ -92,6 +92,12 @@ app.use('/api/inventory', inventoryRoutes);
 // app.use('/api/costings', costingRoutes);
 // app.use('/api/reports', reportRoutes);
 
+// Dashboard routes
+app.use('/api/dashboard', require('./routes/dashboardRoutes'));
+
+// Machine performance routes
+app.use('/api/machines', require('./routes/machinePerformanceRoutes'));
+
 // Test route for debugging
 app.get('/api/test', (req, res) => {
   res.json({ 
@@ -104,7 +110,8 @@ app.get('/api/test', (req, res) => {
       'GET /api/parties/summary',
       'POST /api/parties',
       'POST /api/parties-direct',
-      'POST /api/test-post'
+      'POST /api/test-post',
+      'GET /api/machines/performance'
     ]
   });
 });
