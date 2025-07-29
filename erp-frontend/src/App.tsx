@@ -25,7 +25,6 @@ import DyeingSummary from "./pages/DyeingSummary";
 import PartyMaster from "./pages/PartyMaster";
 import ArchivedParties from "./pages/ArchivedParties";
 import ASUUnit1Page from "./pages/ASUUnit1Page";
-// ASUMachineManagerPage removed as functionality is now in ASUUnit1Page
 import ASUAuthTest from "./components/ASUAuthTest";
 import ApiTest from "./components/ApiTest";
 import SimplePartyTest from "./components/SimplePartyTest";

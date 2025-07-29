@@ -3,6 +3,7 @@ import { ArrowUpRight, ArrowDownRight, Activity, AlertTriangle, Check, RefreshCc
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import ApiTester from '../utils/ApiTester';
+import { useAuth } from '../../context/AuthContext';
 
 export interface MachinePerformanceData {
   id: number;
@@ -19,6 +20,7 @@ export interface MachinePerformanceData {
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 const MachinePerformanceTableRealTime: React.FC = () => {
+  const { user } = useAuth();
   const [machines, setMachines] = useState<MachinePerformanceData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -99,8 +101,11 @@ const MachinePerformanceTableRealTime: React.FC = () => {
         const apiPath = baseUrl.includes('/api') ? 'machines/performance' : 'api/machines/performance';
         const machinesPerformanceUrl = `${baseUrl}/${apiPath}`;
         
+        // Get token for auth
+        const token = user?.token;
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
         console.log('Trying primary endpoint:', machinesPerformanceUrl);
-        response = await axios.get(machinesPerformanceUrl);
+        response = await axios.get(machinesPerformanceUrl, { headers });
         
         if (response.data && response.data.success) {
           setMachines(response.data.data);
@@ -116,8 +121,11 @@ const MachinePerformanceTableRealTime: React.FC = () => {
           const apiPath = baseUrl.includes('/api') ? 'machines/status' : 'api/machines/status';
           const machinesStatusUrl = `${baseUrl}/${apiPath}`;
           
+          // Get token for auth (need to repeat as this is a new scope)
+          const token = user?.token;
+          const headers = token ? { Authorization: `Bearer ${token}` } : {};
           console.log('Trying alternate endpoint:', machinesStatusUrl);
-          response = await axios.get(machinesStatusUrl);
+          response = await axios.get(machinesStatusUrl, { headers });
           
           if (response.data && response.data.success) {
             setMachines(response.data.data);
@@ -134,7 +142,10 @@ const MachinePerformanceTableRealTime: React.FC = () => {
             const machinesUrl = `${baseUrl}/${apiPath}`;
             
             console.log('Trying root endpoint:', machinesUrl);
-            response = await axios.get(machinesUrl);
+            // Get token for auth (need to repeat as this is a new scope)
+            const token = user?.token;
+            const headers = token ? { Authorization: `Bearer ${token}` } : {};
+            response = await axios.get(machinesUrl, { headers });
             
             if (response.data && response.data.success) {
               // This is just the status endpoint, we don't have actual data

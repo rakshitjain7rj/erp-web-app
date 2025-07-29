@@ -42,6 +42,52 @@ api.interceptors.response.use(
   }
 );
 
+// Helper function to get a valid machine number from a machine object
+const getMachineNumber = (machine: ASUMachine | undefined): number | null => {
+  if (!machine) return null;
+  
+  console.log('Getting machine number from:', machine);
+  
+  // Handle machineNo field first - this is the primary field for database foreign key
+  if (machine.machineNo !== undefined && machine.machineNo !== null) {
+    // If machineNo exists, convert it to a number if it's a string
+    const machineNo = typeof machine.machineNo === 'string' ? 
+      parseInt(machine.machineNo, 10) : 
+      machine.machineNo;
+    
+    if (!isNaN(machineNo)) {
+      console.log(`Using machine.machineNo: ${machineNo}`);
+      return machineNo;
+    }
+  } 
+  
+  // Fallback to machine_number field
+  if (machine.machine_number !== undefined && machine.machine_number !== null) {
+    // Convert to a number if it's a string
+    const parsedNumber = parseInt(String(machine.machine_number), 10);
+    if (!isNaN(parsedNumber)) {
+      console.log(`Using machine.machine_number: ${parsedNumber}`);
+      return parsedNumber;
+    }
+  }
+  
+  // Last resort: try to extract a number from the machine name
+  if (machine.machine_name) {
+    const matches = machine.machine_name.match(/\d+/);
+    if (matches && matches[0]) {
+      const extractedNumber = parseInt(matches[0], 10);
+      if (!isNaN(extractedNumber)) {
+        console.log(`Extracted number from machine name: ${extractedNumber}`);
+        return extractedNumber;
+      }
+    }
+  }
+  
+  // No valid machine number found
+  console.warn('No valid machine number found for machine:', machine);
+  return null;
+};
+
 export interface ASUMachine {
   id: number;
   machineNo?: string | number;
@@ -210,12 +256,40 @@ export const asuUnit1Api = {
   ): Promise<PaginatedResponse<ASUProductionEntry>> => {
     const params = new URLSearchParams();
     
-    if (filters.machineId) params.append('machineNumber', filters.machineId.toString());
+    // The backend expects machineNumber (the machine_no field), not machineId (the id field)
+    // So we need to look up the machine to get its machineNo
+    if (filters.machineId) {
+      try {
+        // Get the selected machine to find its actual machine number
+        const machines = await asuUnit1Api.getAllMachines();
+        const selectedMachine = machines.find(m => m.id === filters.machineId);
+        
+        if (selectedMachine) {
+          // Use machineNo (the actual machine number field) instead of the machine's ID
+          const machineNumber = selectedMachine.machineNo || 
+                               (selectedMachine.machine_number ? parseInt(selectedMachine.machine_number) : null);
+                               
+          console.log(`Looking up entries for machine ID ${filters.machineId} with machine number: ${machineNumber}`);
+          
+          if (machineNumber) {
+            params.append('machineNumber', machineNumber.toString());
+          } else {
+            console.error(`Machine with ID ${filters.machineId} has no valid machine number`);
+          }
+        } else {
+          console.error(`Machine with ID ${filters.machineId} not found in machines list`);
+        }
+      } catch (error) {
+        console.error('Error getting machine number:', error);
+      }
+    }
+    
     if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
     if (filters.dateTo) params.append('dateTo', filters.dateTo);
     if (filters.page) params.append('page', filters.page.toString());
     if (filters.limit) params.append('limit', filters.limit.toString());
 
+    console.log(`Querying production entries with params: ${params.toString()}`);
     const response = await api.get(`/production-entries?${params.toString()}`);
     
     // Transform the backend response into the expected frontend format
@@ -223,6 +297,12 @@ export const asuUnit1Api = {
     if (response.data.success) {
       const rawEntries = response.data.data.items as any[];
       const entriesByDateAndMachine: Record<string, ASUProductionEntry> = {};
+      
+      if (!rawEntries || rawEntries.length === 0) {
+        console.log(`No production entries found for the query parameters: ${params.toString()}`);
+      } else {
+        console.log(`Found ${rawEntries.length} production entries`);
+      }
       
       console.log('Raw entries from backend:', rawEntries);
       
@@ -347,7 +427,9 @@ export const asuUnit1Api = {
       throw new Error('Machine not found');
     }
     
+    // Log detailed machine info for debugging
     console.log(`Creating production entry for machine:`, machine);
+    console.log(`Machine details: ID=${machine.id}, machineNo=${machine.machineNo}, machine_number=${machine.machine_number}`);
     console.log(`Day shift: ${data.dayShift}, Night shift: ${data.nightShift}`);
     
     // Ensure productionAt100 is valid
@@ -355,9 +437,28 @@ export const asuUnit1Api = {
       throw new Error('Machine must have a valid productionAt100 value');
     }
     
+    // Get the actual machine number from the machine object using our helper function
+    // This is critical for the foreign key constraint to work
+    const machineNumber = getMachineNumber(machine);
+    
+    if (!machineNumber) {
+      console.error('Machine has no valid machineNo value:', machine);
+      throw new Error('Machine must have a valid machine number. Please check the machine details and ensure it has a valid machine number.');
+    }
+    
+    console.log('Using machine number for production entry:', machineNumber);
+    
     // Transform the data to match backend expectations
+    // Make absolutely sure we're using the correct machine number format
+    if (typeof machineNumber !== 'number' || isNaN(machineNumber) || machineNumber <= 0) {
+      throw new Error(`Invalid machine number: ${machineNumber}. Please check the machine configuration.`);
+    }
+    
+    // Double check that the machine number exists in the database
+    console.log(`Verifying machine number ${machineNumber} exists in the database`);
+    
     const dayEntry = data.dayShift > 0 ? {
-      machineNumber: data.machineId,
+      machineNumber: machineNumber, // Use the actual machineNo, not the ID
       date: data.date,
       shift: 'day',
       actualProduction: data.dayShift,
@@ -365,12 +466,15 @@ export const asuUnit1Api = {
     } : null;
     
     const nightEntry = data.nightShift > 0 ? {
-      machineNumber: data.machineId,
+      machineNumber: machineNumber, // Use the actual machineNo, not the ID
       date: data.date,
       shift: 'night',
       actualProduction: data.nightShift,
       theoreticalProduction: machine.productionAt100
     } : null;
+    
+    console.log(`Created dayEntry:`, dayEntry);
+    console.log(`Created nightEntry:`, nightEntry);
     
     console.log('Day entry to create:', dayEntry);
     console.log('Night entry to create:', nightEntry);
@@ -378,40 +482,83 @@ export const asuUnit1Api = {
     try {
       // If both shifts have data, we need to create two entries
       if (dayEntry && nightEntry) {
+        console.log('Attempting to create day entry with:', dayEntry);
         const dayResponse = await api.post('/production-entries', dayEntry);
+        console.log('Day entry created successfully, response:', dayResponse.data);
+        
+        console.log('Attempting to create night entry with:', nightEntry);
         // Still create the night entry but we don't need to use the response
-        await api.post('/production-entries', nightEntry);
+        const nightResponse = await api.post('/production-entries', nightEntry);
+        console.log('Night entry created successfully, response:', nightResponse.data);
         
         // Return the day entry response as the primary result
         return dayResponse.data.success ? dayResponse.data.data : dayResponse.data;
       } 
       // Otherwise create just one entry for the shift that has data
       else if (dayEntry) {
+        console.log('Attempting to create day entry with:', dayEntry);
         const response = await api.post('/production-entries', dayEntry);
+        console.log('Day entry created successfully, response:', response.data);
         return response.data.success ? response.data.data : response.data;
       }
       else if (nightEntry) {
+        console.log('Attempting to create night entry with:', nightEntry);
         const response = await api.post('/production-entries', nightEntry);
+        console.log('Night entry created successfully, response:', response.data);
         return response.data.success ? response.data.data : response.data;
       }
       else {
         throw new Error('At least one shift must have production data');
       }
     } catch (error) {
-      // Make sure error is properly propagated
-      if (error && typeof error === 'object' && 'response' in error && 
-          error.response && typeof error.response === 'object' && 'status' in error.response && 
-          error.response.status === 409) {
-        // Extract specific error for duplicate entries
-        throw error;
-      } else {
-        const errorMessage = error && typeof error === 'object' && 'response' in error &&
-          error.response && typeof error.response === 'object' && 'data' in error.response &&
-          error.response.data && typeof error.response.data === 'object' && 'error' in error.response.data ?
-          error.response.data.error : 'Failed to create production entry';
+      console.error('Error creating production entry:', error);
+      
+      // Better error diagnostic for foreign key violations
+      if (error && typeof error === 'object' && 'response' in error &&
+          error.response && typeof error.response === 'object') {
+            
+        // Type assertion for better TypeScript support
+        const errorResponse = error.response as any;
+            
+        // Log detailed error information for debugging
+        console.error('API Response Error:', {
+          status: errorResponse.status,
+          statusText: errorResponse.statusText,
+          data: errorResponse.data
+        });
         
-        throw new Error(errorMessage);
+        // Handle specific error types
+        if (errorResponse.status === 409) {
+          // Extract specific error for duplicate entries
+          throw error;
+        } else if (errorResponse.status === 400 || errorResponse.status === 500) {
+          // Check if this is a foreign key violation
+          const responseData = errorResponse.data;
+          const errorText = typeof responseData === 'string' ? responseData : 
+                           (responseData && typeof responseData === 'object' && 'error' in responseData) ? 
+                           responseData.error : JSON.stringify(responseData);
+          
+          if (typeof errorText === 'string' && 
+              (errorText.includes('foreign key constraint') || 
+               errorText.includes('asu_production_entries_machine_no_fkey'))) {
+            throw new Error(`Machine number mismatch: The machine number doesn't match any existing machine. Please check the machine configuration or try selecting a different machine.`);
+          }
+        }
       }
+      
+      // Extract error message with proper type handling
+      let errorMessage = 'Failed to create production entry';
+      
+      if (error && typeof error === 'object' && 'response' in error) {
+        const errorResponse = error.response as any;
+        if (errorResponse && typeof errorResponse === 'object' && 'data' in errorResponse &&
+            errorResponse.data && typeof errorResponse.data === 'object' && 'error' in errorResponse.data) {
+          const responseError = errorResponse.data.error;
+          errorMessage = typeof responseError === 'string' ? responseError : 'Failed to create production entry';
+        }
+      }
+      
+      throw new Error(errorMessage);
     }
   },
 
@@ -572,13 +719,25 @@ export const asuUnit1Api = {
   // Machine management functions
   addMachine: async (data: CreateASUMachineData): Promise<ASUMachine> => {
     // Transform frontend format to backend format
+    // Ensure machineNo is always set and is a valid number - this is critical for foreign key relationships
+    const machineNumber = data.machine_number ? Number(data.machine_number) : 0;
+    
+    if (!machineNumber || isNaN(machineNumber)) {
+      throw new Error('Machine Number is required and must be a valid number');
+    }
+    
+    // Log the machine creation with the machine number being used
+    console.log(`Creating machine with machineNo=${machineNumber}`);
+    
     const apiData = {
-      machineNo: data.machine_number ? Number(data.machine_number) : undefined,
+      machineNo: machineNumber, // Always provide machineNo as a number
+      machine_name: data.machine_name || `Machine ${machineNumber}`,
+      machine_number: String(machineNumber), // Also provide as string for backwards compatibility
       count: data.count,
       yarnType: data.yarnType || 'Cotton',
-      spindles: data.spindles,
-      speed: data.speed,
-      productionAt100: data.productionAt100,
+      spindles: data.spindles || 0,
+      speed: data.speed || 0,
+      productionAt100: data.productionAt100 || 0,
       isActive: data.status === 'active'
     };
     
@@ -595,7 +754,9 @@ export const asuUnit1Api = {
       ...(data.machineNo !== undefined && { machineNo: data.machineNo }),
       ...(data.machine_name !== undefined && { machine_name: data.machine_name }),
       ...(data.machine_number !== undefined && { machine_number: data.machine_number }),
+      // Send both isActive and status to ensure the backend correctly processes it
       ...(data.isActive !== undefined && { isActive: data.isActive }),
+      ...(data.isActive !== undefined && { status: data.isActive ? 'active' : 'inactive' }),
       ...(data.yarnType !== undefined && { yarnType: data.yarnType }),
       ...(data.count !== undefined && { count: data.count }),
       ...(data.spindles !== undefined && { spindles: data.spindles }),
@@ -609,7 +770,12 @@ export const asuUnit1Api = {
     return response.data.success ? response.data.data : response.data;
   },
   
-  deleteMachine: async (id: number): Promise<void> => {
-    await api.delete(`/asu-machines/${id}`);
+  deleteMachine: async (id: number, force: boolean = false): Promise<void> => {
+    await api.delete(`/machines/${id}${force ? '?force=true' : ''}`);
+  },
+  
+  // Archive a machine instead of deleting it
+  archiveMachine: async (id: number): Promise<void> => {
+    await api.post(`/machines/${id}/archive`);
   },
 };

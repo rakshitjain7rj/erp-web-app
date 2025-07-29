@@ -1,18 +1,16 @@
 // src/pages/ASUUnit1Page.tsx
 
 import React, { useState, useEffect, useCallback } from 'react';
-//import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Badge } from '../components/ui/badge';
-import { Modal } from '../components/ui/Modal';
-import { Spinner } from '../components/ui/spinner';
 import { toast } from 'react-hot-toast';
 import { Plus, Edit, Trash2, Save, X, Activity, Package, Settings, RefreshCw } from 'lucide-react';
 import YarnProductionSummary from '../components/YarnProductionSummary';
+import DeleteConfirmationDialog from '../components/dialogs/DeleteConfirmationDialog';
 
 import { 
   asuUnit1Api, 
@@ -20,7 +18,6 @@ import {
   ASUProductionEntry, 
   CreateProductionEntryData,
   ProductionStats,
-  UpdateASUMachineData
 } from '../api/asuUnit1Api';
 
 interface EditingEntry {
@@ -54,6 +51,9 @@ const ASUUnit1Page: React.FC = () => {
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [machineToDelete, setMachineToDelete] = useState<number | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [hasRelatedEntries, setHasRelatedEntries] = useState(false);
+  const [entriesCount, setEntriesCount] = useState(0);
   
   // Initial machine for the add form
   const initialMachine: ASUMachine = {
@@ -115,6 +115,19 @@ const ASUUnit1Page: React.FC = () => {
     
     try {
       setLoading(true);
+      
+      // Log machine details to help diagnose the issue
+      console.log('Loading production entries for machine:', {
+        id: selectedMachine.id,
+        machineNo: selectedMachine.machineNo,
+        machine_number: selectedMachine.machine_number
+      });
+      
+      // Make sure the selected machine has a valid machineNo
+      if (!selectedMachine.machineNo && !selectedMachine.machine_number) {
+        console.warn(`Selected machine (ID: ${selectedMachine.id}) has no valid machine number`);
+      }
+      
       const data = await asuUnit1Api.getProductionEntries({
         machineId: selectedMachine.id,
         limit: 30
@@ -207,12 +220,38 @@ const ASUUnit1Page: React.FC = () => {
   const handleAddMachine = async () => {
     if (!editingMachine) return;
     
+    // Validate machine number
+    if (!editingMachine.machine_number) {
+      toast.error('Machine number is required');
+      return;
+    }
+    
+    // Ensure machine number is valid
+    const machineNumber = Number(editingMachine.machine_number);
+    if (isNaN(machineNumber) || machineNumber <= 0) {
+      toast.error('Machine number must be a positive number');
+      return;
+    }
+    
     try {
       setLoading(true);
       
+      // First check if a machine with this number already exists
+      const existingMachines = await asuUnit1Api.getAllMachines();
+      const duplicate = existingMachines.find(m => 
+        (m.machineNo && Number(m.machineNo) === machineNumber) || 
+        (m.machine_number && m.machine_number === editingMachine.machine_number)
+      );
+      
+      if (duplicate) {
+        toast.error(`Machine with number ${machineNumber} already exists`);
+        setLoading(false);
+        return;
+      }
+      
       await asuUnit1Api.addMachine({
-        machine_name: editingMachine.machine_name || '',
-        machine_number: editingMachine.machine_number || '',
+        machine_name: editingMachine.machine_name || `Machine ${machineNumber}`,
+        machine_number: String(machineNumber),  // Ensure it's a string for API consistency
         status: editingMachine.status || 'active',
         yarnType: editingMachine.yarnType || 'Cotton',
         count: editingMachine.count || 0,
@@ -248,19 +287,32 @@ const ASUUnit1Page: React.FC = () => {
       
       console.log('Updating machine with ID:', editingMachine.id, 'Data:', editingMachine);
       
-      // Format data to match backend expectations
-      // Convert machine_number to machineNo if it's a number, or keep as is
-      const machineNo = editingMachine.machine_number ? 
-        (isNaN(Number(editingMachine.machine_number)) ? 
-          editingMachine.machineNo : 
-          Number(editingMachine.machine_number)) : 
-        editingMachine.machineNo;
+      // Validate machine number
+      const machineNumber = editingMachine.machine_number ? String(editingMachine.machine_number).trim() : '';
+      if (!machineNumber) {
+        toast.error('Machine number is required');
+        setLoading(false);
+        return;
+      }
+      
+      // Validate machine name
+      const machineName = editingMachine.machine_name ? String(editingMachine.machine_name).trim() : '';
+      if (!machineName) {
+        // If no machine name provided, create a default one from the machine number
+        editingMachine.machine_name = `Machine ${machineNumber}`;
+      }
+      
+      // Try to parse as number, but also send original string value
+      const machineNoNumeric = Number(machineNumber);
+      
+      console.log('Sending update with machine name:', editingMachine.machine_name);
+      console.log('Sending update with machine number:', machineNumber);
       
       // Use updateMachine which now uses the correct /machines/${id} endpoint
       await asuUnit1Api.updateMachine(editingMachine.id, {
-        machineNo: Number(machineNo) || 0, // Ensure machineNo is a number
-        machine_name: editingMachine.machine_name || '',
-        machine_number: editingMachine.machine_number || '',
+        machineNo: !isNaN(machineNoNumeric) ? machineNoNumeric : undefined,
+        machine_name: editingMachine.machine_name,
+        machine_number: machineNumber, // Send the original string value
         isActive: editingMachine.status === 'active',
         yarnType: editingMachine.yarnType || 'Cotton',
         count: editingMachine.count || 0,
@@ -286,23 +338,49 @@ const ASUUnit1Page: React.FC = () => {
     setShowConfirmDialog(true);
   };
   
-  const confirmDeleteMachine = async () => {
+  const confirmDeleteMachine = async (force: boolean = false) => {
     if (machineToDelete === null) return;
     
     try {
       setLoading(true);
+      setDeleteError(null);
       
-      await asuUnit1Api.deleteMachine(machineToDelete);
+      // If force is true, we're explicitly trying to delete with related entries
+      if (force && hasRelatedEntries) {
+        console.log('Attempting forced deletion with related entries');
+      }
+      
+      await asuUnit1Api.deleteMachine(machineToDelete, force);
       
       toast.success('Machine deleted successfully');
       setShowConfirmDialog(false);
+      setHasRelatedEntries(false);
+      setEntriesCount(0);
       getAllMachines();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting machine:', error);
-      toast.error('Failed to delete machine');
+      
+      // Check for the specific 409 error (conflict due to foreign key constraint)
+      if (error.response?.status === 409 && error.response?.data?.hasRelatedEntries) {
+        setHasRelatedEntries(true);
+        setEntriesCount(error.response.data.entriesCount || 0);
+        setDeleteError(error.response?.data?.error || 
+          `Cannot delete machine because it has ${error.response.data.entriesCount} production entries associated with it.`);
+          
+        // If we already tried with force=true and still got an error, show a different message
+        if (force) {
+          toast.error('Cannot delete machine even with force option. You must archive or migrate the production entries first.');
+        }
+      } else {
+        const errorMessage = error.response?.data?.error || 'Failed to delete machine';
+        toast.error(errorMessage);
+        setShowConfirmDialog(false);
+      }
     } finally {
       setLoading(false);
-      setMachineToDelete(null);
+      if (!hasRelatedEntries) {
+        setMachineToDelete(null);
+      }
     }
   };
 
@@ -358,18 +436,18 @@ const ASUUnit1Page: React.FC = () => {
     }
   }, [selectedMachine, loadProductionEntries]);
   
-  // Load machines when machine tab is active
+  // Load machines when machine tab is active or after modal closes
   useEffect(() => {
     if (activeTab === 'machines') {
       getAllMachines();
     }
-  }, [activeTab, getAllMachines]);
+  }, [activeTab, isModalOpen, getAllMachines]);
 
   const handleMachineSelect = (machineId: string) => {
     // Handle empty selection or "no-machines" placeholder
     if (!machineId || machineId === "no-machines") {
       setSelectedMachine(null);
-      setFormData(prev => ({ ...prev, machineId: undefined }));
+      setFormData(prev => ({ ...prev, machineId: 0 }));  // Use 0 instead of undefined to match the type
       return;
     }
     
@@ -392,11 +470,21 @@ const ASUUnit1Page: React.FC = () => {
       toast.error('Please select a machine');
       return;
     }
+    
+    // Verify that machine has a machineNo (needed for production entries foreign key)
+    if (!selectedMachine.machineNo && !selectedMachine.machine_number) {
+      toast.error('Selected machine does not have a valid machine number');
+      return;
+    }
 
     try {
       setLoading(true);
       console.log('Creating production entry with data:', formData);
       console.log('Selected machine:', selectedMachine);
+      console.log('Machine number info:', {
+        machineNo: selectedMachine.machineNo,
+        machine_number: selectedMachine.machine_number
+      });
       
       await asuUnit1Api.createProductionEntry(formData);
       
@@ -409,8 +497,16 @@ const ASUUnit1Page: React.FC = () => {
       });
       
       console.log('About to reload production entries...');
-      await loadProductionEntries();
-      await loadStats();
+      
+      // Force a complete machine reload first to ensure we have the latest machine data
+      // This is important for newly created machines
+      await loadMachines();
+      
+      // Small delay to ensure machines are loaded first
+      setTimeout(async () => {
+        await loadProductionEntries();
+        await loadStats();
+      }, 300);
     } catch (error) {
       console.error('Error creating production entry:', error);
 
@@ -1012,7 +1108,7 @@ const ASUUnit1Page: React.FC = () => {
                                 <Button 
                                   size="sm" 
                                   onClick={() => handleDelete(entry.id)}
-                                  className="p-1 text-red-700 rounded-md bg-red-50 hover:bg-red-100 dark:bg-red-900/30 dark:hover:bg-red-800/50 dark:text-red-300"
+                                  className="p-1 text-white rounded-md bg-red-600 hover:bg-red-700 border border-red-700 dark:bg-red-900/70 dark:hover:bg-red-800 dark:text-red-200"
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </Button>
@@ -1392,37 +1488,44 @@ const ASUUnit1Page: React.FC = () => {
             )}
 
             {/* Confirmation Dialog */}
-            {showConfirmDialog && (
-              <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50">
-                <div className="flex items-center justify-center min-h-screen">
-                  <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-xl dark:bg-gray-800">
-                    <div className="mb-4">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                        Confirm Delete
-                      </h3>
-                      <p className="mt-2 text-gray-600 dark:text-gray-400">
-                        Are you sure you want to delete this machine? This action cannot be undone.
-                      </p>
-                    </div>
-                    
-                    <div className="flex justify-end space-x-3">
-                      <Button
-                        onClick={() => setShowConfirmDialog(false)}
-                        className="px-4 py-2 text-gray-700 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={confirmDeleteMachine}
-                        className="px-4 py-2 text-white bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700"
-                      >
-                        Delete
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+            <DeleteConfirmationDialog
+              isOpen={showConfirmDialog}
+              title="Confirm Delete Machine"
+              message={hasRelatedEntries 
+                ? "This machine has production entries associated with it."
+                : "Are you sure you want to delete this machine? This action cannot be undone."}
+              itemName={machineToDelete ? `Machine #${machineToDelete}` : "Machine"}
+              hasRelatedItems={hasRelatedEntries}
+              relatedItemsCount={entriesCount}
+              relatedItemsType="production entries"
+              onClose={() => {
+                setShowConfirmDialog(false);
+                setDeleteError(null);
+                setHasRelatedEntries(false);
+                setEntriesCount(0);
+                setMachineToDelete(null);
+              }}
+              onConfirm={() => confirmDeleteMachine(hasRelatedEntries ? true : false)}
+              onArchiveInstead={async () => {
+                if (machineToDelete === null) return;
+                try {
+                  setLoading(true);
+                  await asuUnit1Api.archiveMachine(machineToDelete);
+                  toast.success('Machine archived successfully');
+                  setShowConfirmDialog(false);
+                  getAllMachines();
+                } catch (error: any) {
+                  console.error('Error archiving machine:', error);
+                  const errorMessage = error.response?.data?.error || 'Failed to archive machine';
+                  toast.error(errorMessage);
+                } finally {
+                  setLoading(false);
+                  setMachineToDelete(null);
+                  setHasRelatedEntries(false);
+                  setEntriesCount(0);
+                }
+              }}
+            />
           </div>
         )}
       </div>

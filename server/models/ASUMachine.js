@@ -13,6 +13,11 @@ const ASUMachine = sequelize.define('ASUMachine', {
     unique: true,
     field: 'machine_no'
   },
+  machineName: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    field: 'machine_name'
+  },
   count: {
     type: DataTypes.INTEGER,
     allowNull: false,
@@ -54,6 +59,19 @@ const ASUMachine = sequelize.define('ASUMachine', {
     allowNull: false,
     defaultValue: true,
     field: 'is_active'
+  },
+  archivedAt: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    field: 'archived_at'
+  },
+  status: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    defaultValue: 'ACTIVE',
+    validate: {
+      isIn: [['ACTIVE', 'INACTIVE', 'MAINTENANCE', 'ARCHIVED']]
+    }
   }
 }, {
   tableName: 'asu_machines',

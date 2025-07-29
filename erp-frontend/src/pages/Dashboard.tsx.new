@@ -1,0 +1,423 @@
+import React, { useState, useEffect } from "react";
+import LayoutWrapper from "../components/LayoutWrapper";
+import { useAuth } from "../context/AuthContext";
+import axios from "axios";
+import toast from "react-hot-toast";
+
+// Import only essential icons
+import { 
+  Gauge, 
+  RefreshCw,
+  Settings,
+  TrendingUp,
+  Activity
+} from "lucide-react";
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+const Dashboard = () => {
+  const { user } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
+  const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+  
+  // Simplified ASU Unit Data structure
+  interface ASUMachineData {
+    id: number;
+    machineNo: number;
+    machineName: string;
+    status: string;
+    isActive: boolean;
+    efficiency: number;
+    lastProduction: number;
+    productionAt100: number;
+    yarnType: string;
+    count: number;
+    lastUpdated: string;
+  }
+  
+  // Simplified Dashboard Data Types
+  interface DashboardData {
+    // Production metrics for ASU Unit 1
+    totalMachines: number;
+    activeMachines: number;
+    averageEfficiency: number;
+    totalProduction: number;
+    machines: ASUMachineData[];
+  }
+  
+  // Minimal state initialization
+  const [dashboardData, setDashboardData] = useState<DashboardData>({
+    totalMachines: 0,
+    activeMachines: 0,
+    averageEfficiency: 0,
+    totalProduction: 0,
+    machines: []
+  });
+  
+  // Simple date range filter - just the current day and previous week
+  const [dateFilter, setDateFilter] = useState<'today' | 'week'>('today');
+
+  const fetchDashboardData = async () => {
+    setIsLoading(true);
+    
+    try {
+      // Simple API call focused only on ASU Unit 1 data
+      const response = await axios.get(`${API_URL}/asu-unit1/dashboard-stats?timeframe=${dateFilter}`);
+      
+      if (response.data && response.data.success) {
+        const data = response.data.data;
+        
+        setDashboardData({
+          totalMachines: data.totalMachines || 0,
+          activeMachines: data.activeMachines || 0,
+          averageEfficiency: data.averageEfficiency || 0,
+          totalProduction: data.totalProduction || 0,
+          machines: data.machines || []
+        });
+        
+        setLastRefreshed(new Date());
+        console.log('ASU Unit 1 dashboard data loaded');
+      } else {
+        console.error('API returned unsuccessful response:', response.data);
+        toast.error('Error loading ASU Unit 1 data');
+      }
+    } catch (error: any) {
+      console.error("Failed to fetch ASU Unit 1 data:", error);
+      toast.error(error.response?.data?.error || "Failed to load dashboard data");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Initial data load
+  useEffect(() => {
+    fetchDashboardData();
+    
+    // Setup a simple auto-refresh every 2 minutes
+    const refreshInterval = setInterval(() => {
+      fetchDashboardData();
+    }, 2 * 60 * 1000); // 2 minutes
+    
+    return () => clearInterval(refreshInterval);
+  }, [dateFilter]);
+  
+  // Simple formatter functions
+  const formatNumber = (value: number): string => value.toLocaleString();
+  const formatPercent = (value: number): string => `${value.toFixed(1)}%`;
+  
+  // Helper function to determine status color
+  const getStatusColor = (status: string): string => {
+    if (status === 'operational' || status === 'active') return 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-900/30';
+    if (status === 'maintenance') return 'text-amber-600 bg-amber-100 dark:text-amber-400 dark:bg-amber-900/30';
+    return 'text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-900/30'; // offline or other statuses
+  };
+
+  // Loading state
+  if (isLoading && dashboardData.machines.length === 0) {
+    return (
+      <LayoutWrapper title="ASU Unit 1 Overview">
+        <div className="h-[60vh] flex flex-col items-center justify-center">
+          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="mt-4 text-gray-600 dark:text-gray-300">Loading ASU Unit 1 data...</p>
+        </div>
+      </LayoutWrapper>
+    );
+  }
+
+  return (
+    <LayoutWrapper title="ASU Unit 1 Overview">
+      {/* Simple Header with Refresh Button */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-gray-800 dark:text-white">ASU Unit 1 Dashboard</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Machine status and production overview
+            </p>
+          </div>
+          
+          <div className="flex items-center space-x-3">
+            <div className="flex items-center">
+              <button
+                className={`px-3 py-1 text-sm rounded-l-md ${
+                  dateFilter === 'today'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                }`}
+                onClick={() => setDateFilter('today')}
+              >
+                Today
+              </button>
+              <button
+                className={`px-3 py-1 text-sm rounded-r-md ${
+                  dateFilter === 'week'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                }`}
+                onClick={() => setDateFilter('week')}
+              >
+                Week
+              </button>
+            </div>
+            
+            <button 
+              onClick={() => fetchDashboardData()}
+              className="flex items-center px-3 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 dark:hover:bg-blue-500 transition-colors text-sm"
+              disabled={isLoading}
+            >
+              <RefreshCw className={`h-4 w-4 mr-1.5 ${isLoading ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
+            </button>
+          </div>
+        </div>
+        
+        {/* Last refreshed timestamp */}
+        <div className="mt-2 flex items-center text-xs text-gray-500 dark:text-gray-400">
+          Last updated: {lastRefreshed.toLocaleTimeString()}
+        </div>
+      </div>
+
+      {/* Summary Stats Cards - Just 4 essential metrics */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {/* Total Machines */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Machines</p>
+              <h3 className="text-2xl font-bold mt-1 text-gray-800 dark:text-white">{dashboardData.totalMachines}</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Unit 1
+              </p>
+            </div>
+            <div className="p-2 rounded-lg bg-blue-500/10 dark:bg-blue-500/20">
+              <Settings className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            </div>
+          </div>
+        </div>
+
+        {/* Active Machines */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Active Machines</p>
+              <h3 className="text-2xl font-bold mt-1 text-gray-800 dark:text-white">{dashboardData.activeMachines}</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                {dashboardData.totalMachines > 0 
+                  ? `${(dashboardData.activeMachines / dashboardData.totalMachines * 100).toFixed(0)}% operational`
+                  : 'No machines'}
+              </p>
+            </div>
+            <div className="p-2 rounded-lg bg-green-500/10 dark:bg-green-500/20">
+              <Activity className="w-6 h-6 text-green-600 dark:text-green-400" />
+            </div>
+          </div>
+        </div>
+
+        {/* Average Efficiency */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Average Efficiency</p>
+              <h3 className="text-2xl font-bold mt-1 text-gray-800 dark:text-white">{formatPercent(dashboardData.averageEfficiency)}</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Across all active machines
+              </p>
+            </div>
+            <div className="p-2 rounded-lg bg-amber-500/10 dark:bg-amber-500/20">
+              <Gauge className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+            </div>
+          </div>
+        </div>
+
+        {/* Total Production */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Production</p>
+              <h3 className="text-2xl font-bold mt-1 text-gray-800 dark:text-white">{formatNumber(dashboardData.totalProduction)} kg</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                {dateFilter === 'today' ? 'Today' : 'This week'}
+              </p>
+            </div>
+            <div className="p-2 rounded-lg bg-purple-500/10 dark:bg-purple-500/20">
+              <TrendingUp className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Machine Status Table - Simple and focused */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden mb-6">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-white">Machine Status</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            Current status and performance of ASU Unit 1 machines
+          </p>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-gray-50 dark:bg-gray-800/50">
+              <tr>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Machine
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Status
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Yarn
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Efficiency
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Production
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Last Updated
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+              {dashboardData.machines.map((machine) => (
+                <tr key={machine.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="font-medium text-gray-800 dark:text-white">#{machine.machineNo}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">{machine.machineName}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(machine.status)}`}>
+                      {machine.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-700 dark:text-gray-300">{machine.yarnType}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">{machine.count} Count</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center">
+                      <div className="w-16 bg-gray-200 dark:bg-gray-700 rounded-full h-2 mr-2">
+                        <div 
+                          className={`h-full rounded-full ${
+                            machine.efficiency >= 85 ? 'bg-green-500' : 
+                            machine.efficiency >= 70 ? 'bg-blue-500' :
+                            machine.efficiency >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+                          }`} 
+                          style={{ width: `${Math.min(100, machine.efficiency)}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        {machine.efficiency.toFixed(1)}%
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-700 dark:text-gray-300">
+                      {machine.lastProduction.toLocaleString()} kg
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {machine.productionAt100 > 0 ? `of ${machine.productionAt100}kg @ 100%` : 'No target data'}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                    {new Date(machine.lastUpdated).toLocaleTimeString()}
+                  </td>
+                </tr>
+              ))}
+              
+              {dashboardData.machines.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                    No machine data available
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Simple machine performance breakdown */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-6">
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">Performance Summary</h2>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Top Performing Machine */}
+          <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+            <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Top Performing Machine</h3>
+            {dashboardData.machines.length > 0 ? (
+              (() => {
+                const topMachine = [...dashboardData.machines].sort((a, b) => b.efficiency - a.efficiency)[0];
+                return (
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-lg font-semibold text-gray-800 dark:text-white">
+                        Machine #{topMachine.machineNo}
+                      </div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        {topMachine.yarnType}, {topMachine.count} Count
+                      </div>
+                    </div>
+                    <div className="text-lg font-bold text-green-600 dark:text-green-400">
+                      {topMachine.efficiency.toFixed(1)}%
+                    </div>
+                  </div>
+                );
+              })()
+            ) : (
+              <p className="text-gray-500 dark:text-gray-400">No data available</p>
+            )}
+          </div>
+          
+          {/* Machine Needing Attention */}
+          <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+            <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Machine Needing Attention</h3>
+            {dashboardData.machines.filter(m => m.isActive).length > 0 ? (
+              (() => {
+                const lowMachine = [...dashboardData.machines]
+                  .filter(m => m.isActive)
+                  .sort((a, b) => a.efficiency - b.efficiency)[0];
+                return (
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-lg font-semibold text-gray-800 dark:text-white">
+                        Machine #{lowMachine.machineNo}
+                      </div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        {lowMachine.yarnType}, {lowMachine.count} Count
+                      </div>
+                    </div>
+                    <div className="text-lg font-bold text-red-600 dark:text-red-400">
+                      {lowMachine.efficiency.toFixed(1)}%
+                    </div>
+                  </div>
+                );
+              })()
+            ) : (
+              <p className="text-gray-500 dark:text-gray-400">No active machines</p>
+            )}
+          </div>
+        </div>
+      </div>
+      
+      {/* Simple footer with action buttons */}
+      <div className="flex justify-end space-x-4 mt-8 mb-4">
+        <a 
+          href="/asu-unit1" 
+          className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600"
+        >
+          View Unit 1 Details
+        </a>
+        <a 
+          href="/asu-unit1?tab=machines" 
+          className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+        >
+          Manage Machines
+        </a>
+      </div>
+    </LayoutWrapper>
+  );
+};
+
+export default Dashboard;

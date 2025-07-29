@@ -101,14 +101,14 @@ const getMachinePerformance = async (req, res) => {
     const [asuMachinePerformance] = await sequelize.query(`
       WITH ProductionStats AS (
         SELECT 
-          machine_id,
+          machine_no,
           COUNT(id) AS entries_count,
           SUM(actual_production) AS total_production,
           AVG(efficiency) AS avg_efficiency,
           AVG(waste_percentage) AS avg_waste
         FROM "asu_production_entries" pe
         WHERE 1=1${dateFilter}
-        GROUP BY machine_id
+        GROUP BY machine_no
       )
       
       SELECT 
@@ -126,7 +126,7 @@ const getMachinePerformance = async (req, res) => {
         COALESCE(ps.avg_efficiency, 0) AS "efficiency",
         COALESCE(ps.avg_waste, 0) AS "wastePercentage"
       FROM "asu_machines" m
-      LEFT JOIN ProductionStats ps ON m.id = ps.machine_id
+      LEFT JOIN ProductionStats ps ON m.machine_no = ps.machine_no
       WHERE 1=1${unitFilter}${machineFilter}
       ORDER BY COALESCE(ps.avg_efficiency, 0) DESC
     `);

@@ -599,7 +599,7 @@ async function getMachinePerformanceData(startDate = null, endDate = null, machi
         SUM(pe.actual_production) AS "totalProduction",
         AVG(pe.waste_percentage) AS "avgWaste"
       FROM "asu_machines" m
-      LEFT JOIN "asu_production_entries" pe ON m.id = pe.machine_id${dateFilter}
+      LEFT JOIN "asu_production_entries" pe ON m.machine_no = pe.machine_no${dateFilter}
       WHERE 1=1${machineFilter}
       GROUP BY m.id, m.name, m."isActive", m."maintenanceMode", m."lastMaintenance"
       ORDER BY AVG(pe.efficiency) DESC NULLS LAST
@@ -706,7 +706,7 @@ async function getQualityMetrics(startDate = null, endDate = null) {
         pe.quality_grade AS "grade",
         pe.remarks
       FROM "asu_production_entries" pe
-      JOIN "asu_machines" m ON pe.machine_id = m.id
+      JOIN "asu_machines" m ON pe.machine_no = m.machine_no
       WHERE pe.waste_percentage > 5${dateFilter}
       ORDER BY pe.date DESC, pe.waste_percentage DESC
       LIMIT 5;

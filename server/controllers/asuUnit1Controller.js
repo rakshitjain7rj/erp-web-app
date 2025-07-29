@@ -434,6 +434,7 @@ const createMachine = async (req, res) => {
   try {
     const { 
       machineNo, 
+      machine_name, // Added machine_name extraction
       count, 
       yarnType,
       spindles, 
@@ -449,9 +450,21 @@ const createMachine = async (req, res) => {
       });
     }
 
+    // Log the machine creation request for debugging
+    console.log('Creating machine with data:', { 
+      machineNo, 
+      machine_name, 
+      count, 
+      yarnType, 
+      spindles, 
+      speed, 
+      productionAt100 
+    });
+
     // Create machine with unit always set to 1
     const machine = await ASUMachine.create({
       machineNo,
+      machineName: machine_name || `Machine ${machineNo}`, // Save machine_name to machineName field
       count,
       yarnType: yarnType || 'Cotton',
       spindles,
@@ -507,24 +520,46 @@ const updateMachine = async (req, res) => {
       });
     }
 
+    // Log the received data for debugging
+    console.log('Update machine request received:', {
+      id,
+      machineNo,
+      machine_number,
+      machine_name,
+      isActive,
+      status,
+      count,
+      yarnType,
+      spindles,
+      speed,
+      productionAt100
+    });
+    
     // Prepare update data, handling both frontend and backend field names
     const updateData = {
       machineNo: machineNo !== undefined ? machineNo : 
-                 machine_number !== undefined ? Number(machine_number) : 
+                 machine_number !== undefined ? (isNaN(Number(machine_number)) ? machine.machineNo : Number(machine_number)) : 
                  machine.machineNo,
       count: count !== undefined ? count : machine.count,
       yarnType: yarnType || machine.yarnType,
       spindles: spindles !== undefined ? spindles : machine.spindles,
       speed: speed !== undefined ? speed : machine.speed,
       productionAt100: productionAt100 !== undefined ? productionAt100 : machine.productionAt100,
-      isActive: isActive !== undefined ? isActive : 
-                status !== undefined ? status === 'active' : 
-                machine.isActive
+      isActive: isActive !== undefined ? Boolean(isActive) : 
+                status !== undefined ? String(status).toLowerCase() === 'active' : 
+                machine.isActive,
+      // Always store machine_name in the database (we've confirmed the column exists)
+      // No need to check if the model has the field since we've fixed the model
+      machineName: machine_name || machine.machineName || `Machine ${machineNo || machine_number || machine.machineNo}`
     };
     
-    // We don't store machine_name in the database, as it's a frontend display convention
+    // Log what we're updating to
+    console.log('Updating machine with data:', updateData);
     
     await machine.update(updateData);
+    
+    // Log the updated machine for verification
+    console.log('Machine updated successfully:', machine.toJSON());
 
     res.json({
       success: true,
@@ -623,6 +658,115 @@ const updateMachineYarnTypeAndCount = async (req, res) => {
   }
 };
 
+// Delete an ASU Machine
+const deleteMachine = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { force } = req.query;
+    
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: 'Machine ID is required'
+      });
+    }
+
+    // Find the machine first
+    const machine = await ASUMachine.findByPk(id);
+    
+    if (!machine) {
+      return res.status(404).json({
+        success: false,
+        error: `Machine with ID ${id} not found`
+      });
+    }
+
+    // Check if this machine has production entries
+    // ASUProductionEntry is already imported at the top of the file
+    // Find the machine's machineNo first
+    const machineNo = machine.machineNo;
+    
+    const relatedEntries = await ASUProductionEntry.count({
+      where: { machineNumber: machineNo }
+    });
+
+    if (relatedEntries > 0 && force !== 'true') {
+      return res.status(409).json({
+        success: false,
+        error: `Cannot delete machine with ID ${id} because it has ${relatedEntries} production entries associated with it`,
+        hasRelatedEntries: true,
+        entriesCount: relatedEntries
+      });
+    }
+
+    // If force=true, delete related entries first
+    if (force === 'true' && relatedEntries > 0) {
+      await ASUProductionEntry.destroy({
+        where: { machineNumber: machineNo }
+      });
+    }
+
+    // Delete the machine
+    await machine.destroy();
+    
+    return res.status(200).json({
+      success: true,
+      message: `Machine with ID ${id} has been deleted${force === 'true' ? ' along with all its production entries' : ''}`
+    });
+  } catch (error) {
+    console.error('Error deleting ASU machine:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Archive a machine instead of deleting it
+ * This keeps all related data intact but marks the machine as inactive
+ */
+const archiveMachine = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: 'Machine ID is required'
+      });
+    }
+
+    // Find the machine first
+    const machine = await ASUMachine.findByPk(id);
+    
+    if (!machine) {
+      return res.status(404).json({
+        success: false,
+        error: `Machine with ID ${id} not found`
+      });
+    }
+
+    // Update the machine to mark it as archived/inactive
+    await machine.update({
+      isActive: false,
+      archivedAt: new Date(),
+      status: 'ARCHIVED'
+    });
+    
+    return res.status(200).json({
+      success: true,
+      message: `Machine with ID ${id} has been archived`
+    });
+  } catch (error) {
+    console.error('Error archiving ASU machine:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getASUMachines,
   getAllMachines,
@@ -633,5 +777,7 @@ module.exports = {
   getProductionStats,
   createMachine,
   updateMachine,
-  updateMachineYarnTypeAndCount
+  updateMachineYarnTypeAndCount,
+  deleteMachine,
+  archiveMachine
 };
