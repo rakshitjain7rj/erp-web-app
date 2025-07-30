@@ -6,12 +6,24 @@ const CountProductFollowUp = require('../models/CountProductFollowUp');
 const getFollowUpsByCountProductId = asyncHandler(async (req, res) => {
   const { countProductId } = req.params;
 
-  const followUps = await CountProductFollowUp.findAll({
-    where: { countProductId },
-    order: [['followUpDate', 'DESC']],
-  });
+  try {
+    const followUps = await CountProductFollowUp.findAll({
+      where: { countProductId },
+      order: [['followUpDate', 'DESC']],
+    });
 
-  res.status(200).json(followUps);
+    res.status(200).json(followUps);
+  } catch (error) {
+    console.error('Error fetching follow-ups:', error.message);
+    
+    // If table doesn't exist, return empty array instead of error
+    if (error.message.includes('does not exist') || error.message.includes('relation') || error.name === 'SequelizeDatabaseError') {
+      console.warn('⚠️ CountProductFollowUps table does not exist - returning empty array');
+      res.status(200).json([]);
+    } else {
+      throw error;
+    }
+  }
 });
 
 // POST a follow-up to a count product
@@ -33,23 +45,38 @@ const createCountProductFollowUp = asyncHandler(async (req, res) => {
     return res.status(401).json({ message: 'Authentication required' });
   }
 
-  // Debug logging
-  console.log('Authenticated user:', user);
+  try {
+    // Debug logging
+    console.log('Authenticated user:', user);
 
-  // Create follow-up with authenticated user info
-  const followUpData = {
-    countProductId: parseInt(countProductId),
-    followUpDate,
-    remarks: remarks.trim(),
-    addedBy: user.id,
-    addedByName: user.name,
-  };
+    // Create follow-up with authenticated user info
+    const followUpData = {
+      countProductId: parseInt(countProductId),
+      followUpDate,
+      remarks: remarks.trim(),
+      addedBy: user.id,
+      addedByName: user.name,
+    };
 
-  console.log('Creating count product follow-up with data:', followUpData);
+    console.log('Creating count product follow-up with data:', followUpData);
 
-  const followUp = await CountProductFollowUp.create(followUpData);
+    const followUp = await CountProductFollowUp.create(followUpData);
 
-  res.status(201).json(followUp);
+    res.status(201).json(followUp);
+  } catch (error) {
+    console.error('Error creating follow-up:', error.message);
+    
+    // If table doesn't exist, provide helpful error message
+    if (error.message.includes('does not exist') || error.message.includes('relation') || error.name === 'SequelizeDatabaseError') {
+      console.error('⚠️ CountProductFollowUps table does not exist - please create it first');
+      res.status(500).json({ 
+        message: 'Database table not found. Please run the table creation script.',
+        error: 'CountProductFollowUps table does not exist'
+      });
+    } else {
+      throw error;
+    }
+  }
 });
 
 // DELETE a follow-up

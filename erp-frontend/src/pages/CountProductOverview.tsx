@@ -488,11 +488,11 @@ const CountProductOverview: React.FC = () => {
         </div>
         <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
-            <div>
+            <div className="flex-1 min-w-0 pr-4">
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Quantity</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalQuantity} kg</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white truncate" title={`${totalQuantity} kg`}>{totalQuantity} kg</p>
             </div>
-            <TrendingUp className="w-8 h-8 text-green-500" />
+            <TrendingUp className="w-8 h-8 text-green-500 flex-shrink-0" />
           </div>
         </div>
         <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">

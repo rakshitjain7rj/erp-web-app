@@ -183,6 +183,8 @@ connectPostgres()
 
       // Sync models with database
       try {
+        console.log('🔄 Starting database table sync...');
+        
         await User.sync({ alter: true }); // This will create/update the Users table
         console.log('✅ Users table synced');
         
@@ -207,9 +209,19 @@ connectPostgres()
         await DyeingFollowUp.sync({ alter: true }); // This will create/update the Dyeing Follow Up table
         console.log('✅ Dyeing Follow Up table synced');
         
+        // Sync CountProductFollowUp table
+        try {
+          const CountProductFollowUp = require('./models/CountProductFollowUp');
+          await CountProductFollowUp.sync({ alter: true }); // This will create/update the Count Product Follow Up table
+          console.log('✅ Count Product Follow Up table synced');
+        } catch (error) {
+          console.warn('⚠️ Count Product Follow Up table sync failed:', error.message);
+        }
+        
         console.log('✅ Database setup complete');
       } catch (error) {
-        console.warn('⚠️ Table sync warning:', error.message);
+        console.warn('⚠️ Database sync error:', error.message);
+        console.warn('⚠️ Server will continue without full database sync');
       }
     } else {
       console.warn('⚠️ Running without database - some features will not work');

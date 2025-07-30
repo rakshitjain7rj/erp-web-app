@@ -6,10 +6,8 @@ const CountProductFollowUp = sequelize.define('CountProductFollowUp', {
   countProductId: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    references: {
-      model: 'CountProducts',
-      key: 'id'
-    }
+    // Removed references to non-existent CountProducts table
+    // Will add foreign key constraint later when CountProducts table exists
   },
   followUpDate: {
     type: DataTypes.DATE,

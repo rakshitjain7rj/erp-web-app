@@ -88,18 +88,34 @@ const GenericFollowUpModal: React.FC<GenericFollowUpModalProps> = ({
       return;
     }
 
+    console.log('🚀 Starting follow-up creation:', {
+      entityId: entity.id,
+      remarks: newRemarks.trim(),
+      entityType
+    });
+
     setIsSubmitting(true);
     try {
       const newFollowUp = await createFollowUp(entity.id, {
         remarks: newRemarks.trim()
       });
 
-      setFollowUps(prev => [newFollowUp, ...prev]);
+      console.log('✅ Follow-up created successfully:', newFollowUp);
+      console.log('📋 Current follow-ups before update:', followUps.length);
+      
+      setFollowUps(prev => {
+        const updated = [newFollowUp, ...prev];
+        console.log('📋 Follow-ups after update:', updated.length);
+        return updated;
+      });
+      
       setNewRemarks('');
       toast.success('Follow-up added successfully');
       onFollowUpAdded();
+      
+      console.log('✅ Follow-up process completed successfully');
     } catch (error: unknown) {
-      console.error('Failed to add follow-up:', error);
+      console.error('❌ Failed to add follow-up:', error);
       toast.error('Failed to add follow-up');
     } finally {
       setIsSubmitting(false);
