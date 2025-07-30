@@ -54,6 +54,7 @@ const ASUUnit1Page: React.FC = () => {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [hasRelatedEntries, setHasRelatedEntries] = useState(false);
   const [entriesCount, setEntriesCount] = useState(0);
+  const [editMode, setEditMode] = useState(false);
   
   // Initial machine for the add form
   const initialMachine: ASUMachine = {
@@ -782,11 +783,9 @@ const ASUUnit1Page: React.FC = () => {
                     <Select 
                       onValueChange={handleMachineSelect}
                       value={selectedMachine ? selectedMachine.id.toString() : ""}
-                      defaultOpen={machines.length > 0 && !selectedMachine}
                     >
                       <SelectTrigger 
-                        className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600" 
-                        id="machine-select"
+                        className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600"
                       >
                         <SelectValue placeholder="-- Select Machine --" />
                       </SelectTrigger>
@@ -801,7 +800,7 @@ const ASUUnit1Page: React.FC = () => {
                             </SelectItem>
                           ))
                         ) : (
-                          <SelectItem value="no-machines" disabled>No machines available</SelectItem>
+                          <SelectItem value="no-machines">No machines available</SelectItem>
                         )}
                       </SelectContent>
                     </Select>
@@ -921,7 +920,7 @@ const ASUUnit1Page: React.FC = () => {
                               </span>
                               <span className="font-medium text-gray-700 dark:text-gray-300">
                                 Efficiency: <span className="font-bold text-green-700 dark:text-green-300">
-                                  {calculatePercentage(calculateTotal(formData.dayShift, formData.nightShift), selectedMachine.productionAt100).toFixed(1)}%
+                                  {calculatePercentage(calculateTotal(formData.dayShift, formData.nightShift), selectedMachine.productionAt100 || 0).toFixed(1)}%
                                 </span>
                               </span>
                             </div>

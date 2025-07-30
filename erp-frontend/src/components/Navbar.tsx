@@ -78,7 +78,7 @@ const Navbar = () => {
   const renderNavLinks = () => {
     if (!user) return null;
     const { role } = user;
-    const links: { to: string; label: string; icon: JSX.Element }[] = [];
+    const links: { to: string; label: string; icon: React.ReactElement }[] = [];
 
     if (["admin", "manager", "storekeeper"].includes(role)) links.push({ to: "/dashboard", label: "Dashboard", icon: <FaChartBar /> });
     if (["admin", "manager", "storekeeper"].includes(role)) links.push({ to: "/inventory", label: "Inventory", icon: <FaWarehouse /> });

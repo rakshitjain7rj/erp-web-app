@@ -3,7 +3,7 @@ import { useAuth } from "../context/AuthContext";
 import LoadingSpinner from "./LoadingSpinner";
 
 type Props = {
-  children: JSX.Element;
+  children: React.ReactElement;
   roles?: string[]; // Optional: ['admin', 'manager']
 };
 
