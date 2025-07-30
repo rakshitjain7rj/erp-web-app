@@ -82,6 +82,7 @@ const Navbar = () => {
 
     if (["admin", "manager", "storekeeper"].includes(role)) links.push({ to: "/dashboard", label: "Dashboard", icon: <FaChartBar /> });
     if (["admin", "manager", "storekeeper"].includes(role)) links.push({ to: "/inventory", label: "Inventory", icon: <FaWarehouse /> });
+    if (["admin", "manager", "storekeeper"].includes(role)) links.push({ to: "/count-product-overview", label: "Count/Product Overview", icon: <FaClipboardList /> });
     if (["admin", "manager", "storekeeper"].includes(role)) links.push({ to: "/bom", label: "BOM", icon: <FaClipboardList /> });
     if (["admin", "manager", "storekeeper"].includes(role)) links.push({ to: "/workorders", label: "Work Orders", icon: <FaTools /> });
     if (role === "admin") links.push({ to: "/costing", label: "Costing", icon: <FaFileInvoice /> });

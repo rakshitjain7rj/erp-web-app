@@ -25,6 +25,7 @@ import DyeingSummary from "./pages/DyeingSummary";
 import PartyMaster from "./pages/PartyMaster";
 import ArchivedParties from "./pages/ArchivedParties";
 import ASUUnit1Page from "./pages/ASUUnit1Page";
+import CountProductOverview from "./pages/CountProductOverview";
 import ASUAuthTest from "./components/ASUAuthTest";
 import ApiTest from "./components/ApiTest";
 import SimplePartyTest from "./components/SimplePartyTest";
@@ -87,6 +88,7 @@ const App = () => {
             <Route path="/products" element={<Product />} />
             <Route path="/party-test" element={<PartyMaster />} />
             <Route path="/archived-parties" element={<ArchivedParties />} />
+            <Route path="/count-product-overview" element={<CountProductOverview />} />
             <Route path="/simple-test" element={<SimplePartyTest />} />
             <Route path="/raw-test" element={<RawDataTest />} />
             <Route path="/api-test" element={<ApiTest />} />
@@ -211,6 +213,7 @@ const App = () => {
                 <Route path="/products" element={<Product />} />
                 <Route path="/party-test" element={<PartyMaster />} />
                 <Route path="/archived-parties" element={<ArchivedParties />} />
+                <Route path="/count-product-overview" element={<CountProductOverview />} />
                 <Route path="/simple-test" element={<SimplePartyTest />} />
                 <Route path="/raw-test" element={<RawDataTest />} />
                 <Route path="/api-test" element={<ApiTest />} />

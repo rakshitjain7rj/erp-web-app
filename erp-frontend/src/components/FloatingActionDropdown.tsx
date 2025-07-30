@@ -5,6 +5,7 @@ import {
   FaBell,
   FaCheckCircle,
   FaRecycle,
+  FaCalculator,
 } from "react-icons/fa";
 import { MoreVertical } from "lucide-react";
 import useFloatingDropdown from "../hooks/useFloatingDropdown";
@@ -13,8 +14,9 @@ interface ActionDropdownProps {
   onEdit: () => void;
   onDelete: () => void;
   onFollowUp: () => void;
-  onMarkArrived: () => void;
-  onReprocessing: () => void;
+  onMarkArrived?: () => void;
+  onReprocessing?: () => void;
+  onUpdateQuantities?: () => void;
   trigger?: React.ReactNode;
   isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -26,6 +28,7 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({
   onFollowUp,
   onMarkArrived,
   onReprocessing,
+  onUpdateQuantities,
   trigger,
   isOpen: controlledOpen,
   onOpenChange,
@@ -95,6 +98,17 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({
                   <FaEdit className="mr-3 text-blue-500 w-4 h-4" />
                   Edit
                 </button>
+
+                {onUpdateQuantities && (
+                  <button
+                    onClick={() => handleActionClick(onUpdateQuantities)}
+                    className="flex items-center w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700"
+                    role="menuitem"
+                  >
+                    <FaCalculator className="mr-3 text-orange-500 w-4 h-4" />
+                    Update Quantities
+                  </button>
+                )}
                 
                 <button
                   onClick={() => handleActionClick(onDelete)}
@@ -116,23 +130,27 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({
                   Follow Up
                 </button>
                 
-                <button
-                  onClick={() => handleActionClick(onMarkArrived)}
-                  className="flex items-center w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700"
-                  role="menuitem"
-                >
-                  <FaCheckCircle className="mr-3 text-green-500 w-4 h-4" />
-                  Mark Arrived
-                </button>
+                {onMarkArrived && (
+                  <button
+                    onClick={() => handleActionClick(onMarkArrived)}
+                    className="flex items-center w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700"
+                    role="menuitem"
+                  >
+                    <FaCheckCircle className="mr-3 text-green-500 w-4 h-4" />
+                    Mark Arrived
+                  </button>
+                )}
                 
-                <button
-                  onClick={() => handleActionClick(onReprocessing)}
-                  className="flex items-center w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700"
-                  role="menuitem"
-                >
-                  <FaRecycle className="mr-3 text-purple-500 w-4 h-4" />
-                  Reprocessing
-                </button>
+                {onReprocessing && (
+                  <button
+                    onClick={() => handleActionClick(onReprocessing)}
+                    className="flex items-center w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700"
+                    role="menuitem"
+                  >
+                    <FaRecycle className="mr-3 text-purple-500 w-4 h-4" />
+                    Reprocessing
+                  </button>
+                )}
               </div>
             </div>
           </div>
