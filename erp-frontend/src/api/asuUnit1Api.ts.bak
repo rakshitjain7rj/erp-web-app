@@ -9,7 +9,7 @@ const API_BASE_URL = `${BASE_URL}/asu-unit1`;
 // Create axios instance with interceptors (consistent with other API files)
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000, // Increased to 30 seconds
+  timeout: 10000,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -768,6 +768,7 @@ export const asuUnit1Api = {
       console.log('Frontend: Preparing to delete entry with ID:', id);
       
       // First check if this entry exists in localStorage
+      // We need to check all possible machine IDs
       const allStorageKeys = Object.keys(localStorage).filter(key => key.startsWith('local_production_entries_'));
       let foundInLocalStorage = false;
       
@@ -804,99 +805,98 @@ export const asuUnit1Api = {
           
           // Get our frontend combined entries to find dayShiftId or nightShiftId
           const entriesResponse = await api.get(`/production-entries?limit=300`);
+        
+        // Transform backend response to combined frontend entries
+        const rawEntries = entriesResponse.data.data.items;
+        const entriesByDateAndMachine: Record<string, any> = {};
+        
+        // Group entries by date and machine just like in getProductionEntries
+        rawEntries.forEach((entry: any) => {
+          const key = `${entry.date}_${entry.machineNumber}`;
           
-          // Transform backend response to combined frontend entries
-          const rawEntries = entriesResponse.data.data.items;
-          const entriesByDateAndMachine: Record<string, any> = {};
-          
-          // Group entries by date and machine just like in getProductionEntries
-          rawEntries.forEach((entry: any) => {
-            const key = `${entry.date}_${entry.machineNumber}`;
-            
-            if (!entriesByDateAndMachine[key]) {
-              entriesByDateAndMachine[key] = {
-                id: entry.id,
-                machineId: entry.machineNumber,
-                date: entry.date,
-                dayShift: 0,
-                nightShift: 0,
-                dayShiftId: null, 
-                nightShiftId: null
-              };
-            }
-            
-            if (entry.shift === 'day') {
-              entriesByDateAndMachine[key].dayShift = entry.actualProduction || 0;
-              entriesByDateAndMachine[key].dayShiftId = entry.id;
-            } else if (entry.shift === 'night') {
-              entriesByDateAndMachine[key].nightShift = entry.actualProduction || 0;
-              entriesByDateAndMachine[key].nightShiftId = entry.id;
-            }
-          });
-          
-          // Find the combined entry with our target ID
-          const combinedEntry = Object.values(entriesByDateAndMachine).find(
-            (entry: any) => entry.id === id || entry.dayShiftId === id || entry.nightShiftId === id
-          );
-          
-          if (combinedEntry) {
-            console.log('Found combined entry:', combinedEntry);
-            
-            // If we found a combined entry, delete both day and night shifts
-            if (combinedEntry.dayShiftId) {
-              try {
-                console.log(`Deleting day shift with ID ${combinedEntry.dayShiftId}`);
-                await api.delete(`/production-entries/${combinedEntry.dayShiftId}`);
-              } catch (e) {
-                console.error('Error deleting day shift:', e);
-              }
-            }
-            
-            if (combinedEntry.nightShiftId) {
-              try {
-                console.log(`Deleting night shift with ID ${combinedEntry.nightShiftId}`);
-                await api.delete(`/production-entries/${combinedEntry.nightShiftId}`);
-              } catch (e) {
-                console.error('Error deleting night shift:', e);
-              }
-            }
-            
-            return;
-          } else {
-            console.error(`Entry with ID ${id} not found in backend or as a combined entry`);
-            throw new Error('Entry not found');
+          if (!entriesByDateAndMachine[key]) {
+            entriesByDateAndMachine[key] = {
+              id: entry.id,
+              machineId: entry.machineNumber,
+              date: entry.date,
+              dayShift: 0,
+              nightShift: 0,
+              dayShiftId: null, 
+              nightShiftId: null
+            };
           }
-        }
-        
-        console.log('Found entry to delete:', entryToDelete);
-        
-        // Delete the specific entry we found
-        const deleteResponse = await api.delete(`/production-entries/${id}`);
-        console.log('Delete response for ID', id, ':', deleteResponse.data);
-        
-        // Also delete any matching entry for the opposite shift
-        if (entryToDelete.shift === 'day' || entryToDelete.shift === 'night') {
-          const oppositeShift = entryToDelete.shift === 'day' ? 'night' : 'day';
-          const matchingEntry = allEntries.find((entry: any) => 
-            entry.date === entryToDelete.date && 
-            entry.machineNumber === entryToDelete.machineNumber &&
-            entry.shift === oppositeShift
-          );
           
-          if (matchingEntry) {
-            console.log(`Found matching ${oppositeShift} shift entry to delete:`, matchingEntry);
+          if (entry.shift === 'day') {
+            entriesByDateAndMachine[key].dayShift = entry.actualProduction || 0;
+            entriesByDateAndMachine[key].dayShiftId = entry.id;
+          } else if (entry.shift === 'night') {
+            entriesByDateAndMachine[key].nightShift = entry.actualProduction || 0;
+            entriesByDateAndMachine[key].nightShiftId = entry.id;
+          }
+        });
+        
+        // Find the combined entry with our target ID
+        const combinedEntry = Object.values(entriesByDateAndMachine).find(
+          (entry: any) => entry.id === id || entry.dayShiftId === id || entry.nightShiftId === id
+        );
+        
+        if (combinedEntry) {
+          console.log('Found combined entry:', combinedEntry);
+          
+          // If we found a combined entry, delete both day and night shifts
+          if (combinedEntry.dayShiftId) {
             try {
-              const deleteMatchingResponse = await api.delete(`/production-entries/${matchingEntry.id}`);
-              console.log(`Delete response for matching ${oppositeShift} shift:`, deleteMatchingResponse.data);
-            } catch (matchingError) {
-              console.error(`Error deleting matching ${oppositeShift} shift entry:`, matchingError);
-              // Don't throw here - we already deleted the primary entry
+              console.log(`Deleting day shift with ID ${combinedEntry.dayShiftId}`);
+              await api.delete(`/production-entries/${combinedEntry.dayShiftId}`);
+            } catch (e) {
+              console.error('Error deleting day shift:', e);
             }
           }
+          
+          if (combinedEntry.nightShiftId) {
+            try {
+              console.log(`Deleting night shift with ID ${combinedEntry.nightShiftId}`);
+              await api.delete(`/production-entries/${combinedEntry.nightShiftId}`);
+            } catch (e) {
+              console.error('Error deleting night shift:', e);
+            }
+          }
+          
+          return;
+        } else {
+          console.error(`Entry with ID ${id} not found in backend or as a combined entry`);
+          throw new Error('Entry not found');
         }
-        
-        return deleteResponse.data;
       }
+      
+      console.log('Found entry to delete:', entryToDelete);
+      
+      // Delete the specific entry we found
+      const deleteResponse = await api.delete(`/production-entries/${id}`);
+      console.log('Delete response for ID', id, ':', deleteResponse.data);
+      
+      // Also delete any matching entry for the opposite shift
+      if (entryToDelete.shift === 'day' || entryToDelete.shift === 'night') {
+        const oppositeShift = entryToDelete.shift === 'day' ? 'night' : 'day';
+        const matchingEntry = allEntries.find((entry: any) => 
+          entry.date === entryToDelete.date && 
+          entry.machineNumber === entryToDelete.machineNumber &&
+          entry.shift === oppositeShift
+        );
+        
+        if (matchingEntry) {
+          console.log(`Found matching ${oppositeShift} shift entry to delete:`, matchingEntry);
+          try {
+            const deleteMatchingResponse = await api.delete(`/production-entries/${matchingEntry.id}`);
+            console.log(`Delete response for matching ${oppositeShift} shift:`, deleteMatchingResponse.data);
+          } catch (matchingError) {
+            console.error(`Error deleting matching ${oppositeShift} shift entry:`, matchingError);
+            // Don't throw here - we already deleted the primary entry
+          }
+        }
+      }
+      
+      return deleteResponse.data;
     } catch (error) {
       console.error('Frontend: Error in deleteProductionEntry:', error);
       throw error;

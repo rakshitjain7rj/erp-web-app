@@ -1,46 +1,15 @@
 // src/pages/ASUUnit1Page.tsx
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
+import React, { useState } from 'react';
+import { Activity, Package, Settings } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
-import { toast } from 'react-hot-toast';
-import { Plus, Edit, Trash2, Save, X, Activity, Package, Settings, RefreshCw } from 'lucide-react';
-import YarnProductionSummary from '../components/YarnProductionSummary';
-import DeleteConfirmationDialog from '../components/dialogs/DeleteConfirmationDialog';
 
-import { 
-  asuUnit1Api, 
-  ASUMachine, 
-  ASUProductionEntry, 
-  CreateProductionEntryData,
-  ProductionStats,
-} from '../api/asuUnit1Api';
-
-interface EditingEntry {
-  id: number;
-  dayShift: number;
-  nightShift: number;
-  date: string;
-}
-
-interface EditingMachine {
-  id: number;
-  yarnType: string;
-  count: number;
-  productionAt100: number;
-}
+// Extracted components
+import DailyProduction from '../components/asuUnit1/DailyProduction';
+import YarnSummary from '../components/asuUnit1/YarnSummary';
+import MachineManager from '../components/asuUnit1/MachineManager';
 
 const ASUUnit1Page: React.FC = () => {
-  const [machines, setMachines] = useState<ASUMachine[]>([]);
-  const [productionEntries, setProductionEntries] = useState<ASUProductionEntry[]>([]);
-  const [stats, setStats] = useState<ProductionStats | null>(null);
-  const [selectedMachine, setSelectedMachine] = useState<ASUMachine | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [editingEntry, setEditingEntry] = useState<EditingEntry | null>(null);
   const [activeTab, setActiveTab] = useState<'production' | 'summary' | 'machines'>('production');
   
   // Machine management states

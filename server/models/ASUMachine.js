@@ -81,7 +81,13 @@ const ASUMachine = sequelize.define('ASUMachine', {
 });
 
 ASUMachine.associate = (models) => {
-  // No direct foreign key associations currently
+  if (models.MachineConfiguration) {
+    // One machine can have many configurations (historical tracking)
+    ASUMachine.hasMany(models.MachineConfiguration, {
+      foreignKey: 'machineId',
+      as: 'configurations'
+    });
+  }
 };
 
 module.exports = ASUMachine;

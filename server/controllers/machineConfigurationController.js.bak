@@ -1,0 +1,264 @@
+const ASUMachine = require('../models/ASUMachine');
+const MachineConfiguration = require('../models/MachineConfiguration');
+const { Op } = require('sequelize');
+const { sequelize } = require('../config/postgres');
+
+/**
+ * Get all configurations for a specific machine
+ */
+const getMachineConfigurations = async (req, res) => {
+  const { machineId } = req.params;
+  
+  try {
+    // Validate that the machine exists
+    const machine = await ASUMachine.findByPk(machineId);
+    if (!machine) {
+      return res.status(404).json({
+        success: false,
+        error: 'Machine not found'
+      });
+    }
+    
+    // Get all configurations for this machine, ordered by start date (newest first)
+    const configurations = await MachineConfiguration.findAll({
+      where: { machineId },
+      order: [['startDate', 'DESC']]
+    });
+    
+    return res.status(200).json({
+      success: true,
+      data: configurations
+    });
+  } catch (error) {
+    console.error('Error fetching machine configurations:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch machine configurations'
+    });
+  }
+};
+
+/**
+ * Create a new configuration for a machine
+ * This also closes the current active configuration if one exists
+ * 
+ * Note: This will update the machine's current configuration properties,
+ * but will only create a history record if explicitly requested with saveHistory=true.
+ * Otherwise, history records are created when production entries are made.
+ */
+const createMachineConfiguration = async (req, res) => {
+  const { machineId } = req.params;
+  const { spindleCount, yarnType, efficiencyAt100Percent, startDate, saveHistory } = req.body;
+  
+  try {
+    // Start a transaction to ensure data consistency
+    const result = await sequelize.transaction(async (t) => {
+      // Validate that the machine exists
+      const machine = await ASUMachine.findByPk(machineId, { transaction: t });
+      if (!machine) {
+        throw new Error('Machine not found');
+      }
+      
+      // Normalize yarn type
+      const normalizedYarnType = (yarnType || '').trim();
+      if (!normalizedYarnType) {
+        throw new Error('Yarn type is required');
+      }
+      
+      // Always update the machine with the latest configuration
+      await machine.update({
+        spindles: Number(spindleCount || 0),
+        yarnType: normalizedYarnType,
+        productionAt100: Number(efficiencyAt100Percent || 0)
+      }, { transaction: t });
+      
+      // Only create a history record if explicitly requested
+      // Otherwise, history will be created when production entries are made
+      if (saveHistory === true) {
+        // Check if there's an active configuration (where endDate is null)
+        const activeConfig = await MachineConfiguration.findOne({
+          where: {
+            machineId,
+            endDate: null
+          },
+          transaction: t
+        });
+        
+        // If there's an active configuration, close it by setting the endDate
+        // to the day before the new startDate
+        if (activeConfig) {
+          const newStartDate = new Date(startDate);
+          const dayBefore = new Date(newStartDate);
+          dayBefore.setDate(dayBefore.getDate() - 1);
+          
+          // Format as YYYY-MM-DD
+          const endDateString = dayBefore.toISOString().split('T')[0];
+          
+          await activeConfig.update(
+            { endDate: endDateString },
+            { transaction: t }
+          );
+        }
+        
+        // Create the new configuration history record
+        const newConfig = await MachineConfiguration.create({
+          machineId: Number(machineId),
+          spindleCount: Number(spindleCount || 0),
+          yarnType: normalizedYarnType,
+          efficiencyAt100Percent: Number(efficiencyAt100Percent || 0),
+          startDate: startDate || new Date().toISOString().split('T')[0],
+          endDate: null  // This is the new active configuration
+        }, { transaction: t });
+        
+        return newConfig;
+      }
+      
+      // If we're not saving history, just return the updated machine
+      return machine;
+    });
+    
+    return res.status(201).json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error creating machine configuration:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to create machine configuration'
+    });
+  }
+};
+        spindles: Number(spindleCount || 0),
+        yarnType: normalizedYarnType,
+        productionAt100: Number(efficiencyAt100Percent || 0)
+      }, { transaction: t });
+      
+      return newConfig;
+    });
+    
+    return res.status(201).json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error creating machine configuration:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to create machine configuration'
+    });
+  }
+};
+
+/**
+ * Update an existing machine configuration
+ */
+const updateMachineConfiguration = async (req, res) => {
+  const { configId } = req.params;
+  const { spindleCount, yarnType, efficiencyAt100Percent, startDate, endDate } = req.body;
+  
+  try {
+    // Find the configuration to update
+    const config = await MachineConfiguration.findByPk(configId);
+    if (!config) {
+      return res.status(404).json({
+        success: false,
+        error: 'Configuration not found'
+      });
+    }
+    
+    // Start a transaction for updating
+    const result = await sequelize.transaction(async (t) => {
+      // Update the configuration
+      await config.update({
+        spindleCount: Number(spindleCount || config.spindleCount),
+        yarnType: (yarnType || config.yarnType).trim(),
+        efficiencyAt100Percent: Number(efficiencyAt100Percent || config.efficiencyAt100Percent),
+        startDate: startDate || config.startDate,
+        endDate: endDate !== undefined ? endDate : config.endDate
+      }, { transaction: t });
+      
+      // If this is the active configuration (endDate is null), also update the machine
+      if (!config.endDate && !endDate) {
+        const machine = await ASUMachine.findByPk(config.machineId, { transaction: t });
+        if (machine) {
+          await machine.update({
+            spindles: Number(spindleCount || config.spindleCount),
+            yarnType: (yarnType || config.yarnType).trim(),
+            productionAt100: Number(efficiencyAt100Percent || config.efficiencyAt100Percent)
+          }, { transaction: t });
+        }
+      }
+      
+      return config;
+    });
+    
+    return res.status(200).json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error updating machine configuration:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to update machine configuration'
+    });
+  }
+};
+
+/**
+ * Delete a machine configuration
+ */
+const deleteMachineConfiguration = async (req, res) => {
+  const { configId } = req.params;
+  
+  try {
+    const config = await MachineConfiguration.findByPk(configId);
+    if (!config) {
+      return res.status(404).json({
+        success: false,
+        error: 'Configuration not found'
+      });
+    }
+    
+    // Check if this is the only configuration for the machine
+    const configCount = await MachineConfiguration.count({
+      where: { machineId: config.machineId }
+    });
+    
+    if (configCount <= 1) {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot delete the only configuration for a machine. Please add a new configuration first.'
+      });
+    }
+    
+    // Check if this is the active configuration
+    if (config.endDate === null) {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot delete the active configuration. Please add a new active configuration first.'
+      });
+    }
+    
+    await config.destroy();
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Configuration deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting machine configuration:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to delete machine configuration'
+    });
+  }
+};
+
+module.exports = {
+  getMachineConfigurations,
+  createMachineConfiguration,
+  updateMachineConfiguration,
+  deleteMachineConfiguration
+};

@@ -21,6 +21,7 @@ const ASUMachine = require('./models/ASUMachine');
 const ASUProductionEntry = require('./models/ASUProductionEntry');
 const Inventory = require('./models/InventoryPostgres'); // Add PostgreSQL Inventory model
 const Party = require('./models/Party'); // Add Party model
+const MachineConfiguration = require('./models/MachineConfiguration'); // Add Machine Configuration model
 
 // ------------------- Set Up Associations -------------------
 const models = {
@@ -33,6 +34,7 @@ const models = {
   ASUProductionEntry,
   Inventory, // Add Inventory to models
   Party, // Add Party to models
+  MachineConfiguration, // Add MachineConfiguration to models
 };
 
 Object.keys(models).forEach((modelName) => {
@@ -51,6 +53,7 @@ const yarnProductionRoutes = require('./routes/yarnProductionRoutes');
 const inventoryRoutes = require('./routes/inventoryRoutes');
 const countProductRoutes = require('./routes/countProductRoutes');
 const dyeingFirmRoutes = require('./routes/dyeingFirmRoutes');
+const machineConfigRoutes = require('./routes/machineConfigurationRoutes');
 // const workOrderRoutes = require('./routes/workOrderRoutes');
 // const bomRoutes = require('./routes/bomRoutes');
 // const costingRoutes = require('./routes/costingRoutes');
@@ -113,6 +116,7 @@ app.use('/api/dashboard', require('./routes/dashboardRoutes'));
 
 // Machine performance routes
 app.use('/api/machines', require('./routes/machinePerformanceRoutes'));
+app.use('/api', machineConfigRoutes);
 
 // Test route for debugging
 app.get('/api/test', (req, res) => {

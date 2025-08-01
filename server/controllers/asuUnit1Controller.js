@@ -126,63 +126,124 @@ const createProductionEntry = async (req, res) => {
       });
     }
 
-    // Find the machine to get productionAt100 if theoreticalProduction is not provided
-    let finalTheoreticalProduction = theoreticalProduction;
-    
-    if (!finalTheoreticalProduction) {
+    // Start a transaction to ensure data integrity
+    const result = await sequelize.transaction(async (t) => {
+      // Find the machine to get productionAt100 if theoreticalProduction is not provided
+      let finalTheoreticalProduction = theoreticalProduction;
+      let machine = null;
+      
+      // Find the machine
       try {
-        const machine = await ASUMachine.findOne({
+        machine = await ASUMachine.findOne({
           where: { 
             machineNo: parseInt(machineNumber),
             unit: 1 
-          }
+          },
+          transaction: t
         });
         
-        if (machine && machine.productionAt100) {
+        if (!machine) {
+          throw new Error(`Machine number ${machineNumber} not found`);
+        }
+        
+        if (machine.productionAt100) {
           finalTheoreticalProduction = machine.productionAt100;
         }
       } catch (error) {
         console.error('Error finding machine for theoretical production:', error);
+        throw error;
       }
-    }
-    
-    // Calculate efficiency
-    let efficiency = null;
-    if (actualProduction && finalTheoreticalProduction && finalTheoreticalProduction > 0) {
-      efficiency = parseFloat(((actualProduction / finalTheoreticalProduction) * 100).toFixed(2));
-    }
-
-    // Check if entry already exists for this combination
-    const existingEntry = await ASUProductionEntry.findOne({
-      where: { 
-        unit: 1,
-        machineNumber: parseInt(machineNumber), 
-        date, 
-        shift 
+      
+      // Calculate efficiency
+      let efficiency = null;
+      if (actualProduction && finalTheoreticalProduction && finalTheoreticalProduction > 0) {
+        efficiency = parseFloat(((actualProduction / finalTheoreticalProduction) * 100).toFixed(2));
       }
-    });
 
-    if (existingEntry) {
-      return res.status(409).json({ 
-        success: false, 
-        error: `Production entry for Machine ${machineNumber} on ${date} (${shift} shift) already exists. Please edit the existing entry instead.` 
+      // Check if entry already exists for this combination
+      const existingEntry = await ASUProductionEntry.findOne({
+        where: { 
+          unit: 1,
+          machineNumber: parseInt(machineNumber), 
+          date, 
+          shift 
+        },
+        transaction: t
       });
-    }
 
-    const entry = await ASUProductionEntry.create({
-      unit: 1, // Always use unit 1
-      machineNumber: parseInt(machineNumber),
-      date,
-      shift,
-      actualProduction: actualProduction !== undefined && actualProduction !== null ? parseFloat(actualProduction) : null,
-      theoreticalProduction: finalTheoreticalProduction ? parseFloat(finalTheoreticalProduction) : null,
-      efficiency,
-      remarks: remarks || null
+      if (existingEntry) {
+        throw new Error(`Production entry for Machine ${machineNumber} on ${date} (${shift} shift) already exists. Please edit the existing entry instead.`);
+      }
+
+      // Create the production entry
+      const entry = await ASUProductionEntry.create({
+        unit: 1, // Always use unit 1
+        machineNumber: parseInt(machineNumber),
+        date,
+        shift,
+        actualProduction: actualProduction !== undefined && actualProduction !== null ? parseFloat(actualProduction) : null,
+        theoreticalProduction: finalTheoreticalProduction ? parseFloat(finalTheoreticalProduction) : null,
+        efficiency,
+        remarks: remarks || null
+      }, { transaction: t });
+      
+      // Only save machine configuration if there's actual production
+      // This ensures we only save configurations that were actually used in production
+      if (actualProduction > 0 && machine) {
+        const MachineConfiguration = require('../models/MachineConfiguration');
+        
+        // Check if we need to save a new machine configuration
+        // Get the most recent configuration for this machine
+        const latestConfig = await MachineConfiguration.findOne({
+          where: { 
+            machineId: machine.id
+          },
+          order: [['createdAt', 'DESC']],
+          transaction: t
+        });
+        
+        // Function to normalize values for comparison (avoids issues like 343 vs 343.00)
+        const normalizeNumber = (value) => {
+          if (value === null || value === undefined) return 0;
+          return parseFloat(parseFloat(value).toFixed(2));
+        };
+        
+        // Check if the configuration has changed since last saved - use normalized values
+        const shouldSaveNewConfig = !latestConfig || 
+          normalizeNumber(latestConfig.spindleCount) !== normalizeNumber(machine.spindles) || 
+          (latestConfig.yarnType || '').trim() !== (machine.yarnType || '').trim() || 
+          normalizeNumber(latestConfig.efficiencyAt100Percent) !== normalizeNumber(machine.productionAt100);
+        
+        // If configuration changed, save a new one
+        if (shouldSaveNewConfig) {
+          console.log('Saving new machine configuration with production entry');
+          
+          // If there's an active config (with null endDate), close it
+          if (latestConfig && latestConfig.endDate === null) {
+            await latestConfig.update(
+              { endDate: date }, // Use the production entry date as the end date
+              { transaction: t }
+            );
+          }
+          
+          // Create a new machine configuration record
+          await MachineConfiguration.create({
+            machineId: machine.id,
+            spindleCount: machine.spindles || 0,
+            yarnType: machine.yarnType || 'Default',
+            efficiencyAt100Percent: machine.productionAt100 || 0,
+            startDate: date, // Use production entry date as start date
+            endDate: null    // This is the new active configuration
+          }, { transaction: t });
+        }
+      }
+      
+      return entry;
     });
 
     res.status(201).json({
       success: true,
-      data: entry
+      data: result
     });
   } catch (error) {
     console.error('Error creating production entry:', error);
@@ -202,46 +263,106 @@ const updateProductionEntry = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Production entry not found' });
     }
 
-    // Calculate new efficiency
-    let efficiency = entry.efficiency;
-    const newActual = actualProduction !== undefined ? parseFloat(actualProduction) : entry.actualProduction;
-    
-    // Try to get theoreticalProduction from the machine's productionAt100 if not provided
-    let newTheoretical = theoreticalProduction !== undefined ? parseFloat(theoreticalProduction) : entry.theoreticalProduction;
-    
-    // If still no theoretical production, try to get it from the machine
-    if (!newTheoretical) {
-      try {
-        const machine = await ASUMachine.findOne({
-          where: { 
-            machineNo: entry.machineNumber,
-            unit: 1 
+    // Start a transaction for updating
+    const result = await sequelize.transaction(async (t) => {
+      // Calculate new efficiency
+      let efficiency = entry.efficiency;
+      const newActual = actualProduction !== undefined ? parseFloat(actualProduction) : entry.actualProduction;
+      let machine = null;
+      
+      // Try to get theoreticalProduction from the machine's productionAt100 if not provided
+      let newTheoretical = theoreticalProduction !== undefined ? parseFloat(theoreticalProduction) : entry.theoreticalProduction;
+      
+      // If still no theoretical production, try to get it from the machine
+      if (!newTheoretical) {
+        try {
+          machine = await ASUMachine.findOne({
+            where: { 
+              machineNo: entry.machineNumber,
+              unit: 1 
+            },
+            transaction: t
+          });
+          
+          if (machine && machine.productionAt100) {
+            newTheoretical = machine.productionAt100;
           }
+        } catch (error) {
+          console.error('Error finding machine for theoretical production on update:', error);
+        }
+      }
+      
+      if (newActual && newTheoretical && newTheoretical > 0) {
+        efficiency = parseFloat(((newActual / newTheoretical) * 100).toFixed(2));
+      }
+
+      const updateData = {};
+      if (actualProduction !== undefined) updateData.actualProduction = newActual;
+      if (theoreticalProduction !== undefined) updateData.theoreticalProduction = newTheoretical;
+      if (remarks !== undefined) updateData.remarks = remarks;
+      updateData.efficiency = efficiency;
+
+      await entry.update(updateData, { transaction: t });
+      
+      // Only consider saving machine configuration if:
+      // 1. We have found the machine
+      // 2. The entry now has actual production (wasn't 0 before or isn't being set to 0)
+      // 3. The actualProduction value has changed from 0 to a positive number
+      if (machine && newActual > 0 && (entry.actualProduction === 0 || entry.actualProduction === null)) {
+        const MachineConfiguration = require('../models/MachineConfiguration');
+        
+        // Check if we need to save a new machine configuration
+        // Get the most recent configuration for this machine
+        const latestConfig = await MachineConfiguration.findOne({
+          where: { 
+            machineId: machine.id
+          },
+          order: [['createdAt', 'DESC']],
+          transaction: t
         });
         
-        if (machine && machine.productionAt100) {
-          newTheoretical = machine.productionAt100;
+        // Function to normalize values for comparison (avoids issues like 343 vs 343.00)
+        const normalizeNumber = (value) => {
+          if (value === null || value === undefined) return 0;
+          return parseFloat(parseFloat(value).toFixed(2));
+        };
+        
+        // Check if the configuration has changed since last saved - use normalized values
+        const shouldSaveNewConfig = !latestConfig || 
+          normalizeNumber(latestConfig.spindleCount) !== normalizeNumber(machine.spindles) || 
+          (latestConfig.yarnType || '').trim() !== (machine.yarnType || '').trim() || 
+          normalizeNumber(latestConfig.efficiencyAt100Percent) !== normalizeNumber(machine.productionAt100);
+        
+        // If configuration changed, save a new one
+        if (shouldSaveNewConfig) {
+          console.log('Saving new machine configuration with updated production entry');
+          
+          // If there's an active config (with null endDate), close it
+          if (latestConfig && latestConfig.endDate === null) {
+            await latestConfig.update(
+              { endDate: entry.date }, // Use the production entry date as the end date
+              { transaction: t }
+            );
+          }
+          
+          // Create a new machine configuration record
+          await MachineConfiguration.create({
+            machineId: machine.id,
+            spindleCount: machine.spindles || 0,
+            yarnType: machine.yarnType || 'Default',
+            efficiencyAt100Percent: machine.productionAt100 || 0,
+            startDate: entry.date, // Use production entry date as start date
+            endDate: null    // This is the new active configuration
+          }, { transaction: t });
         }
-      } catch (error) {
-        console.error('Error finding machine for theoretical production on update:', error);
       }
-    }
-    
-    if (newActual && newTheoretical && newTheoretical > 0) {
-      efficiency = parseFloat(((newActual / newTheoretical) * 100).toFixed(2));
-    }
-
-    const updateData = {};
-    if (actualProduction !== undefined) updateData.actualProduction = newActual;
-    if (theoreticalProduction !== undefined) updateData.theoreticalProduction = newTheoretical;
-    if (remarks !== undefined) updateData.remarks = remarks;
-    updateData.efficiency = efficiency;
-
-    await entry.update(updateData);
+      
+      return entry;
+    });
 
     res.json({
       success: true,
-      data: entry
+      data: result
     });
   } catch (error) {
     console.error('Error updating production entry:', error);
@@ -441,6 +562,10 @@ const createMachine = async (req, res) => {
       speed, 
       productionAt100
     } = req.body;
+    
+    // Ensure machineNo is properly parsed as a number
+    const parsedMachineNo = typeof machineNo === 'string' ? parseInt(machineNo, 10) : Number(machineNo);
+    console.log(`Creating machine - received machineNo: ${machineNo}, parsed as: ${parsedMachineNo}`);
 
     // Validate required fields
     if (!machineNo || !count) {
@@ -463,8 +588,8 @@ const createMachine = async (req, res) => {
 
     // Create machine with unit always set to 1
     const machine = await ASUMachine.create({
-      machineNo,
-      machineName: machine_name || `Machine ${machineNo}`, // Save machine_name to machineName field
+      machineNo: parsedMachineNo, // Use the explicitly parsed machine number
+      machineName: machine_name || `Machine ${parsedMachineNo}`, // Save machine_name to machineName field
       count,
       yarnType: yarnType || 'Cotton',
       spindles,
