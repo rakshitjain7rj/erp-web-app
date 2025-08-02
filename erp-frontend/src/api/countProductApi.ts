@@ -35,6 +35,88 @@ api.interceptors.response.use(
   }
 );
 
+// ==================== COUNT PRODUCT INTERFACES ====================
+export interface CountProduct {
+  id: number;
+  partyName: string;
+  dyeingFirm: string;
+  yarnType: string;
+  count: string;
+  shade: string;
+  quantity: number;
+  completedDate: string;
+  qualityGrade: 'A' | 'B' | 'C';
+  remarks?: string;
+  lotNumber: string;
+  processedBy: string;
+  customerName: string;
+  sentToDye: boolean;
+  sentDate: string;
+  received: boolean;
+  receivedDate: string;
+  receivedQuantity: number;
+  dispatch: boolean;
+  dispatchDate: string;
+  dispatchQuantity: number;
+  middleman: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateCountProductRequest {
+  partyName: string;
+  dyeingFirm: string;
+  yarnType: string;
+  count: string;
+  shade: string;
+  quantity: number;
+  completedDate: string;
+  qualityGrade: 'A' | 'B' | 'C';
+  remarks?: string;
+  lotNumber: string;
+  processedBy?: string;
+  customerName: string;
+  sentToDye?: boolean;
+  sentDate?: string;
+  received?: boolean;
+  receivedDate?: string;
+  receivedQuantity?: number;
+  dispatch?: boolean;
+  dispatchDate?: string;
+  dispatchQuantity?: number;
+  middleman?: string;
+}
+
+// ==================== COUNT PRODUCT API FUNCTIONS ====================
+export const getAllCountProducts = async (): Promise<CountProduct[]> => {
+  const response = await api.get('/');
+  return response.data.data || response.data;
+};
+
+export const getCountProductById = async (id: number): Promise<CountProduct> => {
+  const response = await api.get(`/${id}`);
+  return response.data.data || response.data;
+};
+
+export const createCountProduct = async (data: CreateCountProductRequest): Promise<CountProduct> => {
+  const response = await api.post('/', data);
+  return response.data.data || response.data;
+};
+
+export const updateCountProduct = async (id: number, data: Partial<CreateCountProductRequest>): Promise<CountProduct> => {
+  const response = await api.put(`/${id}`, data);
+  return response.data.data || response.data;
+};
+
+export const deleteCountProduct = async (id: number): Promise<void> => {
+  await api.delete(`/${id}`);
+};
+
+export const getCountProductsByDyeingFirm = async (dyeingFirm: string): Promise<CountProduct[]> => {
+  const response = await api.get(`/dyeing-firm/${encodeURIComponent(dyeingFirm)}`);
+  return response.data.data || response.data;
+};
+
 // ==================== FOLLOW-UP INTERFACES ====================
 export interface CountProductFollowUp {
   id: number;

@@ -50,6 +50,7 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({
   const dropdownOpen = controlledOpen !== undefined ? controlledOpen : isOpen;
 
   const handleActionClick = (action: () => void) => {
+    console.log('🎯 FloatingActionDropdown: Action clicked', action.name || 'anonymous function');
     action();
     onOpenChange?.(false);
   };
@@ -111,7 +112,10 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({
                 )}
                 
                 <button
-                  onClick={() => handleActionClick(onDelete)}
+                  onClick={() => {
+                    console.log('🗑️ FloatingActionDropdown: Delete button clicked');
+                    handleActionClick(onDelete);
+                  }}
                   className="flex items-center w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700"
                   role="menuitem"
                 >

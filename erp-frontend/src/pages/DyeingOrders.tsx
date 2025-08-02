@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import FollowUpModal from "../components/FollowUpModal";
 import { exportDataToCSV } from "../utils/exportUtils";
 import FloatingActionDropdown from "../components/FloatingActionDropdown";
+import { getAllDyeingFirms, DyeingFirm } from "../api/dyeingFirmApi";
 
 const DyeingOrders: React.FC = () => {
   const [records, setRecords] = useState<DyeingRecord[]>([]);
@@ -28,8 +29,13 @@ const DyeingOrders: React.FC = () => {
   const [firmFilter, setFirmFilter] = useState<string>("");
   const [partyFilter, setPartyFilter] = useState<string>("");
 
+  // Centralized dyeing firms state
+  const [centralizedDyeingFirms, setCentralizedDyeingFirms] = useState<DyeingFirm[]>([]);
+  const [isLoadingFirms, setIsLoadingFirms] = useState(true);
+
   useEffect(() => {
     fetchRecords();
+    fetchCentralizedDyeingFirms();
   }, []);
 
   const fetchRecords = async () => {
@@ -38,6 +44,32 @@ const DyeingOrders: React.FC = () => {
       setRecords(data);
     } catch (error) {
       console.error("Failed to fetch dyeing records:", error);
+    }
+  };
+
+  // Fetch centralized dyeing firms from API
+  const fetchCentralizedDyeingFirms = async () => {
+    try {
+      setIsLoadingFirms(true);
+      console.log('🔄 Fetching centralized dyeing firms for Dyeing Orders...');
+      const firms = await getAllDyeingFirms();
+      setCentralizedDyeingFirms(firms);
+      console.log(`✅ Loaded ${firms.length} centralized dyeing firms:`, firms.map(f => f.name));
+    } catch (error) {
+      console.error('❌ Failed to fetch centralized dyeing firms:', error);
+      // Fallback to extracting from existing records if API fails
+      const fallbackFirms = Array.from(new Set(records.map((r) => r.dyeingFirm)))
+        .map((name, index) => ({
+          id: -(index + 1),
+          name,
+          isActive: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }));
+      setCentralizedDyeingFirms(fallbackFirms);
+      console.log(`📋 Using fallback firms from records:`, fallbackFirms.map(f => f.name));
+    } finally {
+      setIsLoadingFirms(false);
     }
   };
 
@@ -59,7 +91,8 @@ const DyeingOrders: React.FC = () => {
   });
 
   const uniqueStatuses = Array.from(new Set(records.map((r) => getDyeingStatus(r))));
-  const uniqueFirms = Array.from(new Set(records.map((r) => r.dyeingFirm)));
+  // Use centralized dyeing firms instead of extracting from records
+  const uniqueFirms = centralizedDyeingFirms.map(firm => firm.name);
   const uniqueParties = Array.from(new Set(records.map((r) => r.partyName)));
 
   const groupedByFirm = filteredRecords.reduce((acc, record) => {
@@ -261,6 +294,8 @@ const DyeingOrders: React.FC = () => {
         }}
         onSuccess={() => {
           fetchRecords();
+          // Also refresh centralized dyeing firms to show newly created firms
+          fetchCentralizedDyeingFirms();
           setIsFormOpen(false);
           setRecordToEdit(null);
         }}

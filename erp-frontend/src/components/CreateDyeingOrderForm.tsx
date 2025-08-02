@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { format, addDays } from "date-fns";
 import { toast } from "sonner";
-import { createDyeingRecord, updateDyeingRecord } from "../api/dyeingApi";
+import { createDyeingRecord, updateDyeingRecord, getAllDyeingRecords } from "../api/dyeingApi";
+import { getAllDyeingFirms, findOrCreateDyeingFirm, DyeingFirm } from "../api/dyeingFirmApi";
 import { CreateDyeingRecordRequest, DyeingRecord } from "../types/dyeing";
 import { Button } from "./ui/Button";
-import { X } from "lucide-react";
+import { X, ChevronDown, Check } from "lucide-react";
 
 interface CreateDyeingOrderFormProps {
   isOpen: boolean;
@@ -35,7 +36,63 @@ const CreateDyeingOrderForm: React.FC<CreateDyeingOrderFormProps> = ({
 
   const [formData, setFormData] = useState<CreateDyeingRecordRequest>(initialState);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errors, setErrors] = useState<Partial<CreateDyeingRecordRequest>>({});  useEffect(() => {
+  const [errors, setErrors] = useState<Partial<CreateDyeingRecordRequest>>({});
+  
+  // Dyeing Firm Combobox States
+  const [showDyeingFirmDropdown, setShowDyeingFirmDropdown] = useState(false);
+  const [dyeingFirmFilter, setDyeingFirmFilter] = useState("");
+  const [selectedDyeingFirmIndex, setSelectedDyeingFirmIndex] = useState(-1);
+  const [existingDyeingFirms, setExistingDyeingFirms] = useState<DyeingFirm[]>([]);
+  const [isLoadingFirms, setIsLoadingFirms] = useState(false);
+  
+  // Ref for dropdown container to handle clicks
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Fetch existing dyeing firms from centralized API
+  const fetchExistingDyeingFirms = async () => {
+    try {
+      setIsLoadingFirms(true);
+      console.log('🔄 Fetching dyeing firms from centralized API...');
+      // Use centralized DyeingFirm API instead of extracting from records
+      const dyeingFirms = await getAllDyeingFirms();
+      console.log(`✅ Fetched ${dyeingFirms.length} dyeing firms:`, dyeingFirms.map(f => f.name));
+      setExistingDyeingFirms(dyeingFirms);
+    } catch (error) {
+      console.error("❌ Failed to fetch dyeing firms from API:", error);
+      console.log("🔄 Falling back to extracting from dyeing records...");
+      
+      try {
+        // Fallback: Extract from existing dyeing records
+        const allRecords = await getAllDyeingRecords();
+        const uniqueFirmNames = Array.from(
+          new Set(
+            allRecords
+              .map(record => record.dyeingFirm)
+              .filter(firm => firm && firm.trim() !== "")
+              .map(firm => firm.trim())
+          )
+        ).sort();
+        
+        console.log(`📋 Fallback: Found ${uniqueFirmNames.length} unique firms from records:`, uniqueFirmNames);
+        
+        // Convert to DyeingFirm format for consistency
+        const fallbackFirms: DyeingFirm[] = uniqueFirmNames.map((name, index) => ({
+          id: -(index + 1), // Negative IDs for fallback data
+          name,
+          isActive: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }));
+        
+        setExistingDyeingFirms(fallbackFirms);
+      } catch (fallbackError) {
+        console.error("❌ Fallback also failed:", fallbackError);
+        setExistingDyeingFirms([]);
+      }
+    } finally {
+      setIsLoadingFirms(false);
+    }
+  };  useEffect(() => {
     if (recordToEdit) {
       setFormData({
         yarnType: recordToEdit.yarnType || "",
@@ -49,6 +106,7 @@ const CreateDyeingOrderForm: React.FC<CreateDyeingOrderFormProps> = ({
         lot: recordToEdit.lot || "",
         dyeingFirm: recordToEdit.dyeingFirm || "",
       });
+      setDyeingFirmFilter(recordToEdit.dyeingFirm || "");
     } else {
       setFormData({
         yarnType: "",
@@ -62,6 +120,17 @@ const CreateDyeingOrderForm: React.FC<CreateDyeingOrderFormProps> = ({
         lot: "",
         dyeingFirm: "",
       });
+      setDyeingFirmFilter("");
+    }
+    setShowDyeingFirmDropdown(false);
+    setSelectedDyeingFirmIndex(-1);
+    
+    // Fetch existing dyeing firms when form opens
+    if (isOpen) {
+      console.log('📖 Form opened, fetching dyeing firms...');
+      fetchExistingDyeingFirms();
+    } else {
+      console.log('📝 Form closed');
     }
   }, [recordToEdit, isOpen, today, defaultExpectedDate]);  const validateForm = (): boolean => {
     const newErrors: Partial<CreateDyeingRecordRequest> = {};
@@ -90,6 +159,30 @@ const CreateDyeingOrderForm: React.FC<CreateDyeingOrderFormProps> = ({
 
     setIsSubmitting(true);
     try {
+      // First, ensure the dyeing firm is saved to the centralized system
+      if (formData.dyeingFirm && formData.dyeingFirm.trim()) {
+        try {
+          console.log(`🏭 Creating/finding dyeing firm: "${formData.dyeingFirm.trim()}"`);
+          const firmResult = await findOrCreateDyeingFirm({ 
+            name: formData.dyeingFirm.trim() 
+          });
+          
+          if (firmResult.created) {
+            console.log(`✨ New dyeing firm created: "${firmResult.data.name}"`);
+            toast.success(`Dyeing firm "${firmResult.data.name}" created and saved!`);
+            // Refresh the firms list to include the new firm
+            console.log('🔄 Refreshing dyeing firms list after creation...');
+            await fetchExistingDyeingFirms();
+          } else {
+            console.log(`📋 Existing dyeing firm found: "${firmResult.data.name}"`);
+          }
+        } catch (firmError) {
+          console.warn("⚠️ Failed to save dyeing firm to centralized system:", firmError);
+          // Continue with dyeing record creation even if firm save fails
+        }
+      }
+
+      // Create or update the dyeing record
       let result: DyeingRecord;
       if (recordToEdit?.id) {
         result = await updateDyeingRecord(recordToEdit.id, formData);
@@ -98,8 +191,10 @@ const CreateDyeingOrderForm: React.FC<CreateDyeingOrderFormProps> = ({
         result = await createDyeingRecord(formData);
         toast.success("Dyeing order created!");
       }
+      
       onSuccess(result);
-      handleClose();    } catch (error: unknown) {
+      handleClose();
+    } catch (error: unknown) {
       console.error("Save failed:", error);
       const errorMessage = error instanceof Error ? error.message : "Operation failed";
       toast.error(errorMessage);
@@ -120,6 +215,9 @@ const CreateDyeingOrderForm: React.FC<CreateDyeingOrderFormProps> = ({
       dyeingFirm: "",
     });
     setErrors({});
+    setDyeingFirmFilter("");
+    setShowDyeingFirmDropdown(false);
+    setSelectedDyeingFirmIndex(-1);
     onClose();
   };
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -146,6 +244,75 @@ const CreateDyeingOrderForm: React.FC<CreateDyeingOrderFormProps> = ({
         expectedArrivalDate: suggested,
       }));
     }
+  };
+
+  // Dyeing Firm Combobox Handlers
+  const filteredDyeingFirms = existingDyeingFirms.filter(firm =>
+    firm.name.toLowerCase().includes(dyeingFirmFilter.toLowerCase())
+  );
+
+  const handleDyeingFirmInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setDyeingFirmFilter(value);
+    setFormData(prev => ({ ...prev, dyeingFirm: value }));
+    setShowDyeingFirmDropdown(true);
+    setSelectedDyeingFirmIndex(-1);
+
+    if (errors.dyeingFirm) {
+      setErrors(prev => ({ ...prev, dyeingFirm: undefined }));
+    }
+  };
+
+  const handleDyeingFirmSelect = (firm: DyeingFirm) => {
+    console.log('🎯 Selecting firm:', firm.name); // Debug log
+    setDyeingFirmFilter(firm.name);
+    setFormData(prev => ({ ...prev, dyeingFirm: firm.name }));
+    setShowDyeingFirmDropdown(false);
+    setSelectedDyeingFirmIndex(-1);
+    
+    if (errors.dyeingFirm) {
+      setErrors(prev => ({ ...prev, dyeingFirm: undefined }));
+    }
+  };
+
+  const handleDyeingFirmKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showDyeingFirmDropdown) return;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setSelectedDyeingFirmIndex(prev => 
+          prev < filteredDyeingFirms.length - 1 ? prev + 1 : prev
+        );
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setSelectedDyeingFirmIndex(prev => prev > 0 ? prev - 1 : -1);
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (selectedDyeingFirmIndex >= 0) {
+          handleDyeingFirmSelect(filteredDyeingFirms[selectedDyeingFirmIndex]);
+        }
+        break;
+      case 'Escape':
+        setShowDyeingFirmDropdown(false);
+        setSelectedDyeingFirmIndex(-1);
+        break;
+    }
+  };
+
+  const handleDyeingFirmBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    // Check if the click is inside the dropdown
+    if (dropdownRef.current && dropdownRef.current.contains(e.relatedTarget as Node)) {
+      return; // Don't close if clicking inside dropdown
+    }
+    
+    // Delay closing to allow for option click
+    setTimeout(() => {
+      setShowDyeingFirmDropdown(false);
+      setSelectedDyeingFirmIndex(-1);
+    }, 200);
   };
 
   if (!isOpen) return null;
@@ -277,18 +444,109 @@ const CreateDyeingOrderForm: React.FC<CreateDyeingOrderFormProps> = ({
               <label htmlFor="dyeingFirm" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">
                 Dyeing Firm <span className="text-red-500">*</span>
               </label>
-              <input
-                id="dyeingFirm"
-                name="dyeingFirm"
-                type="text"
-                value={formData.dyeingFirm}
-                onChange={handleInputChange}
-                className={`w-full px-3 py-2 border rounded-md shadow-sm dark:bg-gray-800 dark:text-white ${
-                  errors.dyeingFirm ? "border-red-500" : "border-gray-300"
-                }`}
-                placeholder="e.g., XYZ Dyeing Co."
-              />
-              {errors.dyeingFirm && <p className="text-red-600 text-sm">{errors.dyeingFirm}</p>}
+              <div className="relative">
+                <input
+                  id="dyeingFirm"
+                  name="dyeingFirm"
+                  type="text"
+                  value={dyeingFirmFilter}
+                  onChange={handleDyeingFirmInputChange}
+                  onKeyDown={handleDyeingFirmKeyDown}
+                  onBlur={handleDyeingFirmBlur}
+                  onFocus={() => setShowDyeingFirmDropdown(true)}
+                  className={`w-full px-3 py-2 pr-10 border rounded-md shadow-sm dark:bg-gray-800 dark:text-white ${
+                    errors.dyeingFirm ? "border-red-500" : "border-gray-300"
+                  } focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
+                  placeholder={isLoadingFirms ? "Loading existing firms..." : "Type firm name or select from existing"}
+                  autoComplete="off"
+                  disabled={isLoadingFirms}
+                />
+                <button
+                  type="button"
+                  onClick={() => !isLoadingFirms && setShowDyeingFirmDropdown(!showDyeingFirmDropdown)}
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-auto"
+                  disabled={isLoadingFirms}
+                >
+                  {isLoadingFirms ? (
+                    <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
+                  ) : (
+                    <ChevronDown 
+                      className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${
+                        showDyeingFirmDropdown ? 'rotate-180' : ''
+                      }`} 
+                    />
+                  )}
+                </button>
+                
+                {/* Dropdown */}
+                {showDyeingFirmDropdown && !isLoadingFirms && (
+                  <div 
+                    ref={dropdownRef}
+                    className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-auto"
+                  >
+                    {filteredDyeingFirms.length > 0 ? (
+                      <>
+                        {filteredDyeingFirms.map((firm, index) => (
+                          <div
+                            key={firm.id || firm.name}
+                            onMouseDown={(e) => {
+                              e.preventDefault(); // Prevent blur from firing
+                              console.log('🖱️ Mouse down on:', firm.name); // Debug log
+                              handleDyeingFirmSelect(firm);
+                            }}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              console.log('🔗 Click on:', firm.name); // Debug log
+                              handleDyeingFirmSelect(firm);
+                            }}
+                            className={`px-3 py-2 cursor-pointer flex items-center justify-between hover:bg-blue-50 dark:hover:bg-blue-900/30 ${
+                              index === selectedDyeingFirmIndex 
+                                ? 'bg-blue-50 dark:bg-blue-900/30 border-l-2 border-blue-500' 
+                                : ''
+                            } ${
+                              formData.dyeingFirm === firm.name 
+                                ? 'text-blue-600 dark:text-blue-400 font-medium' 
+                                : 'text-gray-900 dark:text-white'
+                            }`}
+                          >
+                            <span>{firm.name}</span>
+                            {formData.dyeingFirm === firm.name && (
+                              <Check className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                            )}
+                          </div>
+                        ))}
+                        {dyeingFirmFilter && !existingDyeingFirms.some(firm => 
+                          firm.name.toLowerCase() === dyeingFirmFilter.toLowerCase()
+                        ) && (
+                          <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50">
+                            <div className="flex items-center space-x-2">
+                              <span>✨</span>
+                              <span>Press Enter to add "{dyeingFirmFilter}" as new firm</span>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : existingDyeingFirms.length === 0 ? (
+                      <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400 text-center">
+                        <div className="flex flex-col items-center space-y-1">
+                          <span>🏭</span>
+                          <span>No existing dyeing firms found</span>
+                          <span className="text-xs">You can type to add a new firm</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400 text-center">
+                        <div className="flex flex-col items-center space-y-1">
+                          <span>🔍</span>
+                          <span>No matching firms found</span>
+                          <span className="text-xs">Type to add "{dyeingFirmFilter}" as new firm</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              {errors.dyeingFirm && <p className="text-red-600 text-sm mt-1">{errors.dyeingFirm}</p>}
             </div>
           </div>
 

@@ -14,7 +14,9 @@ const DyeingRecord = require('./models/DyeingRecord');
 const User = require('./models/User');
 const Machine = require('./models/Machine');
 const DyeingFollowUp = require('./models/DyeingFollowUp');
+const CountProduct = require('./models/CountProduct');
 const CountProductFollowUp = require('./models/CountProductFollowUp');
+const DyeingFirm = require('./models/DyeingFirm');
 const ASUMachine = require('./models/ASUMachine');
 const ASUProductionEntry = require('./models/ASUProductionEntry');
 const Inventory = require('./models/InventoryPostgres'); // Add PostgreSQL Inventory model
@@ -24,6 +26,9 @@ const Party = require('./models/Party'); // Add Party model
 const models = {
   Machine,
   User,
+  CountProduct,
+  CountProductFollowUp,
+  DyeingFirm,
   ASUMachine,
   ASUProductionEntry,
   Inventory, // Add Inventory to models
@@ -45,6 +50,7 @@ const asuMachineRoutes = require('./routes/asuMachineRoutes');
 const yarnProductionRoutes = require('./routes/yarnProductionRoutes');
 const inventoryRoutes = require('./routes/inventoryRoutes');
 const countProductRoutes = require('./routes/countProductRoutes');
+const dyeingFirmRoutes = require('./routes/dyeingFirmRoutes');
 // const workOrderRoutes = require('./routes/workOrderRoutes');
 // const bomRoutes = require('./routes/bomRoutes');
 // const costingRoutes = require('./routes/costingRoutes');
@@ -90,6 +96,7 @@ app.use('/api/asu-machines', asuMachineRoutes);
 app.use('/api/yarn', yarnProductionRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/count-products', countProductRoutes);
+app.use('/api/dyeing-firms', dyeingFirmRoutes);
 // app.use('/api/workorders', workOrderRoutes);
 // app.use('/api/bom', bomRoutes);
 // app.use('/api/costings', costingRoutes);
