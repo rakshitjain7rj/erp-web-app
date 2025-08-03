@@ -38,6 +38,22 @@ export interface DyeingRecord {
   followUps?: DyeingFollowUp[];
 }
 
+// ================= SIMPLIFIED DISPLAY RECORD =================
+export interface SimplifiedDyeingDisplayRecord {
+  id: number;
+  quantity: number;           // Total quantity ordered
+  customerName: string;       // Customer/client name  
+  sentToDye: number;         // Quantity sent to dyeing firm
+  sentDate: string;          // Date when sent to dyeing
+  received?: number;         // Quantity received back (optional)
+  receivedDate?: string;     // Date when received back (optional)
+  dispatch?: number;         // Quantity dispatched to customer (optional)
+  dispatchDate?: string;     // Date when dispatched (optional)
+  partyNameMiddleman: string; // Party/Middleman handling the order
+  dyeingFirm: string;        // Dyeing firm name
+  remarks?: string;          // Additional notes
+}
+
 // ================= CREATE/UPDATE REQUEST =================
 export interface CreateDyeingRecordRequest {
   yarnType: string;

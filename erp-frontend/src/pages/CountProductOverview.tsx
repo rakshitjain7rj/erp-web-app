@@ -4,17 +4,14 @@ import { ChevronDown, ChevronUp, Package, TrendingUp, Calendar, BarChart3, Plus,
 import { toast } from "sonner";
 import { exportDataToCSV } from "../utils/exportUtils";
 import FloatingActionDropdown from "../components/FloatingActionDropdown";
-import CreateDyeingOrderForm from "../components/CreateDyeingOrderForm";
 import CountProductFollowUpModal from "../components/CountProductFollowUpModal";
 import { HorizontalAddOrderForm } from "../components/HorizontalAddOrderForm";
-import { DyeingRecord } from "../types/dyeing";
 import { 
   getAllCountProducts, 
   createCountProduct, 
   updateCountProduct, 
   deleteCountProduct,
-  CountProduct,
-  CreateCountProductRequest 
+  CountProduct 
 } from "../api/countProductApi";
 import { getAllDyeingFirms, DyeingFirm } from "../api/dyeingFirmApi";
 
@@ -174,9 +171,7 @@ const CountProductOverview: React.FC = () => {
   const [firmFilter, setFirmFilter] = useState<string>("");
   const [gradeFilter, setGradeFilter] = useState<string>("");
   const [partyFilter, setPartyFilter] = useState<string>("");
-  const [isFormOpen, setIsFormOpen] = useState(false);
   const [showHorizontalForm, setShowHorizontalForm] = useState(false); // New state for horizontal form
-  const [recordToEdit, setRecordToEdit] = useState<DyeingRecord | null>(null);
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
   const [isFollowUpModalOpen, setIsFollowUpModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<CountProduct | null>(null);
@@ -687,64 +682,6 @@ const CountProductOverview: React.FC = () => {
     setEditValues(prev => ({ ...prev, [field]: numValue }));
   };
 
-  // Handle successful dyeing order creation
-  const handleDyeingOrderSuccess = async (dyeingRecord: DyeingRecord) => {
-    console.log('🎯 Handling dyeing order success:', dyeingRecord);
-    try {
-      // Convert DyeingRecord to CountProduct format
-      const newCountProductData: CreateCountProductRequest = {
-        partyName: dyeingRecord.partyName,
-        dyeingFirm: dyeingRecord.dyeingFirm,
-        yarnType: dyeingRecord.yarnType,
-        count: dyeingRecord.count,
-        shade: dyeingRecord.shade,
-        quantity: dyeingRecord.quantity,
-        completedDate: new Date().toISOString().split('T')[0], // Today's date as completed
-        qualityGrade: "A", // Default grade, can be updated later
-        remarks: dyeingRecord.remarks || "",
-        lotNumber: dyeingRecord.lot,
-        processedBy: "System", // Default value
-        customerName: dyeingRecord.partyName, // Use party name as customer name
-        sentToDye: true,
-        sentDate: dyeingRecord.sentDate,
-        received: true,
-        receivedDate: dyeingRecord.expectedArrivalDate,
-        receivedQuantity: dyeingRecord.quantity, // Default to full quantity received
-        dispatch: false,
-        dispatchDate: "",
-        dispatchQuantity: 0, // No dispatch initially
-        middleman: "Direct Supply" // Default value
-      };
-
-      console.log('📦 Creating count product:', newCountProductData);
-
-      // Save to database
-      const createdCountProduct = await createCountProduct(newCountProductData);
-      console.log('✅ Count product created:', createdCountProduct);
-      
-      // Refresh the entire list from server to ensure consistency
-      console.log('🔄 Refreshing count products list...');
-      await fetchCountProducts();
-      
-      // Also refresh centralized dyeing firms to show newly created firms
-      console.log('🔄 Refreshing centralized dyeing firms...');
-      await fetchCentralizedDyeingFirms();
-      
-      // Close form
-      setIsFormOpen(false);
-      setRecordToEdit(null);
-      
-      // Show success message
-      toast.success("Count product added successfully and saved to database!");
-      
-      // Expand the firm section if it's not already expanded
-      setExpandedFirm(dyeingRecord.dyeingFirm);
-    } catch (error) {
-      console.error('❌ Failed to save count product:', error);
-      toast.error(`Failed to save count product to database: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  };
-
   // Handle successful horizontal form submission
   const handleHorizontalFormSuccess = async (newCountProduct: CountProduct) => {
     console.log('🎯 Handling horizontal form success:', newCountProduct);
@@ -959,14 +896,6 @@ const CountProductOverview: React.FC = () => {
               >
             <Plus className="w-4 h-4" />
             <span>{showHorizontalForm ? 'Cancel Add Order' : 'Add Order'}</span>
-          </Button>
-          <Button 
-            onClick={() => { setRecordToEdit(null); setIsFormOpen(true); }}
-            variant="outline"
-            className="flex items-center space-x-2 text-blue-600 border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Modal Form</span>
           </Button>
           <Button 
             onClick={handleExportCSV}
@@ -1303,17 +1232,6 @@ const CountProductOverview: React.FC = () => {
           <p className="text-gray-600 dark:text-gray-400">Try adjusting your search criteria or filters.</p>
         </div>
       )}
-
-      {/* Create Dyeing Order Form Modal */}
-      <CreateDyeingOrderForm
-        isOpen={isFormOpen}
-        recordToEdit={recordToEdit}
-        onClose={() => {
-          setIsFormOpen(false);
-          setRecordToEdit(null);
-        }}
-        onSuccess={handleDyeingOrderSuccess}
-      />
 
       {/* Edit Product Modal */}
       {isEditModalOpen && productToEdit && (

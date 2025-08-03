@@ -50,9 +50,24 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({
   const dropdownOpen = controlledOpen !== undefined ? controlledOpen : isOpen;
 
   const handleActionClick = (action: () => void) => {
-    console.log('🎯 FloatingActionDropdown: Action clicked', action.name || 'anonymous function');
-    action();
-    onOpenChange?.(false);
+    console.log('🎯 FloatingActionDropdown: Action clicked');
+    console.log('🔍 Action function type:', typeof action);
+    console.log('🔍 Action function:', action);
+    
+    try {
+      // Close the dropdown first
+      if (onOpenChange) {
+        onOpenChange(false);
+      }
+      
+      // Execute the action
+      console.log('⚡ Executing action...');
+      action();
+      console.log('✅ Action executed successfully');
+      
+    } catch (error) {
+      console.error('❌ Error executing action:', error);
+    }
   };
 
   const defaultTrigger = (
@@ -114,6 +129,8 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({
                 <button
                   onClick={() => {
                     console.log('🗑️ FloatingActionDropdown: Delete button clicked');
+                    console.log('🔍 onDelete function type:', typeof onDelete);
+                    console.log('🔍 onDelete function:', onDelete);
                     handleActionClick(onDelete);
                   }}
                   className="flex items-center w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700"

@@ -98,7 +98,20 @@ export const updateArrivalDate = async (
 };
 
 export const deleteDyeingRecord = async (id: number): Promise<void> => {
-  await api.delete(`/${id}`);
+  console.log('🗑️ API: deleteDyeingRecord called with ID:', id);
+  console.log('🌐 Making DELETE request to:', `${API_BASE_URL}/${id}`);
+  
+  try {
+    const response = await api.delete(`/${id}`);
+    console.log('✅ API: Delete response:', response);
+    console.log('✅ API: Delete successful, status:', response.status);
+  } catch (error: any) {
+    console.error('❌ API: Delete error:', error);
+    console.error('❌ API: Error response:', error.response);
+    console.error('❌ API: Error status:', error.response?.status);
+    console.error('❌ API: Error data:', error.response?.data);
+    throw error;
+  }
 };
 
 // ==================== SUMMARY & ALERTS ====================
