@@ -9,11 +9,16 @@ export interface MachinePerformanceData {
   id: number;
   name: string;
   efficiency: number;
-  status: 'operational' | 'maintenance' | 'offline';
-  lastMaintenance: string;
+  status: 'operational' | 'maintenance' |                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                    {machine.totalProduction.toLocaleString()} kg
+                    <div className="text-xs text-gray-400">
+                      {machine.entriesCount} entries
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                    {new Date(machine.lastMaintenance).toLocaleDateString()}lastMaintenance: string;
   entriesCount: number;
   totalProduction: number;
-  wastePercentage: number;
 }
 
 // Base URL should not include API path
@@ -39,8 +44,7 @@ const MachinePerformanceTableRealTime: React.FC = () => {
       status: "operational",
       lastMaintenance: "2025-06-15",
       entriesCount: 145,
-      totalProduction: 7850,
-      wastePercentage: 1.2
+      totalProduction: 7850
     },
     {
       id: 2,
@@ -52,15 +56,26 @@ const MachinePerformanceTableRealTime: React.FC = () => {
       totalProduction: 4250,
       wastePercentage: 2.8
     },
+    entriesCount: 120,
+      totalProduction: 5240
+    },
     {
       id: 3,
-      name: "Draw Frame 2",
+      name: "Blowroom Line 2",
       efficiency: 85.7,
       status: "operational",
-      lastMaintenance: "2025-06-02",
-      entriesCount: 112,
-      totalProduction: 5980,
-      wastePercentage: 1.5
+      lastMaintenance: "2025-07-01",
+      entriesCount: 97,
+      totalProduction: 4200
+    },
+    {
+      id: 4,
+      name: "Drawing Frame 5",
+      efficiency: 68.9,
+      status: "offline",
+      lastMaintenance: "2025-06-20",
+      entriesCount: 82,
+      totalProduction: 3100
     },
     {
       id: 4,
@@ -422,16 +437,6 @@ const MachinePerformanceTableRealTime: React.FC = () => {
               <th 
                 scope="col" 
                 className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
-                onClick={() => handleSort('wastePercentage')}
-              >
-                Waste %
-                {sortBy === 'wastePercentage' && (
-                  <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                )}
-              </th>
-              <th 
-                scope="col" 
-                className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
                 onClick={() => handleSort('lastMaintenance')}
               >
                 Last Maintenance
@@ -466,8 +471,8 @@ const MachinePerformanceTableRealTime: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm">
-                    <div className={machine.wastePercentage > 5 ? 'text-red-500 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}>
-                      {machine.wastePercentage.toFixed(1)}%
+                    <div className={'text-gray-500 dark:text-gray-400'}>
+                      {machine.wastePercentage !== undefined ? machine.wastePercentage.toFixed(1) : '0.0'}%
                     </div>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">

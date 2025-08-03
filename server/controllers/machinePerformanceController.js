@@ -34,16 +34,26 @@ const generateFallbackMachineData = () => {
     },
     {
       id: 3,
-      name: "Draw Frame 2",
+      name: "Blowroom Line 2",
       efficiency: 85.7,
       status: "operational",
       lastMaintenance: new Date().toISOString().split('T')[0],
-      entriesCount: 112,
-      totalProduction: 5980,
+      entriesCount: 97,
+      totalProduction: 4200,
       wastePercentage: 1.5
     },
     {
       id: 4,
+      name: "Drawing Frame 5",
+      efficiency: 68.9,
+      status: "offline",
+      lastMaintenance: new Date().toISOString().split('T')[0],
+      entriesCount: 82,
+      totalProduction: 3100,
+      wastePercentage: 3.2
+    },
+    {
+      id: 5,
       name: "Speed Frame 1",
       efficiency: 65.2,
       status: "offline",
@@ -55,12 +65,15 @@ const generateFallbackMachineData = () => {
   ];
 };
 
+/**
+ * Get machine performance data for dashboard and performance screens
+ */
 const getMachinePerformance = async (req, res) => {
   try {
     // Get query parameters for filtering
     const { startDate, endDate, machineStatus, unit } = req.query;
     
-    // Build date filter for SQL query
+    // Build date filter for machine performance queries
     let dateFilter = '';
     if (startDate && endDate) {
       dateFilter = ` AND pe.date BETWEEN '${startDate}' AND '${endDate}'`;
@@ -78,7 +91,7 @@ const getMachinePerformance = async (req, res) => {
     // Build unit filter
     let unitFilter = '';
     if (unit) {
-      unitFilter = ` AND m.unit = ${unit}`;
+      unitFilter = ` AND m.unit = ${parseInt(unit)}`;
     }
     
     // Build machine status filter
@@ -86,13 +99,13 @@ const getMachinePerformance = async (req, res) => {
     if (machineStatus && machineStatus !== 'all') {
       switch (machineStatus) {
         case 'operational':
-          machineFilter = ' AND m."isActive" = true';
+          machineFilter = ' AND m.is_active = true';
           break;
         case 'maintenance':
-          machineFilter = ' AND m."isActive" = false AND m."maintenanceMode" = true';
+          machineFilter = ' AND m.is_active = false AND m."maintenanceMode" = true';
           break;
         case 'offline':
-          machineFilter = ' AND m."isActive" = false AND m."maintenanceMode" = false';
+          machineFilter = ' AND m.is_active = false AND m."maintenanceMode" = false';
           break;
       }
     }
@@ -104,8 +117,7 @@ const getMachinePerformance = async (req, res) => {
           machine_no,
           COUNT(id) AS entries_count,
           SUM(actual_production) AS total_production,
-          AVG(efficiency) AS avg_efficiency,
-          AVG(waste_percentage) AS avg_waste
+          AVG(efficiency) AS avg_efficiency
         FROM "asu_production_entries" pe
         WHERE 1=1${dateFilter}
         GROUP BY machine_no
@@ -113,18 +125,18 @@ const getMachinePerformance = async (req, res) => {
       
       SELECT 
         m.id, 
-        m.name, 
+        m.machine_name AS name, 
         COALESCE(m."machineNo", 0) AS "machine_no",
         CASE
-          WHEN m."isActive" = true THEN 'operational'
-          WHEN m."isActive" = false AND m."maintenanceMode" = true THEN 'maintenance'
+          WHEN m.is_active = true THEN 'operational'
+          WHEN m.is_active = false AND m."maintenanceMode" = true THEN 'maintenance'
           ELSE 'offline'
         END AS status,
         TO_CHAR(m."lastMaintenance", 'YYYY-MM-DD') AS "lastMaintenance",
         COALESCE(ps.entries_count, 0) AS "entriesCount",
         COALESCE(ps.total_production, 0) AS "totalProduction",
         COALESCE(ps.avg_efficiency, 0) AS "efficiency",
-        COALESCE(ps.avg_waste, 0) AS "wastePercentage"
+        0 AS "wastePercentage"
       FROM "asu_machines" m
       LEFT JOIN ProductionStats ps ON m.machine_no = ps.machine_no
       WHERE 1=1${unitFilter}${machineFilter}
@@ -135,7 +147,7 @@ const getMachinePerformance = async (req, res) => {
     const [standardMachinePerformance] = await sequelize.query(`
       SELECT 
         m.id, 
-        m.name, 
+        m.machine_name AS name, 
         CASE
           WHEN m.status = 'active' THEN 'operational'
           WHEN m.status = 'maintenance' THEN 'maintenance'
@@ -151,49 +163,51 @@ const getMachinePerformance = async (req, res) => {
       ORDER BY m.id
     `);
     
-    // Format the machine performance data
-    const machinePerformance = [
+    // Combine and format the results
+    const combinedMachinePerformance = [
       ...asuMachinePerformance.map(machine => ({
         id: machine.id,
-        name: machine.name || `Machine ${machine.machine_no}`,
-        efficiency: parseFloat(parseFloat(machine.efficiency || 0).toFixed(1)),
+        name: machine.name,
         status: machine.status,
-        lastMaintenance: machine.lastMaintenance || 'N/A',
-        entriesCount: parseInt(machine.entriesCount || 0),
-        totalProduction: parseFloat(parseFloat(machine.totalProduction || 0).toFixed(1)),
-        wastePercentage: parseFloat(parseFloat(machine.wastePercentage || 0).toFixed(1))
+        lastMaintenance: machine.lastMaintenance,
+        entriesCount: parseInt(machine.entriesCount),
+        totalProduction: parseFloat(machine.totalProduction),
+        efficiency: parseFloat(machine.efficiency),
+        wastePercentage: parseFloat(machine.wastePercentage)
       })),
       ...standardMachinePerformance.map(machine => ({
         id: machine.id,
         name: machine.name,
-        efficiency: parseFloat(parseFloat(machine.efficiency || 0).toFixed(1)),
         status: machine.status,
-        lastMaintenance: machine.lastMaintenance || 'N/A',
-        entriesCount: parseInt(machine.entriesCount || 0),
-        totalProduction: parseFloat(parseFloat(machine.totalProduction || 0).toFixed(1)),
-        wastePercentage: parseFloat(parseFloat(machine.wastePercentage || 0).toFixed(1))
+        lastMaintenance: machine.lastMaintenance,
+        entriesCount: parseInt(machine.entriesCount),
+        totalProduction: parseFloat(machine.totalProduction),
+        efficiency: parseFloat(machine.efficiency),
+        wastePercentage: parseFloat(machine.wastePercentage)
       }))
     ];
     
+    // Sort by efficiency
+    const sortedMachinePerformance = combinedMachinePerformance.sort((a, b) => b.efficiency - a.efficiency);
+    
     res.status(200).json({
       success: true,
-      data: machinePerformance
+      count: sortedMachinePerformance.length,
+      data: sortedMachinePerformance
     });
   } catch (error) {
-    console.error("Error fetching machine performance data:", error);
+    console.error("Error getting machine performance data:", error);
     
-    // Instead of returning an error, provide fallback data for the frontend
+    // If there's an error, return fallback data
     const fallbackData = generateFallbackMachineData();
     
     res.status(200).json({
       success: true,
+      count: fallbackData.length,
       data: fallbackData,
-      isFallback: true,
-      message: "Using fallback data due to database error: " + error.message
+      fallback: true,
+      error: error.message
     });
-    
-    // Log the detailed error for server side debugging
-    console.error("SQL Error Details:", error.original?.detail || error.message);
   }
 };
 
