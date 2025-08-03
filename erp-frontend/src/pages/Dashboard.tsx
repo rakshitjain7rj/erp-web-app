@@ -4,174 +4,138 @@ import { useAuth } from "../context/AuthContext";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { Gauge, RefreshCw, Activity } from "lucide-react";
-import TotalASUUnit1YarnSummary from "../components/dashboard/TotalASUUnit1YarnSummary";
+import TotalASUUnit1YarnSummary from "../components/dashboard/TotalASUUnit1YarnSummary.jsx";
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-interface DashboardStats {
-  activeUsers: number;
-  totalProduction: number;
-  averageEfficiency: number;
-  machinesOperational: number;
-  totalMachines: number;
-}
-
-// Simple stat card component
-interface StatCardProps {
-  title: string;
-  value: string;
-  icon: React.ReactNode;
-}
-
-const StatCard: React.FC<StatCardProps> = ({ title, value, icon }) => {
-  // Handle cases where value might be undefined or NaN
-  const displayValue = value === undefined || value === 'undefined' || value === 'NaN' ? 
-    'N/A' : value;
-  
-  return (
-    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow border border-gray-100">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">{title}</p>
-          <h3 className="text-xl font-semibold mt-1 text-gray-900 dark:text-white">{displayValue}</h3>
-        </div>
-        <div className="p-2 bg-blue-50 dark:bg-gray-700 rounded-full">
-          {icon}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const Dashboard: React.FC = () => {
+function Dashboard() {
   const { user } = useAuth();
-  const [isLoading, setIsLoading] = useState(true);
-  const [stats, setStats] = useState<DashboardStats>({
-    activeUsers: 0,
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    totalMachines: 0,
+    activeMachines: 0,
     totalProduction: 0,
-    averageEfficiency: 0,
-    machinesOperational: 0,
-    totalMachines: 0
+    efficiency: 0
   });
 
-  const fetchDashboardStats = async () => {
-    setIsLoading(true);
-    
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
     try {
-      // Get token from auth context
-      const token = user?.token;
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      
+      setLoading(true);
       // Check if API_URL already includes /api to avoid doubling
       const baseUrl = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL;
       const dashboardEndpoint = baseUrl.includes('/api') ? 
         `${baseUrl}/dashboard/stats` : 
         `${baseUrl}/api/dashboard/stats`;
       
-      console.log('Trying dashboard endpoint:', dashboardEndpoint);
+      const response = await axios.get(dashboardEndpoint);
       
-      // Try to fetch dashboard stats, but handle DB schema issues gracefully
-      try {
-        const response = await axios.get(dashboardEndpoint, { headers });
-        
-        if (response.data && response.data.success) {
-          setStats(response.data.data);
-        }
-      } catch (dashboardError) {
-        console.warn("Dashboard stats endpoint failed, using basic stats fallback", dashboardError);
-        
-        // Fallback to simpler machine count endpoint
-        try {
-          const machineEndpoint = baseUrl.includes('/api') ? 
-            `${baseUrl}/asu-unit1/machines/count` : 
-            `${baseUrl}/api/asu-unit1/machines/count`;
-          
-          console.log('Trying machine count endpoint:', machineEndpoint);
-          const machineResponse = await axios.get(machineEndpoint, { headers });
-          
-          if (machineResponse.data) {
-            // Update just what we can get
-            setStats(prev => ({
-              ...prev,
-              totalMachines: machineResponse.data.count || machineResponse.data.total || 0,
-              machinesOperational: machineResponse.data.active || 0
-            }));
-          }
-        } catch (machineCountError) {
-          console.error("Machine count fallback failed", machineCountError);
-          // Continue with default values
-        }
+      if (response.data && response.data.success) {
+        setStats({
+          totalMachines: response.data.data.totalMachines || 0,
+          activeMachines: response.data.data.activeMachines || 0,
+          totalProduction: response.data.data.totalProduction || 0,
+          efficiency: response.data.data.avgEfficiency || 0
+        });
+      } else {
+        toast.error("Failed to load dashboard data");
       }
-    } catch (error: any) {
-      console.error("Error fetching dashboard stats:", error);
-      const errorMessage = error.response?.data?.message || error.message;
-      toast.error(`Failed to load dashboard data: ${errorMessage}`);
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error);
+      toast.error("Network error. Please try again.");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchDashboardStats();
-    
-    // Set up auto-refresh every 30 seconds for real-time dashboard data
-    const refreshInterval = setInterval(() => {
-      fetchDashboardStats();
-    }, 30000);
-    
-    return () => clearInterval(refreshInterval);
-  }, []);
-
   return (
     <LayoutWrapper>
-      <div className="px-4 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-semibold text-gray-800 dark:text-white">Dashboard</h1>
-            <div className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs rounded-full">
-              Auto-refreshing
-            </div>
+      <div className="container mx-auto px-4 py-8">
+        <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
+        
+        {loading ? (
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
           </div>
-          <button
-            onClick={fetchDashboardStats}
-            className="flex items-center gap-1 text-sm bg-blue-50 text-blue-700 dark:text-blue-300 dark:bg-gray-800 px-3 py-1.5 rounded-lg border border-blue-100 dark:border-gray-700 shadow-sm hover:bg-blue-100 dark:hover:bg-gray-700"
-          >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} /> 
-            {isLoading ? 'Loading...' : 'Refresh Now'}
-          </button>
-        </div>
-
-        {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <StatCard 
-            title="Production" 
-            value={stats.totalProduction ? `${stats.totalProduction.toLocaleString()} kg` : 'N/A'}
-            icon={<Gauge className="w-5 h-5 text-blue-600 dark:text-blue-400" />}
-          />
-          <StatCard 
-            title="Efficiency" 
-            value={stats.averageEfficiency !== undefined ? `${Number(stats.averageEfficiency).toFixed(1)}%` : 'N/A'}
-            icon={<Activity className="w-5 h-5 text-green-600 dark:text-green-400" />}
-          />
-          <StatCard 
-            title="Machines" 
-            value={stats.totalMachines ? `${stats.machinesOperational || 0}/${stats.totalMachines}` : 'N/A'}
-            icon={<Gauge className="w-5 h-5 text-purple-600 dark:text-purple-400" />}
-          />
-          <StatCard 
-            title="Active Users" 
-            value={stats.activeUsers !== undefined ? stats.activeUsers.toString() : 'N/A'}
-            icon={<Gauge className="w-5 h-5 text-amber-600 dark:text-amber-400" />}
-          />
-        </div>
-
-        {/* ASU Unit 1 Total Yarn Production Summary */}
-        <div className="mb-6">
-          <TotalASUUnit1YarnSummary days={30} showRefreshButton={true} />
-        </div>
+        ) : (
+          <>
+            {/* Stats Overview */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-gray-500 text-sm font-medium">Total Machines</h3>
+                  <Gauge className="h-6 w-6 text-blue-500" />
+                </div>
+                <div className="flex items-end">
+                  <p className="text-3xl font-bold">{stats.totalMachines}</p>
+                  <p className="text-sm text-gray-500 ml-2 mb-1">units</p>
+                </div>
+              </div>
+              
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-gray-500 text-sm font-medium">Active Machines</h3>
+                  <Activity className="h-6 w-6 text-green-500" />
+                </div>
+                <div className="flex items-end">
+                  <p className="text-3xl font-bold">{stats.activeMachines}</p>
+                  <p className="text-sm text-gray-500 ml-2 mb-1">running</p>
+                </div>
+              </div>
+              
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-gray-500 text-sm font-medium">Production (30 days)</h3>
+                  <Activity className="h-6 w-6 text-purple-500" />
+                </div>
+                <div className="flex items-end">
+                  <p className="text-3xl font-bold">{stats.totalProduction.toLocaleString()}</p>
+                  <p className="text-sm text-gray-500 ml-2 mb-1">kg</p>
+                </div>
+              </div>
+              
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-gray-500 text-sm font-medium">Efficiency</h3>
+                  <RefreshCw className="h-6 w-6 text-orange-500" />
+                </div>
+                <div className="flex items-end">
+                  <p className="text-3xl font-bold">{stats.efficiency}%</p>
+                  <p className="text-sm text-gray-500 ml-2 mb-1">avg</p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Yarn Production Component */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+              <TotalASUUnit1YarnSummary days={31} showRefreshButton={true} />
+              
+              <div className="bg-white rounded-lg shadow p-6">
+                <h2 className="text-xl font-semibold mb-4">Machine Status</h2>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span>Running</span>
+                    <span className="font-medium">{stats.activeMachines} / {stats.totalMachines}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2.5">
+                    <div 
+                      className="bg-green-500 h-2.5 rounded-full" 
+                      style={{ 
+                        width: `${stats.totalMachines > 0 ? (stats.activeMachines / stats.totalMachines * 100) : 0}%` 
+                      }}
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </LayoutWrapper>
   );
-};
+}
 
 export default Dashboard;
