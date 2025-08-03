@@ -181,11 +181,20 @@ const createProductionEntry = async (req, res) => {
         machineNumber: parseInt(machineNumber),
         date,
         shift,
-        actualProduction: actualProduction !== undefined && actualProduction !== null ? parseFloat(actualProduction) : null,
+        actualProduction: actualProduction !== undefined && actualProduction !== null ? parseFloat(actualProduction) : 0,
         theoreticalProduction: finalTheoreticalProduction ? parseFloat(finalTheoreticalProduction) : null,
         efficiency,
         remarks: remarks || null
       }, { transaction: t });
+      
+      console.log('Production entry created:', {
+        id: entry.id,
+        machineNumber: entry.machineNumber,
+        date: entry.date,
+        shift: entry.shift,
+        actualProduction: entry.actualProduction,
+        type: typeof entry.actualProduction
+      });
       
       // Only save machine configuration if there's actual production
       // This ensures we only save configurations that were actually used in production
@@ -212,7 +221,7 @@ const createProductionEntry = async (req, res) => {
         const shouldSaveNewConfig = !latestConfig || 
           normalizeNumber(latestConfig.spindleCount) !== normalizeNumber(machine.spindles) || 
           (latestConfig.yarnType || '').trim() !== (machine.yarnType || '').trim() || 
-          normalizeNumber(latestConfig.efficiencyAt100Percent) !== normalizeNumber(machine.productionAt100);
+          normalizeNumber(latestConfig.productionAt100) !== normalizeNumber(machine.productionAt100);
         
         // If configuration changed, save a new one
         if (shouldSaveNewConfig) {
@@ -331,7 +340,7 @@ const updateProductionEntry = async (req, res) => {
         const shouldSaveNewConfig = !latestConfig || 
           normalizeNumber(latestConfig.spindleCount) !== normalizeNumber(machine.spindles) || 
           (latestConfig.yarnType || '').trim() !== (machine.yarnType || '').trim() || 
-          normalizeNumber(latestConfig.efficiencyAt100Percent) !== normalizeNumber(machine.productionAt100);
+          normalizeNumber(latestConfig.productionAt100) !== normalizeNumber(machine.productionAt100);
         
         // If configuration changed, save a new one
         if (shouldSaveNewConfig) {

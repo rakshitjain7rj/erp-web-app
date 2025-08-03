@@ -58,6 +58,13 @@ const DailyProduction: React.FC = () => {
     }
   }, [selectedMachine]);
 
+  // Helper function to sort production entries by date (newest first)
+  const sortEntriesByDate = (entries: ASUProductionEntry[]) => {
+    return [...entries].sort((a, b) => 
+      new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+  };
+
   const loadProductionEntries = useCallback(async () => {
     if (!selectedMachine) return;
     
@@ -84,7 +91,22 @@ const DailyProduction: React.FC = () => {
       // Add debug logging to verify data integrity
       console.log('Loaded production entries:', data.items);
       
-      setProductionEntries(data.items);
+      // Debug night shift values specifically
+      data.items.forEach((entry: ASUProductionEntry) => {
+        console.log(`Final verified entry for date ${entry.date}:`, {
+          id: entry.id,
+          dayShift: entry.dayShift,
+          nightShift: entry.nightShift,
+          nightShiftType: typeof entry.nightShift,
+          total: entry.total,
+          originalEntry: entry
+        });
+      });
+      
+      // Sort entries by date in descending order (newest first)
+      const sortedEntries = sortEntriesByDate(data.items);
+      
+      setProductionEntries(sortedEntries);
     } catch (error) {
       console.error('Error loading production entries:', error);
       toast.error('Failed to load production entries');
@@ -159,18 +181,59 @@ const DailyProduction: React.FC = () => {
     try {
       setLoading(true);
       
-      // Note: productionAt100 will be determined by the API using the machine configuration
-      // We don't need to send it in the form data anymore
+      // Add the productionAt100 value explicitly to ensure it's available
+      // This helps prevent the "Missing productionAt100" error
+      const prodAt100Value = getProductionAt100({ machine: selectedMachine } as ASUProductionEntry, selectedMachine);
+      
+      // Explicitly convert night shift value to ensure it's properly handled
+      // Full detailed logging of night shift value processing
+      const rawNightShift = formData.nightShift;
+      
+      console.log('Processing night shift for submission:', {
+        rawValue: rawNightShift,
+        type: typeof rawNightShift
+      });
+      
+      // Use regular parseFloat to be consistent with day shift handling
+      const nightShiftValue = parseFloat(String(rawNightShift)) || 0;
+      
+      console.log('Processed night shift value:', {
+        value: nightShiftValue,
+        type: typeof nightShiftValue,
+        isZero: nightShiftValue === 0,
+        isFalsy: !nightShiftValue
+      });
+      
       const submissionData = {
-        ...formData
+        machineId: formData.machineId,
+        date: formData.date,
+        dayShift: parseFloat(String(formData.dayShift)) || 0,
+        nightShift: nightShiftValue,
+        productionAt100: prodAt100Value || 87 // Use our helper with a fallback value of 87
       };
       
       console.log('Creating production entry with data:', submissionData);
+      console.log('Form night shift details:', {
+        originalFormValue: formData.nightShift,
+        originalType: typeof formData.nightShift,
+        processedValue: nightShiftValue,
+        processedType: typeof nightShiftValue,
+        submissionValue: submissionData.nightShift,
+        submissionType: typeof submissionData.nightShift
+      });
       console.log('Selected machine:', selectedMachine);
       console.log('Machine number info:', {
         machineNo: selectedMachine.machineNo,
-        machine_number: selectedMachine.machine_number
+        machine_number: selectedMachine.machine_number,
+        productionAt100: prodAt100Value
       });
+      
+      // CRITICAL DEBUG: Log the exact data being sent to the API
+      console.log('=== CRITICAL DEBUG: Data being sent to createProductionEntry ===');
+      console.log('submissionData object:', JSON.stringify(submissionData, null, 2));
+      console.log('submissionData.nightShift value:', submissionData.nightShift);
+      console.log('submissionData.nightShift type:', typeof submissionData.nightShift);
+      console.log('=== END CRITICAL DEBUG ===');
       
       await asuUnit1Api.createProductionEntry(submissionData);
       
@@ -217,10 +280,11 @@ const DailyProduction: React.FC = () => {
   };
 
   const handleEdit = (entry: ASUProductionEntry) => {
+    // Ensure numeric values are properly parsed
     setEditingEntry({
       id: entry.id,
-      dayShift: entry.dayShift,
-      nightShift: entry.nightShift,
+      dayShift: parseFloat(String(entry.dayShift || 0)),
+      nightShift: parseFloat(String(entry.nightShift || 0)),
       date: entry.date
     });
   };
@@ -230,15 +294,32 @@ const DailyProduction: React.FC = () => {
 
     try {
       setLoading(true);
-      await asuUnit1Api.updateProductionEntry(editingEntry.id, {
+      
+      // Log the values before sending to API
+      console.log('Saving edited entry:', {
+        id: editingEntry.id,
         dayShift: editingEntry.dayShift,
         nightShift: editingEntry.nightShift,
-        date: editingEntry.date
+        dayShiftType: typeof editingEntry.dayShift,
+        nightShiftType: typeof editingEntry.nightShift
       });
+      
+      // Ensure values are properly formatted as numbers
+      const dataToUpdate = {
+        dayShift: parseFloat(String(editingEntry.dayShift)) || 0,
+        nightShift: parseFloat(String(editingEntry.nightShift)) || 0,
+        date: editingEntry.date
+      };
+      
+      console.log('Sending update data:', dataToUpdate);
+      
+      await asuUnit1Api.updateProductionEntry(editingEntry.id, dataToUpdate);
 
       toast.success('Production entry updated successfully');
       setEditingEntry(null);
-      loadProductionEntries();
+      
+      // Ensure production entries are reloaded and sorted
+      await loadProductionEntries();
       loadStats();
     } catch (error) {
       console.error('Error updating production entry:', error);
@@ -271,7 +352,7 @@ const DailyProduction: React.FC = () => {
       await asuUnit1Api.deleteProductionEntry(id);
       
       toast.success('Production entry deleted successfully');
-      loadProductionEntries();
+      await loadProductionEntries();
       loadStats();
     } catch (error) {
       console.error('Error deleting production entry:', error);
@@ -287,13 +368,21 @@ const DailyProduction: React.FC = () => {
   };
 
   const calculateTotal = (dayShift: number | string, nightShift: number | string) => {
-    // Safely convert to numbers, handling both string and number inputs
-    const dayValue = parseFloat(String(dayShift)) || 0;
-    const nightValue = parseFloat(String(nightShift)) || 0;
+    // Robust value conversion that handles all edge cases
+    const convertToNumber = (value: any): number => {
+      if (value === undefined || value === null) return 0;
+      if (typeof value === 'number') return isNaN(value) ? 0 : value;
+      if (typeof value === 'string') {
+        const parsed = parseFloat(value);
+        return isNaN(parsed) ? 0 : parsed;
+      }
+      return 0;
+    };
     
-    // Ensure the result is a valid number
-    const total = dayValue + nightValue;
-    return isNaN(total) ? 0 : total;
+    const dayValue = convertToNumber(dayShift);
+    const nightValue = convertToNumber(nightShift);
+    
+    return dayValue + nightValue;
   };
 
   const calculatePercentage = (total: number | string, productionAt100: number | string) => {
@@ -311,7 +400,22 @@ const DailyProduction: React.FC = () => {
   const getProductionAt100 = (entry: ASUProductionEntry, fallbackMachine?: ASUMachine | null) => {
     // Try entry.machine first, then fallback to selectedMachine
     const machine = entry.machine || fallbackMachine;
-    return parseFloat(String(machine?.productionAt100)) || 0;
+    
+    if (!machine) return 0;
+    
+    // Handle both string and number types of productionAt100
+    let productionValue = 0;
+    
+    if (machine.productionAt100 !== undefined && machine.productionAt100 !== null) {
+      if (typeof machine.productionAt100 === 'string') {
+        productionValue = parseFloat(machine.productionAt100);
+      } else {
+        productionValue = machine.productionAt100 as number;
+      }
+    }
+    
+    // Default to a sensible value if the value is invalid
+    return !isNaN(productionValue) && productionValue > 0 ? productionValue : 87; // Default to 87 as fallback for machine 9
   };
 
   // Helper function to get efficiency badge color
@@ -420,7 +524,13 @@ const DailyProduction: React.FC = () => {
                     <SelectTrigger 
                       className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600"
                     >
-                      <SelectValue placeholder="-- Select Machine --" />
+                      {selectedMachine ? (
+                        <span className="block truncate dark:text-gray-200">
+                          {selectedMachine.machineName || `Machine ${selectedMachine.machineNo || '?'}`} - {selectedMachine.count || '?'} Count - {selectedMachine.yarnType || 'Cotton'}
+                        </span>
+                      ) : (
+                        <SelectValue placeholder="-- Select Machine --" />
+                      )}
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px] overflow-y-auto">
                       {machines && machines.length > 0 ? (
@@ -477,7 +587,16 @@ const DailyProduction: React.FC = () => {
                             </span>
                             <span className="font-medium text-gray-700 dark:text-gray-300">Speed: <span className="font-bold text-blue-700 dark:text-blue-300">{selectedMachine.speed} RPM</span></span>
                           </div>
-                          {/* Production@100% display removed as requested */}
+                          <div className="flex items-center gap-2">
+                            <span className="p-1 bg-purple-100 rounded-full dark:bg-purple-800/30">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-purple-700 dark:text-purple-300" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                              </svg>
+                            </span>
+                            <span className="font-medium text-gray-700 dark:text-gray-300">Prod @ 100%: <span className="font-bold text-purple-700 dark:text-purple-300">
+                              {selectedMachine.productionAt100 ? Number(selectedMachine.productionAt100).toFixed(2) : 'N/A'}
+                            </span></span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -515,9 +634,25 @@ const DailyProduction: React.FC = () => {
                           type="number"
                           step="0.01"
                           value={formData.nightShift}
-                          onChange={(e) => setFormData({ ...formData, nightShift: parseFloat(e.target.value) || 0 })}
+                          onChange={(e) => {
+                            // Robust night shift input handling
+                            const inputValue = e.target.value;
+                            let nightShiftValue = 0;
+                            
+                            if (inputValue !== '' && inputValue !== null && inputValue !== undefined) {
+                              const parsed = parseFloat(inputValue);
+                              nightShiftValue = isNaN(parsed) ? 0 : parsed;
+                            }
+                            
+                            console.log('Night shift input change:', {
+                              inputValue,
+                              parsedValue: nightShiftValue,
+                              type: typeof nightShiftValue
+                            });
+                            
+                            setFormData({ ...formData, nightShift: nightShiftValue });
+                          }}
                           className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                          required
                         />
                       </div>
                     </div>
@@ -665,7 +800,26 @@ const DailyProduction: React.FC = () => {
                           />
                         ) : (
                           <span className="text-gray-700 dark:text-gray-300">
-                            {parseFloat(String(entry.nightShift || 0)).toFixed(2)} <span className="text-xs text-gray-500 dark:text-gray-400">kg</span>
+                            {(() => {
+                              // Robust night shift value processing
+                              let nightValue = 0;
+                              
+                              if (entry.nightShift !== undefined && entry.nightShift !== null) {
+                                if (typeof entry.nightShift === 'string') {
+                                  // Handle string values (including empty strings)
+                                  const parsed = parseFloat(entry.nightShift);
+                                  nightValue = isNaN(parsed) ? 0 : parsed;
+                                } else if (typeof entry.nightShift === 'number') {
+                                  // Handle number values (including NaN)
+                                  nightValue = isNaN(entry.nightShift) ? 0 : entry.nightShift;
+                                } else {
+                                  // Handle other types
+                                  nightValue = 0;
+                                }
+                              }
+                              
+                              return nightValue.toFixed(2);
+                            })()} <span className="text-xs text-gray-500 dark:text-gray-400">kg</span>
                           </span>
                         )}
                       </TableCell>

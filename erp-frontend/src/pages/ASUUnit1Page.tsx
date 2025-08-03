@@ -1,6 +1,6 @@
 // src/pages/ASUUnit1Page.tsx
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Activity, Package, Settings } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 

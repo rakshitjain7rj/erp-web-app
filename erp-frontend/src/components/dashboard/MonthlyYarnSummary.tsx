@@ -10,7 +10,7 @@ import {
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/Button";
 import { toast } from "react-hot-toast";
-import { Calendar, Package, RefreshCw, Settings } from "lucide-react";
+import { Calendar, BarChart3, RefreshCw, Package } from "lucide-react";
 import axios from "axios";
 
 // Helper function to normalize yarn type
@@ -85,46 +85,69 @@ const getYarnTypeColor = (type: string | undefined): string => {
   return colorMap.default;
 };
 
-interface Machine {
-  id: number;
-  name: string;
-  machineNo?: number | string;
-  machine_name?: string;
-  machine_number?: string;
-  yarnType: string;
+// New interfaces for monthly summary data
+interface MonthlyYarnData {
+  month: string;
+  year: number;
+  monthYear: string;
+  yarnTypes: Record<string, number>;
+  total: number;
 }
 
-interface YarnProductionEntry {
-  date: string;
-  yarnType: string;
-  machine: Machine;
-  totalProduction: number;
-  efficiency?: number;
+interface YarnSummaryData {
+  monthlyData: MonthlyYarnData[];
+  yarnTypes: string[];
+  totalByYarnType: Record<string, number>;
+  grandTotal: number;
 }
 
-interface DashboardYarnSummaryProps {
+interface MonthlyYarnSummaryProps {
   limit?: number;
+  months?: number;
   showRefreshButton?: boolean;
 }
 
-const DashboardYarnSummary: React.FC<DashboardYarnSummaryProps> = ({ 
-  limit = 10, 
+const MonthlyYarnSummary: React.FC<MonthlyYarnSummaryProps> = ({ 
+  limit = 5, 
+  months = 3, 
   showRefreshButton = true 
 }) => {
-  const [entries, setEntries] = useState<YarnProductionEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [summaryData, setSummaryData] = useState<YarnSummaryData>({
+    monthlyData: [],
+    yarnTypes: [],
+    totalByYarnType: {},
+    grandTotal: 0
+  });
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const [refreshing, setRefreshing] = useState<boolean>(false);
 
-  // Helper function to format date
-  const formatDate = (dateString: string): string => {
+  // Helper function to format date to month and year
+  const formatMonthYear = (dateString: string): { month: string, year: number, monthYear: string } => {
     const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "2-digit",
-    });
+    const month = date.toLocaleString('default', { month: 'short' });
+    const year = date.getFullYear();
+    return { 
+      month, 
+      year,
+      monthYear: `${month} ${year}`
+    };
+  };
+
+  // Get data for the last N months
+  const getLastMonths = (n: number): string[] => {
+    const result: string[] = [];
+    const today = new Date();
+    
+    for (let i = 0; i < n; i++) {
+      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const month = d.toLocaleString('default', { month: 'short' });
+      const year = d.getFullYear();
+      result.push(`${month} ${year}`);
+    }
+    
+    return result.reverse(); // Order from oldest to newest
   };
 
   // Handle refresh button click
@@ -135,7 +158,7 @@ const DashboardYarnSummary: React.FC<DashboardYarnSummaryProps> = ({
     setLastRefreshed(new Date());
   };
 
-  // Fetch yarn production data across all machines
+  // Fetch yarn production data and summarize by month
   const fetchYarnSummary = async () => {
     try {
       setLoading(true);
@@ -148,32 +171,26 @@ const DashboardYarnSummary: React.FC<DashboardYarnSummaryProps> = ({
         Authorization: `Bearer ${token}`,
       };
 
-      console.log('DashboardYarnSummary: Attempting to connect to API at:', BASE_URL);
+      console.log('MonthlyYarnSummary: Attempting to connect to API at:', BASE_URL);
       
       // Try different API endpoints - handle connection issues gracefully
       let machinesData = [];
       let entriesData = [];
       
       try {
-        // Fetch both machine configurations and production data
+        // First try the primary endpoints
         const [machinesResponse, entriesResponse] = await Promise.all([
           axios.get(`${BASE_URL}/asu-unit1/machines`, { headers, timeout: 5000 }),
-          axios.get(`${BASE_URL}/asu-unit1/production-entries?limit=${limit}`, { headers, timeout: 5000 })
+          axios.get(`${BASE_URL}/asu-unit1/production-entries?limit=1000`, { headers, timeout: 5000 })
         ]);
 
-        // Get machines
-        machinesData = machinesResponse.data.success 
-          ? machinesResponse.data.data 
-          : machinesResponse.data;
+        // Process responses
+        machinesData = machinesResponse.data.success ? machinesResponse.data.data : machinesResponse.data;
+        entriesData = entriesResponse.data.success ? entriesResponse.data.data.items : entriesResponse.data;
         
-        // Process production entries
-        entriesData = entriesResponse.data.success
-          ? entriesResponse.data.data.items
-          : entriesResponse.data;
-          
-        console.log(`DashboardYarnSummary: Successfully fetched ${machinesData.length} machines and ${entriesData.length} entries`);
+        console.log(`MonthlyYarnSummary: Successfully fetched ${machinesData.length} machines and ${entriesData.length} entries`);
       } catch (error) {
-        console.warn('DashboardYarnSummary: Primary endpoints failed:', error);
+        console.warn('MonthlyYarnSummary: Primary endpoints failed:', error);
         
         // Type guard for error to access its properties
         const primaryError = error as { message?: string; code?: string };
@@ -184,7 +201,7 @@ const DashboardYarnSummary: React.FC<DashboardYarnSummaryProps> = ({
              primaryError.message.includes('ECONNREFUSED') ||
              primaryError.code === 'ERR_NETWORK')) {
           
-          console.log('DashboardYarnSummary: Using mock data since API connection failed in development mode');
+          console.log('MonthlyYarnSummary: Using mock data since API connection failed in development mode');
           
           // Generate mock machine data
           machinesData = Array(10).fill(0).map((_, i) => ({
@@ -194,14 +211,14 @@ const DashboardYarnSummary: React.FC<DashboardYarnSummaryProps> = ({
             yarnType: ['Cotton', 'Polyester', 'CVC', 'PC Blend', 'Viscose'][Math.floor(Math.random() * 5)]
           }));
           
-          // Generate mock entries data (past 30 days)
+          // Generate mock entries data (past 6 months)
           const today = new Date();
           entriesData = [];
           
-          // Create 30 mock entries for the last 30 days
-          for (let i = 0; i < 30; i++) {
+          // Create 100 mock entries across last 6 months
+          for (let i = 0; i < 100; i++) {
             const randomDate = new Date(today);
-            randomDate.setDate(today.getDate() - Math.floor(Math.random() * 30)); // Random date in last 30 days
+            randomDate.setDate(today.getDate() - Math.floor(Math.random() * 180)); // Random date in last 180 days
             
             const machineNumber = Math.floor(Math.random() * 10) + 1;
             const shift = Math.random() > 0.5 ? 'day' : 'night';
@@ -218,83 +235,116 @@ const DashboardYarnSummary: React.FC<DashboardYarnSummaryProps> = ({
           }
         } else {
           // In production or if it's not a connection issue, rethrow
-          throw error;
+          throw primaryError;
         }
       }
 
-      // Format data for our component
-      const formattedEntries: YarnProductionEntry[] = [];
-      
-      // Group entries by date and machine
-      const entriesByDateAndMachine: Record<string, any> = {};
+      // Create a lookup for machine yarn types
+      const machineYarnTypes: Record<string, string> = {};
+      machinesData.forEach((machine: any) => {
+        const machineId = machine.machineNo || machine.machine_number;
+        machineYarnTypes[String(machineId)] = machine.yarnType || 'Unknown';
+      });
+
+      // Process and group entries by month and yarn type
+      const entriesByMonth: Record<string, Record<string, number>> = {};
+      const allYarnTypes = new Set<string>();
       
       entriesData.forEach((entry: any) => {
-        const key = `${entry.date}_${entry.machineNumber}`;
+        // Skip entries without date
+        if (!entry.date) return;
         
-        if (!entriesByDateAndMachine[key]) {
-          // Find matching machine
-          const machine = machinesData.find((m: any) => 
-            String(m.machineNo) === String(entry.machineNumber) || 
-            String(m.machine_number) === String(entry.machineNumber)
-          );
-          
-          // Initialize the combined entry
-          entriesByDateAndMachine[key] = {
-            date: entry.date,
-            machineNumber: entry.machineNumber,
-            machine: machine || { yarnType: "Unknown" },
-            dayShift: 0,
-            nightShift: 0,
-            total: 0,
-            efficiency: entry.percentage || 0,
-          };
+        // Format date to month-year
+        const { monthYear } = formatMonthYear(entry.date);
+        
+        // Initialize month if it doesn't exist
+        if (!entriesByMonth[monthYear]) {
+          entriesByMonth[monthYear] = {};
         }
         
-        // Get the production value from appropriate field
+        // Get yarn type for this entry
+        const machineNumber = entry.machineNumber;
+        const yarnType = machineYarnTypes[String(machineNumber)] || 'Unknown';
+        allYarnTypes.add(yarnType);
+        
+        // Get production value (handle different field names)
         const rawProd = entry.actualProduction || entry.production || 0;
         const productionValue = typeof rawProd === 'string' ? parseFloat(rawProd) : rawProd;
         
-        // Add to the right shift
-        if (entry.shift === 'day') {
-          entriesByDateAndMachine[key].dayShift = Number(productionValue) || 0;
-        } else if (entry.shift === 'night') {
-          entriesByDateAndMachine[key].nightShift = Number(productionValue) || 0;
+        // Add production to month-yarn total
+        if (!entriesByMonth[monthYear][yarnType]) {
+          entriesByMonth[monthYear][yarnType] = 0;
         }
-        
-        // Update machine data if we have it
-        if (entry.machine && !entriesByDateAndMachine[key].machine) {
-          entriesByDateAndMachine[key].machine = entry.machine;
-        }
+        entriesByMonth[monthYear][yarnType] += Number(productionValue) || 0;
       });
       
-      // Convert to final format
-      Object.values(entriesByDateAndMachine).forEach((entry: any) => {
-        const totalProduction = (entry.dayShift || 0) + (entry.nightShift || 0);
-        
-        formattedEntries.push({
-          date: entry.date,
-          yarnType: entry.machine.yarnType || "Unknown",
-          machine: {
-            id: entry.machine.id || 0,
-            name: entry.machine.machine_name || entry.machine.machineName || `Machine ${entry.machineNumber}`,
-            machineNo: entry.machineNumber,
-            yarnType: entry.machine.yarnType || "Unknown",
-          },
-          totalProduction,
-          efficiency: entry.efficiency,
+      // Convert to our sorted array format
+      const monthsToShow = getLastMonths(months);
+      
+      // Limit yarn types to the most produced ones
+      const yarnTypesWithTotals: [string, number][] = [];
+      allYarnTypes.forEach(yarnType => {
+        let total = 0;
+        Object.values(entriesByMonth).forEach(monthData => {
+          total += monthData[yarnType] || 0;
         });
+        yarnTypesWithTotals.push([yarnType, total]);
       });
       
-      // Sort entries by date (newest first)
-      const sortedEntries = formattedEntries.sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-      );
+      // Sort yarn types by production volume and limit to top N
+      const sortedYarnTypes = yarnTypesWithTotals
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, limit)
+        .map(item => item[0]);
       
-      setEntries(sortedEntries);
+      // Calculate totals by yarn type
+      const totalByYarnType: Record<string, number> = {};
+      let grandTotal = 0;
+      
+      // Create monthly data array with all months we want to show
+      const monthlyData: MonthlyYarnData[] = monthsToShow.map(monthYear => {
+        const [month, yearStr] = monthYear.split(' ');
+        const year = parseInt(yearStr);
+        
+        // Get data for this month (or empty object if no data)
+        const monthData = entriesByMonth[monthYear] || {};
+        
+        // Calculate total for this month
+        let monthTotal = 0;
+        
+        // Ensure all yarn types are represented
+        const yarnTypes: Record<string, number> = {};
+        sortedYarnTypes.forEach(yarnType => {
+          const amount = monthData[yarnType] || 0;
+          yarnTypes[yarnType] = amount;
+          
+          // Add to totals
+          monthTotal += amount;
+          totalByYarnType[yarnType] = (totalByYarnType[yarnType] || 0) + amount;
+          grandTotal += amount;
+        });
+        
+        return {
+          month,
+          year,
+          monthYear,
+          yarnTypes,
+          total: monthTotal
+        };
+      });
+      
+      // Set the summary data
+      setSummaryData({
+        monthlyData,
+        yarnTypes: sortedYarnTypes,
+        totalByYarnType,
+        grandTotal
+      });
+      
     } catch (err: any) {
-      console.error("Error fetching yarn summary:", err);
+      console.error("Error fetching yarn monthly summary:", err);
       setError("Failed to fetch yarn production data. Please ensure the API server is running.");
-      toast.error("Failed to load yarn data");
+      toast.error("Failed to load monthly yarn data");
     } finally {
       setLoading(false);
     }
@@ -304,30 +354,20 @@ const DashboardYarnSummary: React.FC<DashboardYarnSummaryProps> = ({
     fetchYarnSummary().then(() => {
       setLastRefreshed(new Date());
     });
-  }, [limit]);
-
-  // Calculate stats from the entries
-  const totalProduction = entries.reduce(
-    (sum, entry) => sum + entry.totalProduction,
-    0
-  );
-  
-  const uniqueDates = [...new Set(entries.map(entry => entry.date))].length;
-  const uniqueYarnTypes = [...new Set(entries.map(entry => entry.yarnType))].length;
-  const uniqueMachines = [...new Set(entries.map(entry => entry.machine.id))].length;
+  }, [months, limit]);
 
   if (loading) {
     return (
       <div className="overflow-hidden bg-white border border-gray-200 shadow-sm rounded-xl dark:bg-gray-800 dark:border-gray-700">
         <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 dark:border-gray-700">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            Yarn Production by Machine
+            Monthly Yarn Production
           </h2>
         </div>
         <div className="flex items-center justify-center py-8">
           <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
             <div className="w-6 h-6 border-b-2 border-blue-500 rounded-full animate-spin"></div>
-            <span className="text-sm">Loading production data...</span>
+            <span className="text-sm">Loading monthly yarn data...</span>
           </div>
         </div>
       </div>
@@ -339,7 +379,7 @@ const DashboardYarnSummary: React.FC<DashboardYarnSummaryProps> = ({
       <div className="overflow-hidden bg-white border border-gray-200 shadow-sm rounded-xl dark:bg-gray-800 dark:border-gray-700">
         <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 dark:border-gray-700">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            Yarn Production by Machine
+            Monthly Yarn Production
           </h2>
         </div>
         <div className="flex flex-col items-center justify-center p-6 text-center">
@@ -359,10 +399,10 @@ const DashboardYarnSummary: React.FC<DashboardYarnSummaryProps> = ({
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              Yarn Production by Machine
+              Monthly Yarn Production
             </h2>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Recent production across {uniqueMachines} machines
+              Summary of {summaryData.yarnTypes.length} yarn types over {months} months
             </p>
           </div>
           {showRefreshButton && (
@@ -392,10 +432,10 @@ const DashboardYarnSummary: React.FC<DashboardYarnSummaryProps> = ({
       </div>
 
       <div className="p-0">
-        {entries.length === 0 ? (
+        {summaryData.monthlyData.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <div className="p-3 mb-4 rounded-full bg-blue-50 dark:bg-blue-900/30">
-              <Package className="w-8 h-8 text-blue-500 dark:text-blue-400" />
+              <BarChart3 className="w-8 h-8 text-blue-500 dark:text-blue-400" />
             </div>
             <p className="text-base font-medium text-gray-700 dark:text-gray-300">
               No production data available
@@ -407,45 +447,49 @@ const DashboardYarnSummary: React.FC<DashboardYarnSummaryProps> = ({
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-50 dark:bg-gray-800/50">
-                    <TableHead className="w-[120px]">Date</TableHead>
-                    <TableHead>Machine</TableHead>
-                    <TableHead>Yarn Type</TableHead>
-                    <TableHead className="text-right w-[120px]">Production</TableHead>
-                    <TableHead className="text-center w-[100px]">Efficiency</TableHead>
+                    <TableHead className="w-[100px]">Month</TableHead>
+                    {summaryData.yarnTypes.map(yarnType => (
+                      <TableHead key={yarnType} className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <span className={`w-2 h-2 rounded-full ${getYarnTypeColor(yarnType)}`} />
+                          <span>{formatYarnTypeDisplay(yarnType)}</span>
+                        </div>
+                      </TableHead>
+                    ))}
+                    <TableHead className="text-right w-[120px] font-bold">Total</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {entries.map((entry, index) => (
-                    <TableRow key={`${entry.date}-${entry.machine.id}-${index}`}>
+                  {summaryData.monthlyData.map((monthData) => (
+                    <TableRow key={monthData.monthYear}>
                       <TableCell className="font-medium">
-                        {formatDate(entry.date)}
+                        {monthData.month} {monthData.year}
                       </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Settings className="w-4 h-4 text-gray-500" />
-                          <span>{entry.machine.name}</span>
-                          <span className="text-xs text-gray-500">#{entry.machine.machineNo}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span className={`w-3 h-3 rounded-full ${getYarnTypeColor(entry.yarnType)}`} />
-                          <span>{formatYarnTypeDisplay(entry.yarnType)}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {entry.totalProduction.toFixed(2)} <span className="text-xs text-gray-500">kg</span>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {entry.efficiency !== undefined && (
-                          <Badge variant={entry.efficiency >= 80 ? "default" : 
-                                          entry.efficiency >= 70 ? "secondary" : "destructive"}>
-                            {entry.efficiency.toFixed(1)}%
-                          </Badge>
-                        )}
+                      {summaryData.yarnTypes.map(yarnType => (
+                        <TableCell key={`${monthData.monthYear}-${yarnType}`} className="text-right">
+                          {monthData.yarnTypes[yarnType]?.toFixed(2) || '0.00'} 
+                          <span className="text-xs text-gray-500 ml-1">kg</span>
+                        </TableCell>
+                      ))}
+                      <TableCell className="text-right font-semibold">
+                        {monthData.total.toFixed(2)} <span className="text-xs text-gray-500">kg</span>
                       </TableCell>
                     </TableRow>
                   ))}
+                  
+                  {/* Totals Row */}
+                  <TableRow className="bg-gray-50 dark:bg-gray-800/50 font-bold">
+                    <TableCell>Total</TableCell>
+                    {summaryData.yarnTypes.map(yarnType => (
+                      <TableCell key={`total-${yarnType}`} className="text-right">
+                        {summaryData.totalByYarnType[yarnType]?.toFixed(2) || '0.00'} 
+                        <span className="text-xs text-gray-500 ml-1">kg</span>
+                      </TableCell>
+                    ))}
+                    <TableCell className="text-right">
+                      {summaryData.grandTotal.toFixed(2)} <span className="text-xs text-gray-500">kg</span>
+                    </TableCell>
+                  </TableRow>
                 </TableBody>
               </Table>
             </div>
@@ -453,11 +497,11 @@ const DashboardYarnSummary: React.FC<DashboardYarnSummaryProps> = ({
         )}
       </div>
 
-      {totalProduction > 0 && (
+      {summaryData.grandTotal > 0 && (
         <div className="p-4 border-t border-gray-200 bg-gray-50 dark:bg-gray-800/50 dark:border-gray-700">
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-600 dark:text-gray-300">Total Production:</span>
-            <span className="font-semibold">{totalProduction.toFixed(2)} kg</span>
+            <span className="font-semibold">{summaryData.grandTotal.toFixed(2)} kg</span>
           </div>
         </div>
       )}
@@ -465,4 +509,4 @@ const DashboardYarnSummary: React.FC<DashboardYarnSummaryProps> = ({
   );
 };
 
-export default DashboardYarnSummary;
+export default MonthlyYarnSummary;

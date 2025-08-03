@@ -23,7 +23,7 @@ interface EditingMachine {
   productionAt100: number;
 }
 
-const yarnTypes = ['Cotton', 'PC', 'CVC', 'Tencel'];
+const yarnTypes = ['Cotton', 'PC', 'CVC', 'Tencel', 'Polyester', 'Viscose', 'Cotton/Poly', 'Rayon', 'Blended', 'Acrylic', 'Linen'];
 
 const MachineManager: React.FC = () => {
   const [machines, setMachines] = useState<ASUMachine[]>([]);
@@ -183,6 +183,7 @@ const MachineManager: React.FC = () => {
     setEditingMachine({
       id: machine.id,
       machineNo: Number(machine.machineNo) || 0,
+      machineName: machine.machineName || '',
       count: numericCount,
       countDisplay: String(machine.count || numericCount), // Keep original display format
       spindles: machine.spindles || 0,
@@ -265,6 +266,8 @@ const MachineManager: React.FC = () => {
       }
       
       await asuUnit1Api.updateMachine(editingMachine.id, {
+        machineNo: editingMachine.machineNo,
+        machine_name: editingMachine.machineName,
         count: editingMachine.count,
         // Send default values if null to prevent backend errors
         spindles: editingMachine.spindles !== null ? editingMachine.spindles : 0,
@@ -305,7 +308,15 @@ const MachineManager: React.FC = () => {
 
     try {
       setLoading(true);
-      await asuUnit1Api.deleteMachine(id);
+      
+      try {
+        // First try normal delete
+        await asuUnit1Api.deleteMachine(id);
+      } catch (initialError) {
+        console.warn('Initial delete failed, trying with force option:', initialError);
+        // If normal delete fails, try with force=true
+        await asuUnit1Api.deleteMachine(id, true);
+      }
       
       toast.success('Machine deleted successfully');
       
@@ -407,11 +418,12 @@ const MachineManager: React.FC = () => {
                 <TableHeader className="bg-gray-50 dark:bg-gray-800">
                   <TableRow className="border-b dark:border-gray-700">
                     <TableHead className="px-3 py-2 text-xs font-medium text-left text-gray-500 sm:px-4 dark:text-gray-400">Machine #</TableHead>
+                    <TableHead className="px-3 py-2 text-xs font-medium text-left text-gray-500 sm:px-4 dark:text-gray-400">Name</TableHead>
                     <TableHead className="px-3 py-2 text-xs font-medium text-left text-gray-500 sm:px-4 dark:text-gray-400">Count</TableHead>
                     <TableHead className="px-3 py-2 text-xs font-medium text-left text-gray-500 sm:px-4 dark:text-gray-400">Yarn Type</TableHead>
                     <TableHead className="px-3 py-2 text-xs font-medium text-left text-gray-500 sm:px-4 dark:text-gray-400">Spindles</TableHead>
                     <TableHead className="px-3 py-2 text-xs font-medium text-left text-gray-500 sm:px-4 dark:text-gray-400">Speed</TableHead>
-                    {/* Production@100% header removed as requested */}
+                    <TableHead className="px-3 py-2 text-xs font-medium text-left text-gray-500 sm:px-4 dark:text-gray-400">Prod @ 100%</TableHead>
                     <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400">Status</TableHead>
                     <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-right text-gray-500 uppercase sm:px-6 dark:text-gray-400">Actions</TableHead>
                   </TableRow>
@@ -428,9 +440,40 @@ const MachineManager: React.FC = () => {
                       onClick={() => handleMachineSelect(machine.id.toString())}
                     >
                       <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
-                        <span className="font-medium text-gray-900 dark:text-gray-100">
-                          {machine.machineNo} - {machine.machineName || ''}
-                        </span>
+                        {editingMachine?.id === machine.id ? (
+                          <Input
+                            type="number"
+                            value={editingMachine.machineNo}
+                            onChange={(e) => setEditingMachine({ 
+                              ...editingMachine, 
+                              machineNo: parseInt(e.target.value) || 0 
+                            })}
+                            className="w-20 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        ) : (
+                          <span className="font-medium text-gray-900 dark:text-gray-100">
+                            {machine.machineNo}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
+                        {editingMachine?.id === machine.id ? (
+                          <Input
+                            type="text"
+                            value={editingMachine.machineName || ''}
+                            onChange={(e) => setEditingMachine({ 
+                              ...editingMachine, 
+                              machineName: e.target.value 
+                            })}
+                            className="w-32 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        ) : (
+                          <span className="text-gray-700 dark:text-gray-300">
+                            {machine.machineName || ''}
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
                         {editingMachine?.id === machine.id ? (
@@ -528,7 +571,28 @@ const MachineManager: React.FC = () => {
                           <span className="text-gray-700 dark:text-gray-300">{machine.speed} RPM</span>
                         )}
                       </TableCell>
-                      {/* Production@100% field removed as requested */}
+                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
+                        {editingMachine?.id === machine.id ? (
+                          <Input
+                            type="number"
+                            value={editingMachine.productionAt100 || ''}
+                            onChange={(e) => {
+                              const val = e.target.value.trim();
+                              setEditingMachine({ 
+                                ...editingMachine, 
+                                productionAt100: val ? parseFloat(val) : 0 
+                              });
+                            }}
+                            className="w-24 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        ) : (
+                          <span className="text-purple-600 font-medium dark:text-purple-400">
+                            {machine.productionAt100 ? Number(machine.productionAt100).toFixed(2) : 'N/A'}
+                          </span>
+                        )}
+                      </TableCell>
+                      {/* Status field */}
                       <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
                         {editingMachine?.id === machine.id ? (
                           <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>

@@ -30,12 +30,12 @@ const MachineConfiguration = sequelize.define('MachineConfiguration', {
     defaultValue: 'Cotton',
     field: 'yarn_type'
   },
-  efficiencyAt100Percent: {
-    type: DataTypes.DECIMAL(10, 2),
-    allowNull: false,
-    defaultValue: 0.00,
-    field: 'efficiency_at_100_percent'
-  },
+  productionAt100: {
+  type: DataTypes.DECIMAL(10, 2),
+  allowNull: false,
+  defaultValue: 0.00,
+  field: 'production_at_100'
+ },
   startDate: {
     type: DataTypes.DATEONLY,
     allowNull: false,

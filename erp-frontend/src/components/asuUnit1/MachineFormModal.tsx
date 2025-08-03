@@ -14,7 +14,7 @@ interface MachineFormData {
   speed: number | null;
   yarnType: string;
   isActive: boolean;
-  productionAt100: number;
+  productionAt100: number | null;
 }
 
 interface MachineFormModalProps {
@@ -43,7 +43,7 @@ const MachineFormModal: React.FC<MachineFormModalProps> = ({
     speed: null,
     yarnType: 'Cotton',
     isActive: true,
-    productionAt100: 400 // Default value, no longer shown in the form
+    productionAt100: null // User must enter this value manually
   });
   
   // No need for yarn type focus state as buttons are always visible
@@ -61,7 +61,7 @@ const MachineFormModal: React.FC<MachineFormModalProps> = ({
         speed: null,
         yarnType: 'Cotton',
         isActive: true,
-        productionAt100: 400 // Default value, no longer shown in the form
+        productionAt100: null // User must enter this value manually
       });
     }
   }, [isOpen]);
@@ -83,6 +83,12 @@ const MachineFormModal: React.FC<MachineFormModalProps> = ({
     
     if (formData.speed === null) {
       alert('Please enter the speed (RPM)');
+      return;
+    }
+    
+    // Check if productionAt100 is entered
+    if (formData.productionAt100 === null) {
+      alert('Please enter the production at 100% efficiency value');
       return;
     }
     
@@ -247,7 +253,24 @@ const MachineFormModal: React.FC<MachineFormModalProps> = ({
                 />
               </div>
 
-              {/* Production@100% field removed as requested - it will be set to a default value */}
+              <div>
+                <Label htmlFor="productionAt100" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Production at 100% Efficiency</Label>
+                <Input
+                  id="productionAt100"
+                  type="number"
+                  value={formData.productionAt100 !== null ? formData.productionAt100 : ''}
+                  onChange={(e) => {
+                    const val = e.target.value.trim();
+                    setFormData({ 
+                      ...formData, 
+                      productionAt100: val ? parseFloat(val) : null
+                    });
+                  }}
+                  className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                  placeholder="Enter production at 100%"
+                  required
+                />
+              </div>
 
               <div className="flex items-center space-x-2">
                 <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Status</Label>

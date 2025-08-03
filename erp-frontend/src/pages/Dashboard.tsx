@@ -6,6 +6,8 @@ import toast from "react-hot-toast";
 import { Gauge, RefreshCw, Activity } from "lucide-react";
 import SimpleMachineTable from "../components/dashboard/SimpleMachineTable";
 import DashboardYarnSummary from "../components/dashboard/DashboardYarnSummary";
+import SimpleYarnProductionTable from "../components/dashboard/SimpleYarnProductionTable";
+import TotalYarnProduction from "../components/dashboard/TotalYarnProduction";
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -16,6 +18,33 @@ interface DashboardStats {
   machinesOperational: number;
   totalMachines: number;
 }
+
+// Simple stat card component
+interface StatCardProps {
+  title: string;
+  value: string;
+  icon: React.ReactNode;
+}
+
+const StatCard: React.FC<StatCardProps> = ({ title, value, icon }) => {
+  // Handle cases where value might be undefined or NaN
+  const displayValue = value === undefined || value === 'undefined' || value === 'NaN' ? 
+    'N/A' : value;
+  
+  return (
+    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow border border-gray-100">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">{title}</p>
+          <h3 className="text-xl font-semibold mt-1 text-gray-900 dark:text-white">{displayValue}</h3>
+        </div>
+        <div className="p-2 bg-blue-50 dark:bg-gray-700 rounded-full">
+          {icon}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -139,44 +168,27 @@ const Dashboard: React.FC = () => {
           />
         </div>
 
+        {/* Total Yarn Production - Auto-detected */}
+        <div className="mb-6">
+          <TotalYarnProduction timeframe="month" />
+        </div>
+
+        {/* Daily Yarn Production Table - Simple Version */}
+        <div className="mb-6">
+          <SimpleYarnProductionTable days={30} />
+        </div>
+
         {/* Machine Table */}
         <div className="mb-6">
           <SimpleMachineTable />
         </div>
         
-        {/* Yarn Production Summary Table */}
+        {/* Yarn Production Detail Table */}
         <div className="mb-6">
           <DashboardYarnSummary limit={10} />
         </div>
       </div>
     </LayoutWrapper>
-  );
-};
-
-// Simple stat card component
-interface StatCardProps {
-  title: string;
-  value: string;
-  icon: React.ReactNode;
-}
-
-const StatCard: React.FC<StatCardProps> = ({ title, value, icon }) => {
-  // Handle cases where value might be undefined or NaN
-  const displayValue = value === undefined || value === 'undefined' || value === 'NaN' ? 
-    'N/A' : value;
-  
-  return (
-    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow border border-gray-100">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">{title}</p>
-          <h3 className="text-xl font-semibold mt-1 text-gray-900 dark:text-white">{displayValue}</h3>
-        </div>
-        <div className="p-2 bg-blue-50 dark:bg-gray-700 rounded-full">
-          {icon}
-        </div>
-      </div>
-    </div>
   );
 };
 

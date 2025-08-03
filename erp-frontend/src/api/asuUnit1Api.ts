@@ -345,6 +345,34 @@ export const asuUnit1Api = {
     console.log(`Querying production entries with params: ${params.toString()}`);
     const response = await api.get(`/production-entries?${params.toString()}`);
     
+    // Log the raw response data for debugging
+    console.log('Raw API response for production entries:', response.data);
+    if (response.data && response.data.data && response.data.data.items) {
+      console.log('Number of raw production entries:', response.data.data.items.length);
+      
+      // Check if we have any night shift entries
+      const nightEntries = response.data.data.items.filter((entry: any) => entry.shift === 'night');
+      console.log('Number of night shift entries:', nightEntries.length);
+      console.log('Night shift entries details:', nightEntries.map((entry: any) => ({
+        id: entry.id,
+        date: entry.date,
+        shift: entry.shift,
+        actualProduction: entry.actualProduction,
+        machineNumber: entry.machineNumber
+      })));
+      
+      // Check if we have any day shift entries
+      const dayEntries = response.data.data.items.filter((entry: any) => entry.shift === 'day');
+      console.log('Number of day shift entries:', dayEntries.length);
+      console.log('Day shift entries details:', dayEntries.map((entry: any) => ({
+        id: entry.id,
+        date: entry.date,
+        shift: entry.shift,
+        actualProduction: entry.actualProduction,
+        machineNumber: entry.machineNumber
+      })));
+    }
+    
     // Transform the backend response into the expected frontend format
     // Backend returns separate entries for day and night shifts, frontend expects them combined
     if (response.data.success) {
@@ -394,9 +422,66 @@ export const asuUnit1Api = {
         }
       } else {
         console.log(`Found ${rawEntries.length} production entries`);
+        
+        // Analyze the entries to see if we have day and night shift entries
+        const entriesByDateAndMachine: Record<string, { day: boolean, night: boolean }> = {};
+        rawEntries.forEach((entry: any) => {
+          const key = `${entry.date}_${entry.machineNumber}`;
+          if (!entriesByDateAndMachine[key]) {
+            entriesByDateAndMachine[key] = { day: false, night: false };
+          }
+          if (entry.shift === 'day') {
+            entriesByDateAndMachine[key].day = true;
+          } else if (entry.shift === 'night') {
+            entriesByDateAndMachine[key].night = true;
+          }
+        });
+        
+        // Check if we're missing night shift entries
+        const missingNightShiftKeys = Object.entries(entriesByDateAndMachine)
+          .filter(([_, value]) => value.day && !value.night)
+          .map(([key]) => key);
+          
+        console.log('Entries with missing night shift:', missingNightShiftKeys);
+        
+        // Create dummy night shift entries for any missing ones
+        if (missingNightShiftKeys.length > 0) {
+          const additionalEntries = [];
+          
+          for (const key of missingNightShiftKeys) {
+            const [date, machineNumberStr] = key.split('_');
+            const machineNumber = parseInt(machineNumberStr);
+            const dayEntry = rawEntries.find((entry: any) => 
+              entry.date === date && 
+              entry.machineNumber === machineNumber && 
+              entry.shift === 'day'
+            );
+            
+            if (dayEntry) {
+              console.log(`Creating missing night shift entry for ${key}`);
+              additionalEntries.push({
+                id: `${dayEntry.id}_night`,
+                machineNumber: machineNumber,
+                date: date,
+                shift: 'night',
+                actualProduction: 0, // Default to 0 for missing night shift
+                theoreticalProduction: dayEntry.theoreticalProduction,
+                machine: dayEntry.machine,
+                createdAt: dayEntry.createdAt,
+                updatedAt: dayEntry.updatedAt
+              });
+            }
+          }
+          
+          // Add the missing night shift entries to rawEntries
+          if (additionalEntries.length > 0) {
+            console.log(`Adding ${additionalEntries.length} missing night shift entries`);
+            rawEntries = [...rawEntries, ...additionalEntries];
+          }
+        }
       }
       
-      console.log('Raw entries from backend and localStorage:', rawEntries);
+      console.log('Raw entries (including day and night shifts):', rawEntries);
       
       // Group entries by date and machine
       rawEntries.forEach((entry: any) => {
@@ -426,15 +511,19 @@ export const asuUnit1Api = {
         }
         
         // Get the production value - check multiple possible field names
-        //
         const rawProd = entry.actualProduction || entry.production || 0;
-        const productionValue = typeof rawProd === 'string' ? parseFloat(rawProd) : rawProd;
+        // Use Number instead of parseFloat to better handle zero values
+        const productionValue = typeof rawProd === 'string' ? Number(rawProd) : Number(rawProd || 0);
 
-        console.log(`Production value for ${entry.shift} shift: ${productionValue}`);
+        console.log(`Processing production value for ${entry.shift} shift: 
+          - Raw value: ${rawProd}
+          - Type: ${typeof rawProd}
+          - Converted value: ${productionValue}
+          - Converted type: ${typeof productionValue}`);
         
         // Add the production value to the appropriate shift and store the ID
         if (entry.shift === 'day') {
-          entriesByDateAndMachine[key].dayShift = Number(productionValue) || 0;
+          entriesByDateAndMachine[key].dayShift = productionValue;
           entriesByDateAndMachine[key].dayShiftId = entry.id; // Store day shift entry ID
           console.log(`Set dayShift to ${productionValue} for ${key}`);
           // If this is the first entry we see for this key, use its ID as the main ID
@@ -442,9 +531,28 @@ export const asuUnit1Api = {
             entriesByDateAndMachine[key].id = entry.id;
           }
         } else if (entry.shift === 'night') {
-          entriesByDateAndMachine[key].nightShift = Number(productionValue) || 0;
+          // Extra logging for night shift values
+          console.log(`NIGHT SHIFT VALUE PROCESSING - Entry ID ${entry.id}, Date ${entry.date}:`, {
+            rawProd,
+            productionValue,
+            entryActualProduction: entry.actualProduction,
+            entryProduction: entry.production,
+            convertedValue: productionValue,
+            entryObject: entry
+          });
+          
+          // Ensure it's a proper number by using parseFloat
+          const nightShiftValue = parseFloat(String(rawProd)) || 0;
+          
+          console.log(`SETTING NIGHT SHIFT for ${key}: ${nightShiftValue} (original: ${rawProd})`);
+          
+          entriesByDateAndMachine[key].nightShift = nightShiftValue;
           entriesByDateAndMachine[key].nightShiftId = entry.id; // Store night shift entry ID
-          console.log(`Set nightShift to ${productionValue} for ${key}`);
+          console.log(`Set nightShift to ${nightShiftValue} for ${key} (type: ${typeof nightShiftValue})`);
+          
+          // Log the current state of the entry
+          console.log(`Current entry state for ${key}:`, entriesByDateAndMachine[key]);
+          
           // If this is the first entry we see for this key, use its ID as the main ID
           if (!entriesByDateAndMachine[key].id) {
             entriesByDateAndMachine[key].id = entry.id;
@@ -464,22 +572,58 @@ export const asuUnit1Api = {
       
       // Now that we've gathered all data, calculate totals and percentages
       Object.values(entriesByDateAndMachine).forEach(entry => {
-        // Ensure correct numbers for calculations
-        entry.dayShift = typeof entry.dayShift === 'number' ? entry.dayShift : 0;
-        entry.nightShift = typeof entry.nightShift === 'number' ? entry.nightShift : 0;
+        // Ensure correct numbers for calculations - convert any string values to numbers
+        // Use Number instead of parseFloat to better handle zero values
+        entry.dayShift = typeof entry.dayShift === 'string' ? Number(entry.dayShift) : Number(entry.dayShift || 0);
+        
+        // Special handling for night shift values to ensure they're processed correctly
+        const rawNightShift = entry.nightShift;
+        console.log('Processing night shift value for calculations:', {
+          raw: rawNightShift,
+          type: typeof rawNightShift,
+          date: entry.date,
+          entryId: entry.id
+        });
+        
+        // Always ensure night shift is a proper number
+        if (rawNightShift !== undefined && rawNightShift !== null) {
+          entry.nightShift = typeof rawNightShift === 'string' ? 
+            Number(rawNightShift) : Number(rawNightShift);
+        } else {
+          entry.nightShift = 0;
+        }
+        
+        console.log(`Final night shift value: ${entry.nightShift} (${typeof entry.nightShift})`);
+        
+        console.log(`Calculating totals for entry:
+          - Date: ${entry.date}
+          - Day shift: ${entry.dayShift} (${typeof entry.dayShift})
+          - Night shift: ${entry.nightShift} (${typeof entry.nightShift})`);
         
         // Update the total - explicitly calculate to ensure it's a number
-        const dayShiftValue = entry.dayShift || 0;
-        const nightShiftValue = entry.nightShift || 0;
-        entry.total = dayShiftValue + nightShiftValue;
+        entry.total = entry.dayShift + entry.nightShift;
+        
+        console.log(`Calculated total: ${entry.total} (${typeof entry.total})`);
         
         // Calculate percentage using machine.productionAt100
-        if (entry.machine && typeof entry.machine.productionAt100 === 'number' && entry.machine.productionAt100 > 0) {
-          entry.percentage = (entry.total / entry.machine.productionAt100) * 100;
+        // Check for both string and number types of productionAt100
+        if (entry.machine && entry.machine.productionAt100) {
+          // Convert productionAt100 to a number if it's a string
+          const productionAt100Value = typeof entry.machine.productionAt100 === 'string' 
+            ? parseFloat(entry.machine.productionAt100) 
+            : entry.machine.productionAt100;
+            
+          if (!isNaN(productionAt100Value) && productionAt100Value > 0) {
+            entry.percentage = (entry.total / productionAt100Value) * 100;
+          } else {
+            // Default to 0 if conversion failed
+            entry.percentage = 0;
+            console.warn(`Invalid productionAt100 value for machine ${entry.machineId || entry.machine.machineNo}: ${entry.machine.productionAt100}`);
+          }
         } else {
           // Default to 0 if we can't calculate
           entry.percentage = 0;
-          console.warn(`Missing productionAt100 for machine ${entry.machineId}, cannot calculate percentage accurately`);
+          console.warn(`Missing productionAt100 for machine ${entry.machineId || (entry.machine ? entry.machine.machineNo : 'unknown')}, cannot calculate percentage accurately`);
         }
         
         // Debug info
@@ -494,6 +638,26 @@ export const asuUnit1Api = {
       
       // Convert the grouped entries back to an array
       const transformedEntries = Object.values(entriesByDateAndMachine);
+      
+      // Final verification of night shift values
+      transformedEntries.forEach(entry => {
+        // Ensure night shift is never undefined, null, or NaN
+        if (entry.nightShift === undefined || entry.nightShift === null || isNaN(Number(entry.nightShift))) {
+          console.warn(`Fixing invalid night shift value for entry ${entry.id}, date ${entry.date}: ${entry.nightShift}`);
+          entry.nightShift = 0;
+        }
+        
+        // Force the value to be a proper number by using direct parseFloat
+        entry.nightShift = parseFloat(String(entry.nightShift)) || 0;
+        
+        // Log the final entry data for debugging
+        console.log(`Final verified entry for date ${entry.date}:`, {
+          id: entry.id,
+          dayShift: entry.dayShift,
+          nightShift: entry.nightShift,
+          nightShiftType: typeof entry.nightShift
+        });
+      });
       
       return {
         items: transformedEntries as ASUProductionEntry[],
@@ -554,59 +718,68 @@ export const asuUnit1Api = {
     // Double check that the machine number exists in the database
     console.log(`Verifying machine number ${machineNumber} exists in the database`);
     
-    const dayEntry = data.dayShift > 0 ? {
-      machineNumber: machineNumber, // Use the actual machineNo, not the ID
-      date: data.date,
-      shift: 'day',
-      actualProduction: data.dayShift,
-      theoreticalProduction: productionAt100Value
-    } : null;
+    // Convert nightShift to a number and ensure it's properly handled
+    // Use parseFloat for consistency with frontend
+    const nightShiftValue = parseFloat(String(data.nightShift)) || 0;
     
-    const nightEntry = data.nightShift > 0 ? {
-      machineNumber: machineNumber, // Use the actual machineNo, not the ID
-      date: data.date,
-      shift: 'night',
-      actualProduction: data.nightShift,
-      theoreticalProduction: productionAt100Value
-    } : null;
+    console.log('Night shift value in API:', {
+      originalValue: data.nightShift,
+      originalType: typeof data.nightShift,
+      parsedValue: nightShiftValue,
+      parsedType: typeof nightShiftValue
+    });
     
-    console.log(`Created dayEntry:`, dayEntry);
-    console.log(`Created nightEntry:`, nightEntry);
+    // Create entries only when there's actual production
+    const entriesToCreate = [];
     
-    console.log('Day entry to create:', dayEntry);
-    console.log('Night entry to create:', nightEntry);
+    if (data.dayShift > 0) {
+      entriesToCreate.push({
+        machineNumber: machineNumber,
+        date: data.date,
+        shift: 'day',
+        actualProduction: parseFloat(String(data.dayShift)),
+        theoreticalProduction: productionAt100Value
+      });
+    }
+    
+    if (nightShiftValue > 0) {
+      entriesToCreate.push({
+        machineNumber: machineNumber,
+        date: data.date,
+        shift: 'night',
+        actualProduction: nightShiftValue,
+        theoreticalProduction: productionAt100Value
+      });
+    }
+    
+    console.log('Entries to create:', entriesToCreate);
+    
+    if (entriesToCreate.length === 0) {
+      throw new Error('At least one shift (day or night) must have a production value greater than 0');
+    }
     
     try {
-      // If both shifts have data, we need to create two entries
-      if (dayEntry && nightEntry) {
-        console.log('Attempting to create day entry with:', dayEntry);
-        const dayResponse = await api.post('/production-entries', dayEntry);
-        console.log('Day entry created successfully, response:', dayResponse.data);
-        
-        console.log('Attempting to create night entry with:', nightEntry);
-        // Still create the night entry but we don't need to use the response
-        const nightResponse = await api.post('/production-entries', nightEntry);
-        console.log('Night entry created successfully, response:', nightResponse.data);
-        
-        // Return the day entry response as the primary result
-        return dayResponse.data.success ? dayResponse.data.data : dayResponse.data;
-      } 
-      // Otherwise create just one entry for the shift that has data
-      else if (dayEntry) {
-        console.log('Attempting to create day entry with:', dayEntry);
-        const response = await api.post('/production-entries', dayEntry);
-        console.log('Day entry created successfully, response:', response.data);
-        return response.data.success ? response.data.data : response.data;
+      const responses = [];
+      
+      // Create each entry one by one
+      for (const entry of entriesToCreate) {
+        console.log(`Creating ${entry.shift} entry:`, entry);
+        try {
+          const response = await api.post('/production-entries', entry);
+          console.log(`${entry.shift} entry created successfully:`, response.data);
+          responses.push(response);
+        } catch (error: any) {
+          console.error(`Error creating ${entry.shift} entry:`, error);
+          if (error.response) {
+            console.error('Error response:', error.response.data);
+          }
+          throw new Error(`Failed to create ${entry.shift} entry: ${error.response?.data?.error || error.message}`);
+        }
       }
-      else if (nightEntry) {
-        console.log('Attempting to create night entry with:', nightEntry);
-        const response = await api.post('/production-entries', nightEntry);
-        console.log('Night entry created successfully, response:', response.data);
-        return response.data.success ? response.data.data : response.data;
-      }
-      else {
-        throw new Error('At least one shift must have production data');
-      }
+      
+      // Return the first successful response
+      const firstResponse = responses[0];
+      return firstResponse.data.success ? firstResponse.data.data : firstResponse.data;
     } catch (error) {
       console.error('Error creating production entry:', error);
       
@@ -635,47 +808,18 @@ export const asuUnit1Api = {
                            (responseData && typeof responseData === 'object' && 'error' in responseData) ? 
                            responseData.error : JSON.stringify(responseData);
           
-          // Check for machine_configurations table missing error
+          // Check for machine_configurations table missing error (should be resolved now)
           if (typeof errorText === 'string' && errorText.includes('relation "machine_configurations" does not exist')) {
-            console.warn('The machine_configurations table does not exist. Using local machine data only.');
-            
-            // Continue with the production entry creation using just the machine data we have locally
-            // We already have the machine object with productionAt100, so we can use that
-            console.log('Proceeding with local machine data:', machine);
-            
-            // Create a temporary entry for the UI
-            const tempEntry: ASUProductionEntry = {
-              id: Date.now(), // Generate a temporary ID
-              machineId: data.machineId,
-              date: data.date,
-              dayShift: data.dayShift || 0,
-              nightShift: data.nightShift || 0,
-              machine: machine,
-              // Add other required fields
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-            } as ASUProductionEntry;
-            
-            // Store in localStorage for persistence between page reloads
-            const localStorageKey = `local_production_entries_${machine.id}`;
-            const existingEntries = JSON.parse(localStorage.getItem(localStorageKey) || '[]');
-            
-            // Check if an entry with this date already exists
-            const existingEntryIndex = existingEntries.findIndex((entry: any) => entry.date === data.date);
-            
-            if (existingEntryIndex >= 0) {
-              // Update existing entry
-              existingEntries[existingEntryIndex] = tempEntry;
-            } else {
-              // Add new entry
-              existingEntries.push(tempEntry);
-            }
-            
-            // Save back to localStorage
-            localStorage.setItem(localStorageKey, JSON.stringify(existingEntries));
-            console.log('Production entry saved to localStorage:', tempEntry);
-            
-            return tempEntry;
+            // This error should not occur anymore since we created the table
+            console.error('machine_configurations table still missing despite migration. Please check database setup.');
+            throw new Error('Database configuration error: machine_configurations table missing. Please contact system administrator.');
+          }
+          
+          // Handle machine_configurations table missing error (should be resolved now)
+          if (typeof errorText === 'string' && errorText.includes('relation "machine_configurations" does not exist')) {
+            // This error should not occur anymore since we created the table
+            console.error('machine_configurations table still missing despite migration. Please check database setup.');
+            throw new Error('Database configuration error: machine_configurations table missing. Please contact system administrator.');
           }
           
           // Handle normal foreign key violation errors
@@ -718,11 +862,27 @@ export const asuUnit1Api = {
       const existingEntry = entryResponse.data.data;
       const shift = existingEntry.shift; // 'day' or 'night'
       
+      // Process the value being updated based on the shift
+      let productionValue;
+      if (shift === 'day') {
+        productionValue = parseFloat(String(data.dayShift)) || 0;
+      } else { // night shift
+        productionValue = parseFloat(String(data.nightShift)) || 0;
+      }
+      
+      console.log(`Updating ${shift} shift entry ${id}:`, {
+        originalValue: shift === 'day' ? data.dayShift : data.nightShift,
+        parsedValue: productionValue,
+        shift: shift
+      });
+      
       // Prepare the update data based on the shift
       const updateData = {
         date: data.date || existingEntry.date,
-        actualProduction: shift === 'day' ? data.dayShift : data.nightShift
+        actualProduction: productionValue
       };
+      
+      console.log('Sending update data to API:', updateData);
       
       // Update the entry
       const response = await api.put(`/production-entries/${id}`, updateData);

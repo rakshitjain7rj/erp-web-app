@@ -6,6 +6,7 @@ const morgan = require('morgan');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { sequelize, connectPostgres } = require('./config/postgres');
+const { setupProcessHandlers } = require('./utils/errorHandlers');
 
 dotenv.config();
 
@@ -67,6 +68,9 @@ const limiter = rateLimit({
 
 // ------------------- Express App Init -------------------
 const app = express();
+
+// Set up global error handlers for the Node.js process
+setupProcessHandlers();
 
 console.log('🔧 CORS Origin:', process.env.CORS_ORIGIN || 'http://localhost:3000');
 
