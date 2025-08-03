@@ -4,10 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { Gauge, RefreshCw, Activity } from "lucide-react";
-import SimpleMachineTable from "../components/dashboard/SimpleMachineTable";
-import DashboardYarnSummary from "../components/dashboard/DashboardYarnSummary";
-import SimpleYarnProductionTable from "../components/dashboard/SimpleYarnProductionTable";
-import TotalYarnProduction from "../components/dashboard/TotalYarnProduction";
+import TotalASUUnit1YarnSummary from "../components/dashboard/TotalASUUnit1YarnSummary";
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -168,24 +165,9 @@ const Dashboard: React.FC = () => {
           />
         </div>
 
-        {/* Total Yarn Production - Auto-detected */}
+        {/* ASU Unit 1 Total Yarn Production Summary */}
         <div className="mb-6">
-          <TotalYarnProduction timeframe="month" />
-        </div>
-
-        {/* Daily Yarn Production Table - Simple Version */}
-        <div className="mb-6">
-          <SimpleYarnProductionTable days={30} />
-        </div>
-
-        {/* Machine Table */}
-        <div className="mb-6">
-          <SimpleMachineTable />
-        </div>
-        
-        {/* Yarn Production Detail Table */}
-        <div className="mb-6">
-          <DashboardYarnSummary limit={10} />
+          <TotalASUUnit1YarnSummary days={30} showRefreshButton={true} />
         </div>
       </div>
     </LayoutWrapper>
