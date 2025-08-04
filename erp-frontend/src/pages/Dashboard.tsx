@@ -54,57 +54,57 @@ function Dashboard() {
   return (
     <LayoutWrapper>
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
+        <h1 className="text-2xl font-bold mb-6 dark:text-white">Dashboard</h1>
         
         {loading ? (
           <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 dark:border-blue-400"></div>
           </div>
         ) : (
           <>
             {/* Stats Overview */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              <div className="bg-white rounded-lg shadow p-6">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/40 border dark:border-gray-600 p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-gray-500 text-sm font-medium">Total Machines</h3>
-                  <Gauge className="h-6 w-6 text-blue-500" />
+                  <h3 className="text-gray-500 dark:text-white text-sm font-medium">Total Machines</h3>
+                  <Gauge className="h-6 w-6 text-blue-500 dark:text-blue-300" />
                 </div>
                 <div className="flex items-end">
-                  <p className="text-3xl font-bold">{stats.totalMachines}</p>
-                  <p className="text-sm text-gray-500 ml-2 mb-1">units</p>
+                  <p className="text-3xl font-bold dark:text-white">{stats.totalMachines}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-200 ml-2 mb-1">units</p>
                 </div>
               </div>
               
-              <div className="bg-white rounded-lg shadow p-6">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/40 border dark:border-gray-600 p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-gray-500 text-sm font-medium">Active Machines</h3>
-                  <Activity className="h-6 w-6 text-green-500" />
+                  <h3 className="text-gray-500 dark:text-white text-sm font-medium">Active Machines</h3>
+                  <Activity className="h-6 w-6 text-green-500 dark:text-green-300" />
                 </div>
                 <div className="flex items-end">
-                  <p className="text-3xl font-bold">{stats.activeMachines}</p>
-                  <p className="text-sm text-gray-500 ml-2 mb-1">running</p>
+                  <p className="text-3xl font-bold dark:text-white">{stats.activeMachines}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-200 ml-2 mb-1">running</p>
                 </div>
               </div>
               
-              <div className="bg-white rounded-lg shadow p-6">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/40 border dark:border-gray-600 p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-gray-500 text-sm font-medium">Production (30 days)</h3>
-                  <Activity className="h-6 w-6 text-purple-500" />
+                  <h3 className="text-gray-500 dark:text-white text-sm font-medium">Production (30 days)</h3>
+                  <Activity className="h-6 w-6 text-purple-500 dark:text-purple-300" />
                 </div>
                 <div className="flex items-end">
-                  <p className="text-3xl font-bold">{stats.totalProduction.toLocaleString()}</p>
-                  <p className="text-sm text-gray-500 ml-2 mb-1">kg</p>
+                  <p className="text-3xl font-bold dark:text-white">{stats.totalProduction.toLocaleString()}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-200 ml-2 mb-1">kg</p>
                 </div>
               </div>
               
-              <div className="bg-white rounded-lg shadow p-6">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/40 border dark:border-gray-600 p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-gray-500 text-sm font-medium">Efficiency</h3>
-                  <RefreshCw className="h-6 w-6 text-orange-500" />
+                  <h3 className="text-gray-500 dark:text-white text-sm font-medium">Efficiency</h3>
+                  <RefreshCw className="h-6 w-6 text-orange-500 dark:text-orange-300" />
                 </div>
                 <div className="flex items-end">
-                  <p className="text-3xl font-bold">{stats.efficiency}%</p>
-                  <p className="text-sm text-gray-500 ml-2 mb-1">avg</p>
+                  <p className="text-3xl font-bold dark:text-white">{stats.efficiency}%</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-200 ml-2 mb-1">avg</p>
                 </div>
               </div>
             </div>
@@ -113,16 +113,16 @@ function Dashboard() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
               <TotalASUUnit1YarnSummary days={31} showRefreshButton={true} />
               
-              <div className="bg-white rounded-lg shadow p-6">
-                <h2 className="text-xl font-semibold mb-4">Machine Status</h2>
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/40 border dark:border-gray-600 p-6">
+                <h2 className="text-xl font-semibold mb-4 dark:text-white">Machine Status</h2>
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
-                    <span>Running</span>
-                    <span className="font-medium">{stats.activeMachines} / {stats.totalMachines}</span>
+                    <span className="dark:text-white">Running</span>
+                    <span className="font-medium dark:text-white">{stats.activeMachines} / {stats.totalMachines}</span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2.5">
+                  <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2.5">
                     <div 
-                      className="bg-green-500 h-2.5 rounded-full" 
+                      className="bg-green-500 dark:bg-green-300 h-2.5 rounded-full" 
                       style={{ 
                         width: `${stats.totalMachines > 0 ? (stats.activeMachines / stats.totalMachines * 100) : 0}%` 
                       }}

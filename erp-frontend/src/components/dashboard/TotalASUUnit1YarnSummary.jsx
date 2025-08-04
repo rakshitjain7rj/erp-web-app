@@ -9,16 +9,16 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 // Create simple custom components
 const Progress = ({ value, className }) => (
   <div className={`w-full h-2 bg-gray-200 dark:bg-gray-700 rounded ${className}`}>
-    <div style={{ width: `${value}%` }} className="h-full rounded"></div>
+    <div style={{ width: `${value}%` }} className={`h-full rounded opacity-90 dark:opacity-100 ${className}`}></div>
   </div>
 );
 
 const Skeleton = ({ className }) => (
-  <div className={`animate-pulse bg-gray-200 dark:bg-gray-700 rounded ${className}`}></div>
+  <div className={`animate-pulse bg-gray-200 dark:bg-gray-500 rounded ${className}`}></div>
 );
 
 const CardDescription = ({ children, className }) => (
-  <p className={`text-sm text-gray-500 dark:text-gray-400 ${className || ''}`}>{children}</p>
+  <p className={`text-sm text-gray-500 dark:text-white ${className || ''}`}>{children}</p>
 );
 
 function TotalASUUnit1YarnSummary({ days = 31, showRefreshButton = false }) {
@@ -189,9 +189,15 @@ function TotalASUUnit1YarnSummary({ days = 31, showRefreshButton = false }) {
   // Get a color based on the yarn type
   const getColorForYarnType = (type) => {
     const colors = [
-      'bg-blue-500', 'bg-green-500', 'bg-yellow-500', 
-      'bg-red-500', 'bg-purple-500', 'bg-pink-500',
-      'bg-indigo-500', 'bg-teal-500', 'bg-orange-500'
+      'bg-blue-500 dark:bg-blue-300', 
+      'bg-green-500 dark:bg-green-300', 
+      'bg-yellow-500 dark:bg-yellow-300', 
+      'bg-red-500 dark:bg-red-300', 
+      'bg-purple-500 dark:bg-purple-300', 
+      'bg-pink-500 dark:bg-pink-300',
+      'bg-indigo-500 dark:bg-indigo-300', 
+      'bg-teal-500 dark:bg-teal-300', 
+      'bg-orange-500 dark:bg-orange-300'
     ];
     
     // Generate a consistent index based on the yarn type name
@@ -201,12 +207,12 @@ function TotalASUUnit1YarnSummary({ days = 31, showRefreshButton = false }) {
 
   if (loading) {
     return (
-      <Card className="w-full dark:bg-gray-800 dark:border-gray-700">
-        <CardHeader>
-          <CardTitle className="text-xl dark:text-white">Yarn Category Production (Last {days} Days)</CardTitle>
+      <Card className="w-full border dark:bg-gray-800 dark:border-gray-600 shadow-md">
+        <CardHeader className="dark:bg-gray-800 border-b dark:border-gray-600">
+          <CardTitle className="text-xl font-bold dark:text-white">Yarn Category Production (Last {days} Days)</CardTitle>
           <CardDescription>Loading yarn production data...</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="dark:bg-gray-800">
           <div className="space-y-4">
             <Skeleton className="h-4 w-full" />
             <Skeleton className="h-4 w-full" />
@@ -219,12 +225,12 @@ function TotalASUUnit1YarnSummary({ days = 31, showRefreshButton = false }) {
 
   if (error && yarnTypeBreakdown.length === 0) {
     return (
-      <Card className="w-full dark:bg-gray-800 dark:border-gray-700">
-        <CardHeader>
-          <CardTitle className="text-xl dark:text-white">Yarn Category Production (Last {days} Days)</CardTitle>
-          <CardDescription className="text-red-500 dark:text-red-400">{error}</CardDescription>
+      <Card className="w-full border dark:bg-gray-800 dark:border-gray-600 shadow-md">
+        <CardHeader className="dark:bg-gray-800 border-b dark:border-gray-600">
+          <CardTitle className="text-xl font-bold dark:text-white">Yarn Category Production (Last {days} Days)</CardTitle>
+          <CardDescription className="text-red-500 dark:text-red-300">{error}</CardDescription>
         </CardHeader>
-        <CardContent className="dark:text-gray-300">
+        <CardContent className="dark:text-white dark:bg-gray-800">
           <p>No data available. Please try again later.</p>
         </CardContent>
       </Card>
@@ -232,13 +238,13 @@ function TotalASUUnit1YarnSummary({ days = 31, showRefreshButton = false }) {
   }
 
   return (
-    <Card className="w-full dark:bg-gray-800 dark:border-gray-700">
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
+    <Card className="w-full border dark:bg-gray-800 dark:border-gray-600 shadow-md">
+      <CardHeader className="flex flex-row items-center justify-between pb-2 dark:bg-gray-800 border-b dark:border-gray-600">
         <div>
-          <CardTitle className="text-xl dark:text-white">Yarn Category Production (Last {days} Days)</CardTitle>
+          <CardTitle className="text-xl font-bold dark:text-white">Yarn Category Production (Last {days} Days)</CardTitle>
           <CardDescription>
-            Total Production: {totalProduction.toLocaleString()} kg
-            {error && <span className="text-yellow-500 dark:text-yellow-400 ml-2 text-sm">(Using mock data)</span>}
+            Total Production: <span className="font-medium dark:text-white">{totalProduction.toLocaleString()}</span> kg
+            {error && <span className="text-yellow-500 dark:text-yellow-300 ml-2 text-sm">(Using mock data)</span>}
           </CardDescription>
         </div>
         {showRefreshButton && (
@@ -249,7 +255,7 @@ function TotalASUUnit1YarnSummary({ days = 31, showRefreshButton = false }) {
           >
             <svg 
               xmlns="http://www.w3.org/2000/svg" 
-              className={`h-5 w-5 ${refreshing ? 'animate-spin text-blue-500 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'}`}
+              className={`h-5 w-5 ${refreshing ? 'animate-spin text-blue-500 dark:text-blue-300' : 'text-gray-500 dark:text-gray-300'}`}
               fill="none" 
               viewBox="0 0 24 24" 
               stroke="currentColor"
@@ -264,7 +270,7 @@ function TotalASUUnit1YarnSummary({ days = 31, showRefreshButton = false }) {
           </button>
         )}
       </CardHeader>
-      <CardContent>
+      <CardContent className="dark:bg-gray-800">
         <div className="space-y-5">
           {yarnTypeBreakdown.map((item, index) => {
             const percentage = Math.round((item.total / totalProduction) * 100);
@@ -273,12 +279,12 @@ function TotalASUUnit1YarnSummary({ days = 31, showRefreshButton = false }) {
             return (
               <div key={index} className="space-y-1">
                 <div className="flex justify-between items-center">
-                  <span className="font-medium dark:text-white">{item.type}</span>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                  <span className="font-medium text-gray-800 dark:text-white">{item.type}</span>
+                  <span className="text-sm text-gray-600 dark:text-gray-200">
                     {item.total.toLocaleString()} kg ({percentage}%)
                   </span>
                 </div>
-                <Progress value={percentage} className={`h-2 ${colorClass}`} />
+                <Progress value={percentage} className={`h-2.5 ${colorClass}`} />
               </div>
             );
           })}
