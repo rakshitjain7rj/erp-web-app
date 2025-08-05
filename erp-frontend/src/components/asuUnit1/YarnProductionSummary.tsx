@@ -1,4 +1,4 @@
-// src/components/YarnProductionSummary.tsx
+// src/components/asuUnit1/YarnProductionSummary.tsx
 
 import React, { useState, useEffect } from "react";
 import {
@@ -8,9 +8,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "./ui/table";
-import { Badge } from "./ui/badge";
-import { Button } from "./ui/Button";
+} from "../ui/table";
+import { Badge } from "../ui/badge";
+import { Button } from "../ui/Button";
 import { toast } from "react-hot-toast";
 import { Calendar, Package, RefreshCw, TrendingUp } from "lucide-react";
 import axios from "axios";
@@ -19,7 +19,9 @@ import axios from "axios";
 const normalizeYarnType = (type: string | undefined): string => {
   if (!type) return "";
   return type.trim().toLowerCase();
-};  // Format yarn type for display (capitalize words)
+};
+
+// Format yarn type for display (capitalize words)
 const formatYarnTypeDisplay = (yarnType: string | undefined): string => {
   if (!yarnType) return "Unknown";
   
@@ -85,6 +87,44 @@ const getYarnTypeColor = (type: string | undefined): string => {
   return colorMap.default;
 };
 
+// Helper function to find historical yarn type for a specific date
+const findHistoricalYarnType = (
+  history: Array<{date: string, yarnType: string}>, 
+  date: string
+): string | undefined => {
+  if (!history || history.length === 0 || !date) {
+    return undefined;
+  }
+  
+  // Find exact match for date
+  const exactMatch = history.find(entry => entry.date === date);
+  if (exactMatch) {
+    return exactMatch.yarnType;
+  }
+  
+  // If no exact match, find the most recent entry before this date
+  const entryDate = new Date(date);
+  
+  // Sort history by date in descending order (newest first)
+  const sortedHistory = [...history].sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
+  
+  // Find the most recent entry that is on or before the given date
+  for (const historyEntry of sortedHistory) {
+    const historyDate = new Date(historyEntry.date);
+    if (historyDate <= entryDate) {
+      return historyEntry.yarnType;
+    }
+  }
+  
+  // If all entries are after this date, use the oldest one as fallback
+  const oldestEntry = [...history].sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+  )[0];
+  
+  return oldestEntry?.yarnType;
+};
 
 // Define machine interface
 interface Machine {
@@ -102,6 +142,7 @@ interface YarnProductionEntry {
   totalProduction: number;
   machines: number;
   avgEfficiency: number;
+  machineId?: number; // Add machineId for integration with historical data
 }
 
 interface YarnProductionSummaryRow {
@@ -120,9 +161,7 @@ interface YarnSummaryStats {
 }
 
 const YarnProductionSummary: React.FC = () => {
-  const [summaryData, setSummaryData] = useState<YarnProductionSummaryRow[]>(
-    []
-  );
+  const [summaryData, setSummaryData] = useState<YarnProductionSummaryRow[]>([]);
   const [distinctYarnTypes, setDistinctYarnTypes] = useState<string[]>([]);
   const [activeMachineYarnTypes, setActiveMachineYarnTypes] = useState<string[]>([]);
   const [stats, setStats] = useState<YarnSummaryStats | null>(null);
@@ -130,6 +169,7 @@ const YarnProductionSummary: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const [showLegend, setShowLegend] = useState<boolean>(true);
 
   // Helper function to format date
   const formatDate = (dateString: string): string => {
@@ -150,17 +190,14 @@ const YarnProductionSummary: React.FC = () => {
       // The backend returns yarnBreakdown which is exactly what we need
       const yarnTypes: { [key: string]: number } = {};
       
-      // Initialize all distinct yarn types with zero production
-      distinctYarnTypes.forEach(yarnType => {
-        yarnTypes[yarnType] = 0;
-      });
-      
-      // Fill in the actual production data from yarnBreakdown
+      // Only add yarn types that have production values > 0 for this specific date
+      // We don't initialize with zeros for all types to avoid showing unnecessary columns
       if (entry.yarnBreakdown) {
         Object.entries(entry.yarnBreakdown).forEach(([type, production]) => {
           const normalizedType = normalizeYarnType(type);
-          if (normalizedType) {
-            yarnTypes[normalizedType] = production || 0;
+          // Only include yarn types with actual production data
+          if (normalizedType && production > 0) {
+            yarnTypes[normalizedType] = production;
           }
         });
       }
@@ -188,6 +225,21 @@ const YarnProductionSummary: React.FC = () => {
     setLastRefreshed(new Date());
   };
 
+  // Function to load machine yarn history from localStorage
+  const loadMachineYarnHistory = (): Record<string, Array<{date: string, yarnType: string}>> => {
+    try {
+      const savedHistory = localStorage.getItem('machineYarnHistory');
+      if (savedHistory) {
+        const parsedHistory = JSON.parse(savedHistory);
+        console.log('Loaded machine yarn history from localStorage:', parsedHistory);
+        return parsedHistory;
+      }
+    } catch (error) {
+      console.error('Error loading machine yarn history:', error);
+    }
+    return {};
+  };
+  
   // Fetch yarn production summary data
   const fetchYarnSummary = async () => {
     try {
@@ -202,9 +254,11 @@ const YarnProductionSummary: React.FC = () => {
       };
 
       // Fetch both machine configurations and production entries in parallel
-      const [machinesResponse, entriesResponse] = await Promise.all([
+      const [machinesResponse, entriesResponse, yarnHistoryResponse] = await Promise.all([
         axios.get(`${BASE_URL}/asu-machines`, { headers }),
-        axios.get(`${BASE_URL}/yarn/production-entries`, { headers })
+        axios.get(`${BASE_URL}/yarn/production-entries`, { headers }),
+        // Try to fetch yarn history from API (will implement this endpoint later)
+        axios.get(`${BASE_URL}/yarn/history`, { headers }).catch(() => null)
       ]);
 
       // Parse the production entries data
@@ -217,11 +271,6 @@ const YarnProductionSummary: React.FC = () => {
         ? machinesResponse.data.data 
         : machinesResponse.data;
       
-      // Get all yarn types from machines (both active and inactive)
-      const allMachineYarnTypes = machines
-        .filter((machine: Machine) => machine.yarnType)
-        .map((machine: Machine) => normalizeYarnType(machine.yarnType));
-      
       // Get yarn types specifically from active machines for special highlighting
       const activeMachines = machines.filter((machine: Machine) => machine.isActive);
       const activeMachineYarnTypes = activeMachines
@@ -231,22 +280,96 @@ const YarnProductionSummary: React.FC = () => {
       // Store active machine yarn types separately (for validation/highlighting)
       setActiveMachineYarnTypes(activeMachineYarnTypes);
       
-      // Extract yarn types from the breakdown data in entries
+      // Try to load yarn history from localStorage if API endpoint is not available yet
+      let yarnHistory: Record<string, Array<{date: string, yarnType: string}>> = {};
+      
+      try {
+        if (yarnHistoryResponse && yarnHistoryResponse.data) {
+          // If API endpoint is implemented, use that data
+          yarnHistory = yarnHistoryResponse.data.success 
+            ? yarnHistoryResponse.data.data 
+            : yarnHistoryResponse.data;
+        } else {
+          // Otherwise fall back to localStorage
+          yarnHistory = loadMachineYarnHistory();
+        }
+      } catch (error) {
+        console.error('Error loading yarn history:', error);
+      }
+      
+      console.log('Loaded yarn history for processing entries:', yarnHistory);
+      
+      // Process entries to use historical yarn types where available
+      const processedEntries = entries.map(entry => {
+        // Create a copy of the entry
+        const processedEntry = {...entry};
+        
+        // Check if there's historical yarn type data for this entry
+        if (entry.machineId && yarnHistory[entry.machineId]) {
+          const machineHistory = yarnHistory[entry.machineId];
+          const entryDate = entry.date;
+          
+          console.log(`Processing entry for date ${entryDate}, machine ${entry.machineId}`);
+          console.log('Machine history:', machineHistory);
+          
+          // Find historical yarn type for this date
+          const historicalYarnType = findHistoricalYarnType(machineHistory, entryDate);
+          
+          console.log(`Historical yarn type for date ${entryDate}: ${historicalYarnType}`);
+          
+          // If historical yarn type is found and different from the current one, use it
+          if (historicalYarnType) {
+            // Create a modified yarn breakdown using the historical type
+            const modifiedBreakdown = {...entry.yarnBreakdown};
+            
+            // Find the machine in the machines array
+            const machine = machines.find(m => m.id === entry.machineId);
+            const currentYarnType = machine?.yarnType;
+            
+            console.log(`Current yarn type: ${currentYarnType}, Historical yarn type: ${historicalYarnType}`);
+            
+            // If current and historical yarn types are different, update the breakdown
+            if (currentYarnType && currentYarnType !== historicalYarnType && 
+                modifiedBreakdown[currentYarnType]) {
+              
+              console.log(`Yarn type changed for entry on ${entryDate}. Moving production from ${currentYarnType} to ${historicalYarnType}`);
+              
+              // Move production from current yarn type to historical yarn type
+              const productionValue = modifiedBreakdown[currentYarnType];
+              delete modifiedBreakdown[currentYarnType];
+              modifiedBreakdown[historicalYarnType] = 
+                (modifiedBreakdown[historicalYarnType] || 0) + productionValue;
+              
+              // Update the entry with modified breakdown
+              processedEntry.yarnBreakdown = modifiedBreakdown;
+              
+              console.log('Modified yarn breakdown:', modifiedBreakdown);
+            }
+          }
+        }
+        
+        return processedEntry;
+      });
+      
+      // Use processed entries for the rest of the function
+      
+      // Extract yarn types ONLY from the breakdown data in entries
+      // This ensures we only include yarn types that have actual production data
       const breakdownYarnTypes: string[] = [];
-      entries.forEach(entry => {
+      processedEntries.forEach(entry => {
         if (entry.yarnBreakdown && typeof entry.yarnBreakdown === 'object') {
           Object.keys(entry.yarnBreakdown).forEach(key => {
             const normalizedKey = normalizeYarnType(key);
-            if (normalizedKey) breakdownYarnTypes.push(normalizedKey);
+            if (normalizedKey && entry.yarnBreakdown[key] > 0) {
+              breakdownYarnTypes.push(normalizedKey);
+            }
           });
         }
       });
       
-      // Combine all sources, normalize, deduplicate and sort
-      const normalizedYarnTypes = [...new Set([
-        ...allMachineYarnTypes,
-        ...breakdownYarnTypes
-      ])]
+      // Only use yarn types from actual production data, not from machine configurations
+      // This ensures we're only showing yarn types actually produced, not all possible types
+      const normalizedYarnTypes = [...new Set(breakdownYarnTypes)]
         .filter(Boolean)
         .sort((a, b) => {
           // Prioritize active machine yarn types
@@ -264,15 +387,15 @@ const YarnProductionSummary: React.FC = () => {
       setDistinctYarnTypes(normalizedYarnTypes);
 
       // Process data into summary format
-      const summary = processProductionData(entries);
+      const summary = processProductionData(processedEntries);
       setSummaryData(summary);
 
       // Calculate stats
-      const totalProduction = entries.reduce(
+      const totalProduction = processedEntries.reduce(
         (sum, entry) => sum + entry.totalProduction,
         0
       );
-      const uniqueDates = new Set(entries.map((entry) => entry.date));
+      const uniqueDates = new Set(processedEntries.map((entry) => entry.date));
       const stats: YarnSummaryStats = {
         totalProduction,
         totalDays: uniqueDates.size,
@@ -543,294 +666,224 @@ const YarnProductionSummary: React.FC = () => {
               </p>
             </div>
           ) : (
-            <div className="w-full overflow-x-auto">
-              <div className="max-h-[calc(100vh-280px)] overflow-y-auto relative">
-                <Table className="w-full min-w-full table-fixed">
-                  <TableHeader className="bg-gray-50 dark:bg-gray-800">
+            <>
+              <div className="w-full overflow-x-auto">
+                <div className="max-h-[calc(100vh-280px)] overflow-y-auto relative">
+                  <Table className="w-full min-w-full table-fixed">
+                    <TableHeader className="bg-gray-50 dark:bg-gray-800">
                       <TableRow className="border-b dark:border-gray-700">
                         <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400 w-[120px]">
                           Date
                         </TableHead>
-                        {/* Dynamic yarn type columns */}
-                    {distinctYarnTypes.map((yarnType, index) => {
-                      // Format the display name using our helper function
-                      const displayName = formatYarnTypeDisplay(yarnType);
-                      
-                      // Check if this is an active yarn type from machines
-                      const isActiveMachineYarn = activeMachineYarnTypes.includes(yarnType);
-                      
-                      return (
-                        <TableHead 
-                          key={`yarn-type-${yarnType}-${index}`}
-                          className="px-4 py-3 text-xs font-medium tracking-wider text-center text-gray-500 uppercase sm:px-6 dark:text-gray-400 w-[100px]"
-                        >
+                        {/* Dynamic yarn type columns - only for yarn types with actual production */}
+                        {distinctYarnTypes.map((yarnType, index) => {
+                          // Format the display name using our helper function
+                          const displayName = formatYarnTypeDisplay(yarnType);
+                          
+                          // Check if this is an active yarn type from machines
+                          const isActiveMachineYarn = activeMachineYarnTypes.includes(yarnType);
+                          
+                          // Check if any production entries actually use this yarn type
+                          // This ensures we only show columns for yarn types that have been produced
+                          const hasProduction = summaryData.some(row => 
+                            row.yarnTypes[yarnType] && row.yarnTypes[yarnType] > 0
+                          );
+                          
+                          // Only render columns for yarn types that have actual production data
+                          if (!hasProduction) return null;
+                          
+                          return (
+                            <TableHead 
+                              key={`yarn-type-${yarnType}-${index}`}
+                              className="px-4 py-3 text-xs font-medium tracking-wider text-center text-gray-500 uppercase sm:px-6 dark:text-gray-400 w-[100px]"
+                            >
+                              <div className="flex flex-col items-center justify-center">
+                                <span
+                                  className={`inline-block w-2 h-2 mb-1 rounded-full ${getYarnTypeColor(yarnType)}`}
+                                ></span>
+                                <span className={isActiveMachineYarn ? "font-semibold" : ""}>
+                                  {displayName}
+                                </span>
+                                {/* Add a small historical indicator for yarn types that are no longer active */}
+                                {!isActiveMachineYarn && (
+                                  <span className="ml-1 px-1 py-0.5 text-[10px] rounded bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                                    H
+                                  </span>
+                                )}
+                              </div>
+                            </TableHead>
+                          );
+                        })}
+
+                        <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-center text-indigo-600 uppercase sm:px-6 dark:text-indigo-400 w-[140px]">
                           <div className="flex flex-col items-center justify-center">
-                            <span
-                              className={`inline-block w-2 h-2 mb-1 rounded-full ${getYarnTypeColor(yarnType)}`}
-                            ></span>
-                            <span className={isActiveMachineYarn ? "font-semibold" : ""}>
-                              {displayName}
-                            </span>
+                            <span className="inline-block w-2 h-2 mb-1 bg-indigo-500 rounded-full"></span>
+                            Total (All Types)
                           </div>
                         </TableHead>
-                      );
-                    })}
-
-                    <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-center text-indigo-600 uppercase sm:px-6 dark:text-indigo-400 w-[140px]">
-                      <div className="flex flex-col items-center justify-center">
-                        <span className="inline-block w-2 h-2 mb-1 bg-indigo-500 rounded-full"></span>
-                        Total (All Types)
-                      </div>
-                    </TableHead>
-                    <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-center text-gray-500 uppercase sm:px-6 dark:text-gray-400 w-[100px]">
-                      Machines
-                    </TableHead>
-                    <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-center text-gray-500 uppercase sm:px-6 dark:text-gray-400 w-[120px]">
-                      Avg Efficiency
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {summaryData.map((row, index) => (
-                    <TableRow
-                      key={index}
-                      className="transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30"
-                    >
-                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-gray-400" />
-                          <span className="font-medium text-gray-900 dark:text-gray-100">
-                            {formatDate(row.date)}
-                          </span>
-                        </div>
-                      </TableCell>
-                      {/* Dynamic yarn type data columns */}
-                      {distinctYarnTypes.map((yarnType, typeIndex) => (
-                        <TableCell
-                          key={`row-${index}-type-${yarnType}-${typeIndex}`}
-                          className="px-4 py-4 font-medium text-center whitespace-nowrap sm:px-6"
+                        <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-center text-gray-500 uppercase sm:px-6 dark:text-gray-400 w-[100px]">
+                          Machines
+                        </TableHead>
+                        <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-center text-gray-500 uppercase sm:px-6 dark:text-gray-400 w-[120px]">
+                          Avg Efficiency
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {summaryData.map((row, index) => (
+                        <TableRow
+                          key={index}
+                          className="transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30"
                         >
-                          {(() => {
-                            // Find the proper value for this yarn type (handle normalization)
-                            let productionValue = 0;
-                            
-                            // Try exact match first
-                            if (yarnType in row.yarnTypes) {
-                              productionValue = row.yarnTypes[yarnType] || 0;
-                            } else {
-                              // If no exact match, try normalized matching
-                              for (const [key, value] of Object.entries(row.yarnTypes)) {
-                                if (normalizeYarnType(key) === yarnType) {
-                                  productionValue = value || 0;
-                                  break;
-                                }
-                              }
-                            }
-                            
-                            // Check if this is an active yarn type from machines
-                            const isActiveMachineYarn = activeMachineYarnTypes.includes(yarnType);
-                            const hasValue = productionValue > 0;
-                            
-                            return (
-                              <span
-                                className={`${
-                                  hasValue
-                                    ? isActiveMachineYarn 
-                                      ? "text-blue-600 dark:text-blue-400 font-medium"
-                                      : "text-blue-500 dark:text-blue-300" 
-                                    : "text-gray-400 dark:text-gray-500"
-                                }`}
-                              >
-                                {hasValue
-                                  ? productionValue.toFixed(2)
-                                  : "0.00"}
-                                <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
-                                  kg
-                                </span>
+                          <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
+                            <div className="flex items-center gap-2">
+                              <Calendar className="w-4 h-4 text-gray-400" />
+                              <span className="font-medium text-gray-900 dark:text-gray-100">
+                                {formatDate(row.date)}
                               </span>
+                            </div>
+                          </TableCell>
+                          {/* Dynamic yarn type data columns */}
+                          {distinctYarnTypes.map((yarnType, typeIndex) => {
+                            // Check if any production entries actually use this yarn type
+                            const hasProductionInAnyRow = summaryData.some(r => 
+                              r.yarnTypes[yarnType] && r.yarnTypes[yarnType] > 0
                             );
-                          })()}
-                        </TableCell>
-                      ))}
-                      <TableCell className="px-4 py-4 font-medium text-center whitespace-nowrap sm:px-6">
-                        <span className="font-semibold text-indigo-600 dark:text-indigo-400">
-                          {row.totalProductionForDate.toFixed(2)}
-                          <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
-                            kg
-                          </span>
-                        </span>
-                      </TableCell>
-                      <TableCell className="px-4 py-4 text-center whitespace-nowrap sm:px-6">
-                        <div className="flex items-center justify-center gap-2">
-                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                          <span className="text-gray-700 dark:text-gray-300">
-                            {row.machineCount}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="px-4 py-4 text-center whitespace-nowrap sm:px-6">
-                        <div className="flex items-center justify-center gap-2">
-                          {(() => {
-                            const efficiency = row.averageEfficiency;
-                            const isValidEfficiency = !isNaN(efficiency) && efficiency !== null && efficiency !== undefined;
-                            const displayEfficiency = isValidEfficiency ? efficiency : 0;
+                            
+                            // Skip columns that don't have any production data
+                            if (!hasProductionInAnyRow) return null;
                             
                             return (
-                              <>
-                                <div
-                                  className={`w-3 h-3 rounded-full ${getEfficiencyColorClass(displayEfficiency)}`}
-                                ></div>
-                                <Badge
-                                  className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${getEfficiencyBadgeClass(displayEfficiency)}`}
-                                >
-                                  {isValidEfficiency ? displayEfficiency.toFixed(1) : "0.0"}%
-                                </Badge>
-                              </>
+                              <TableCell
+                                key={`row-${index}-type-${yarnType}-${typeIndex}`}
+                                className="px-4 py-4 font-medium text-center whitespace-nowrap sm:px-6"
+                              >
+                                {(() => {
+                                  // Get the production value for this yarn type on this date
+                                  const productionValue = row.yarnTypes[yarnType] || 0;
+                                  
+                                  // Check if this is an active yarn type from machines
+                                  const isActiveMachineYarn = activeMachineYarnTypes.includes(yarnType);
+                                  const hasValue = productionValue > 0;
+                                  
+                                  return (
+                                    <span
+                                      className={`${
+                                        hasValue
+                                          ? isActiveMachineYarn 
+                                            ? "text-blue-600 dark:text-blue-400 font-medium"
+                                            : "text-purple-600 dark:text-purple-400 font-medium" 
+                                          : "text-gray-400 dark:text-gray-500"
+                                      }`}
+                                    >
+                                      {hasValue
+                                        ? productionValue.toFixed(2)
+                                        : "0.00"}
+                                      <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
+                                        kg
+                                      </span>
+                                      {/* Show a small indicator for historical yarn types with production */}
+                                      {hasValue && !isActiveMachineYarn && (
+                                        <span className="ml-1 text-xs text-purple-500 dark:text-purple-400">*</span>
+                                      )}
+                                    </span>
+                                  );
+                                })()}
+                              </TableCell>
                             );
-                          })()}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  </TableBody>
-                </Table>
-                
-                {/* Sticky Total Production Row - positioned at bottom of scrollable area */}
-                {summaryData.length > 0 && (
-                  <div className="sticky bottom-0 w-full bg-gray-50 dark:bg-gray-800/95 border-t border-gray-200 dark:border-gray-700 shadow-[0_-1px_3px_0_rgba(0,0,0,0.1)] backdrop-blur-sm z-10">
-                    <Table className="w-full min-w-full border-collapse table-fixed">
-                      <TableBody>
-                        <TableRow className="font-semibold transition-colors">
-                        <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6 w-[120px]">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-gray-700 dark:text-gray-200">Total Production</span>
-                          </div>
-                        </TableCell>
-                      {distinctYarnTypes.map((yarnType, typeIndex) => {
-                        // Calculate total for this yarn type (handle normalization)
-                        const total = summaryData.reduce((sum, row) => {
-                          // Try exact match first
-                          if (yarnType in row.yarnTypes) {
-                            return sum + (row.yarnTypes[yarnType] || 0);
-                          }
-                          
-                          // If no exact match, try to find a match with normalization
-                          for (const [key, value] of Object.entries(row.yarnTypes)) {
-                            if (normalizeYarnType(key) === yarnType) {
-                              return sum + (value || 0);
-                            }
-                          }
-                          
-                          return sum;
-                        }, 0);
-                        
-                        // Check if this is an active yarn type from machines
-                        const isActiveMachineYarn = activeMachineYarnTypes.includes(yarnType);
-
-                        return (
-                          <TableCell
-                            key={`total-type-${yarnType}-${typeIndex}`}
-                            className={`px-4 py-4 font-medium text-center whitespace-nowrap sm:px-6 w-[100px] ${
-                              isActiveMachineYarn ? "border-b-2 border-blue-200 dark:border-blue-800/30" : ""
-                            }`}
-                          >
-                            <span 
-                              className={`${
-                                total > 0
-                                  ? isActiveMachineYarn 
-                                    ? "text-blue-700 dark:text-blue-300 font-bold"
-                                    : "text-blue-600 dark:text-blue-400"
-                                  : "text-gray-500 dark:text-gray-500"
-                              }`}
-                            >
-                              {total.toFixed(2)}
+                          })}
+                          <TableCell className="px-4 py-4 font-medium text-center whitespace-nowrap sm:px-6">
+                            <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+                              {row.totalProductionForDate.toFixed(2)}
                               <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
                                 kg
                               </span>
                             </span>
                           </TableCell>
-                        );
-                      })}
-                      <TableCell className="px-4 py-4 font-medium text-center whitespace-nowrap sm:px-6 w-[140px]">
-                        <span className="font-bold text-indigo-700 dark:text-indigo-300">
-                          {summaryData
-                            .reduce(
-                              (sum, row) => sum + row.totalProductionForDate,
-                              0
-                            )
-                            .toFixed(2)}
-                          <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
-                            kg
-                          </span>
-                        </span>
-                      </TableCell>
-                      <TableCell className="px-4 py-4 text-center whitespace-nowrap sm:px-6 w-[100px]">
-                        <div className="flex items-center justify-center gap-2">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                          <span className="font-semibold text-gray-700 dark:text-gray-300">
-                            {summaryData.reduce(
-                              (max, row) => Math.max(max, row.machineCount),
-                              0
-                            )}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="px-4 py-4 text-center whitespace-nowrap sm:px-6 w-[120px]">
-                        {stats && (
-                          <div className="flex items-center justify-center gap-2">
-                            {(() => {
-                              // Calculate weighted average efficiency with safety checks
-                              const validRows = summaryData.filter(row => 
-                                !isNaN(row.averageEfficiency) && 
-                                row.averageEfficiency !== null && 
-                                row.averageEfficiency !== undefined
-                              );
-                              
-                              if (validRows.length === 0) {
+                          <TableCell className="px-4 py-4 text-center whitespace-nowrap sm:px-6">
+                            <div className="flex items-center justify-center gap-2">
+                              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                              <span className="text-gray-700 dark:text-gray-300">
+                                {row.machineCount}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="px-4 py-4 text-center whitespace-nowrap sm:px-6">
+                            <div className="flex items-center justify-center gap-2">
+                              {(() => {
+                                const efficiency = row.averageEfficiency;
+                                const isValidEfficiency = !isNaN(efficiency) && efficiency !== null && efficiency !== undefined;
+                                const displayEfficiency = isValidEfficiency ? efficiency : 0;
+                                
                                 return (
                                   <>
-                                    <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
-                                    <Badge className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300">
-                                      No Data
+                                    <div
+                                      className={`w-3 h-3 rounded-full ${getEfficiencyColorClass(displayEfficiency)}`}
+                                    ></div>
+                                    <Badge
+                                      className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${getEfficiencyBadgeClass(displayEfficiency)}`}
+                                    >
+                                      {isValidEfficiency ? displayEfficiency.toFixed(1) : "0.0"}%
                                     </Badge>
                                   </>
                                 );
-                              }
-                              
-                              const weightedSum = validRows.reduce((sum, row) => 
-                                sum + (row.averageEfficiency * row.machineCount), 0);
-                              const totalMachines = validRows.reduce((sum, row) => sum + row.machineCount, 0);
-                              
-                              const weightedAvgEff = totalMachines > 0 ? weightedSum / totalMachines : 0;
-                              const displayEfficiency = isNaN(weightedAvgEff) ? 0 : weightedAvgEff;
-                              
-                              return (
-                                <>
-                                  <div
-                                    className={`w-3 h-3 rounded-full ${getEfficiencyColorClass(
-                                      displayEfficiency
-                                    )}`}
-                                  ></div>
-                                  <Badge
-                                    className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${getEfficiencyBadgeClass(
-                                      displayEfficiency
-                                    )}`}
-                                  >
-                                    {displayEfficiency.toFixed(1)}%
-                                  </Badge>
-                                </>
-                              );
-                            })()}
-                          </div>
-                        )}
-                      </TableCell>
+                              })()}
+                            </div>
+                          </TableCell>
                         </TableRow>
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
-            </div>
+              
+              {/* Legend for the yarn type indicators */}
+              {showLegend && (
+                <div className="mt-4 px-4 py-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                  <div className="flex justify-between items-center mb-2">
+                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Legend</h4>
+                    <button 
+                      onClick={() => setShowLegend(false)}
+                      className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                    >
+                      Hide
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-x-6 gap-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">Current Machine Yarn Types</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">Historical Yarn Types</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-purple-600 dark:text-purple-400 font-medium">
+                        123.45<span className="text-xs text-purple-500 dark:text-purple-400">*</span>
+                      </span>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">Historical Production (previous machine config)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-1 py-0.5 text-[10px] rounded bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">H</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">Historical Yarn Type (no longer in use)</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Show legend button when hidden */}
+              {!showLegend && (
+                <div className="mt-4 text-center">
+                  <button 
+                    onClick={() => setShowLegend(true)}
+                    className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                  >
+                    Show Legend
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

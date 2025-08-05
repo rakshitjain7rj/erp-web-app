@@ -1,5 +1,5 @@
 import React from 'react';
-import YarnProductionSummary from '../YarnProductionSummary';
+import YarnProductionSummary from './YarnProductionSummary';
 
 const YarnSummary: React.FC = () => {
   // Simplified component that only renders the YarnProductionSummary

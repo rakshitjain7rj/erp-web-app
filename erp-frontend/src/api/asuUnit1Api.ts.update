@@ -1,0 +1,183 @@
+// Updates to the createProductionEntry function in erp-frontend/src/api/asuUnit1Api.ts
+
+// Create a new production entry
+createProductionEntry: async (
+  data: CreateProductionEntryData
+): Promise<ASUProductionEntry> => {
+  // Get the machine to access its productionAt100
+  const machines = await asuUnit1Api.getAllMachines(); // Use getAllMachines to get both active and inactive machines
+  const machine = machines.find(m => m.id === data.machineId);
+  
+  if (!machine) {
+    throw new Error('Machine not found');
+  }
+  
+  // Log detailed machine info for debugging
+  console.log(`Creating production entry for machine:`, machine);
+  console.log(`Machine details: ID=${machine.id}, machineNo=${machine.machineNo}, machine_number=${machine.machine_number}`);
+  console.log(`Day shift: ${data.dayShift}, Night shift: ${data.nightShift}`);
+  
+  // Always use the machine's productionAt100 value for consistency - never use the value from form data
+  let productionAt100Value = getProductionAt100(machine);
+  console.log(`Using machine.productionAt100: ${productionAt100Value} for production entry`);
+  
+  // Make sure we have a valid value
+  if (productionAt100Value <= 0) {
+    console.warn('No valid productionAt100 value found, falling back to default 400');
+    productionAt100Value = 400; // Fallback to a default value if nothing else works
+  }
+  
+  // Get the actual machine number from the machine object using our helper function
+  // This is critical for the foreign key constraint to work
+  const machineNumber = getMachineNumber(machine);
+  
+  if (!machineNumber) {
+    console.error('Machine has no valid machineNo value:', machine);
+    throw new Error('Machine must have a valid machine number. Please check the machine details and ensure it has a valid machine number.');
+  }
+  
+  console.log('Using machine number for production entry:', machineNumber);
+  
+  // Transform the data to match backend expectations
+  // Make absolutely sure we're using the correct machine number format
+  if (typeof machineNumber !== 'number' || isNaN(machineNumber) || machineNumber <= 0) {
+    throw new Error(`Invalid machine number: ${machineNumber}. Please check the machine configuration.`);
+  }
+  
+  // Double check that the machine number exists in the database
+  console.log(`Verifying machine number ${machineNumber} exists in the database`);
+  
+  // Convert nightShift to a number and ensure it's properly handled
+  // Use parseFloat for consistency with frontend
+  const nightShiftValue = parseFloat(String(data.nightShift)) || 0;
+  
+  console.log('Night shift value in API:', {
+    originalValue: data.nightShift,
+    originalType: typeof data.nightShift,
+    parsedValue: nightShiftValue,
+    parsedType: typeof nightShiftValue
+  });
+  
+  // Create entries only when there's actual production
+  const entriesToCreate = [];
+  
+  // Use the provided yarn type or fall back to the machine's yarn type
+  const entryYarnType = data.yarnType || machine.yarnType || 'Cotton';
+  console.log(`Using yarn type for production entry: ${entryYarnType}`);
+  
+  if (data.dayShift > 0) {
+    entriesToCreate.push({
+      machineNumber: machineNumber,
+      date: data.date,
+      shift: 'day',
+      actualProduction: parseFloat(String(data.dayShift)),
+      theoreticalProduction: productionAt100Value,
+      yarnType: entryYarnType // Explicitly pass the yarn type to backend
+    });
+  }
+  
+  if (nightShiftValue > 0) {
+    entriesToCreate.push({
+      machineNumber: machineNumber,
+      date: data.date,
+      shift: 'night',
+      actualProduction: nightShiftValue,
+      theoreticalProduction: productionAt100Value,
+      yarnType: entryYarnType // Explicitly pass the yarn type to backend
+    });
+  }
+  
+  console.log('Entries to create:', entriesToCreate);
+  
+  if (entriesToCreate.length === 0) {
+    throw new Error('At least one shift (day or night) must have a production value greater than 0');
+  }
+  
+  try {
+    const responses = [];
+    
+    // Create each entry one by one
+    for (const entry of entriesToCreate) {
+      console.log(`Creating ${entry.shift} entry:`, entry);
+      try {
+        const response = await api.post('/production-entries', entry);
+        console.log(`${entry.shift} entry created successfully:`, response.data);
+        responses.push(response);
+      } catch (error: any) {
+        console.error(`Error creating ${entry.shift} entry:`, error);
+        if (error.response) {
+          console.error('Error response:', error.response.data);
+        }
+        throw new Error(`Failed to create ${entry.shift} entry: ${error.response?.data?.error || error.message}`);
+      }
+    }
+    
+    // Return the first successful response
+    const firstResponse = responses[0];
+    return firstResponse.data.success ? firstResponse.data.data : firstResponse.data;
+  } catch (error) {
+    console.error('Error creating production entry:', error);
+    
+    // Better error diagnostic for foreign key violations
+    if (error && typeof error === 'object' && 'response' in error &&
+        error.response && typeof error.response === 'object') {
+          
+      // Type assertion for better TypeScript support
+      const errorResponse = error.response as any;
+          
+      // Log detailed error information for debugging
+      console.error('API Response Error:', {
+        status: errorResponse.status,
+        statusText: errorResponse.statusText,
+        data: errorResponse.data
+      });
+      
+      // Handle specific error types
+      if (errorResponse.status === 409) {
+        // Extract specific error for duplicate entries
+        throw error;
+      } else if (errorResponse.status === 400 || errorResponse.status === 500) {
+        // Check if this is a foreign key violation or missing table error
+        const responseData = errorResponse.data;
+        const errorText = typeof responseData === 'string' ? responseData : 
+                         (responseData && typeof responseData === 'object' && 'error' in responseData) ? 
+                         responseData.error : JSON.stringify(responseData);
+        
+        // Check for machine_configurations table missing error (should be resolved now)
+        if (typeof errorText === 'string' && errorText.includes('relation "machine_configurations" does not exist')) {
+          // This error should not occur anymore since we created the table
+          console.error('machine_configurations table still missing despite migration. Please check database setup.');
+          throw new Error('Database configuration error: machine_configurations table missing. Please contact system administrator.');
+        }
+        
+        // Handle machine_configurations table missing error (should be resolved now)
+        if (typeof errorText === 'string' && errorText.includes('relation "machine_configurations" does not exist')) {
+          // This error should not occur anymore since we created the table
+          console.error('machine_configurations table still missing despite migration. Please check database setup.');
+          throw new Error('Database configuration error: machine_configurations table missing. Please contact system administrator.');
+        }
+        
+        // Handle normal foreign key violation errors
+        if (typeof errorText === 'string' && 
+            (errorText.includes('foreign key constraint') || 
+             errorText.includes('asu_production_entries_machine_no_fkey'))) {
+          throw new Error(`Machine number mismatch: The machine number doesn't match any existing machine. Please check the machine configuration or try selecting a different machine.`);
+        }
+      }
+    }
+    
+    // Extract error message with proper type handling
+    let errorMessage = 'Failed to create production entry';
+    
+    if (error && typeof error === 'object' && 'response' in error) {
+      const errorResponse = error.response as any;
+      if (errorResponse && typeof errorResponse === 'object' && 'data' in errorResponse &&
+          errorResponse.data && typeof errorResponse.data === 'object' && 'error' in errorResponse.data) {
+        const responseError = errorResponse.data.error;
+        errorMessage = typeof responseError === 'string' ? responseError : 'Failed to create production entry';
+      }
+    }
+    
+    throw new Error(errorMessage);
+  }
+}

@@ -1,0 +1,95 @@
+// Modified part of getProductionEntries that transforms the data
+
+// Group entries by date and machine
+rawEntries.forEach((entry: any) => {
+  const key = `${entry.date}_${entry.machineNumber}`;
+  console.log('Processing entry:', entry);
+  console.log('Entry keys:', Object.keys(entry));
+  console.log('Entry.actualProduction:', entry.actualProduction);
+  console.log('entry.actualProduction:', entry.actualProduction);
+  console.log('Entry shift:', entry.shift);
+  console.log('Entry yarnType:', entry.yarnType); // Log the yarn type from the API
+  
+  if (!entriesByDateAndMachine[key]) {
+    // Initialize the combined entry
+    entriesByDateAndMachine[key] = {
+      id: entry.id, // Use the first entry's ID by default
+      originalId: entry.id, // Keep the original backend ID for reference
+      machineId: entry.machineNumber,
+      date: entry.date,
+      dayShift: 0,
+      nightShift: 0,
+      total: 0,
+      percentage: 0,
+      createdAt: entry.createdAt,
+      updatedAt: entry.updatedAt,
+      // Always use the entry's specific yarn type first if available,
+      // NOT the machine's current yarn type
+      yarnType: entry.yarnType || (entry.machine ? entry.machine.yarnType : 'Cotton'),
+      // Make sure we keep a reference to the machine
+      machine: entry.machine 
+    };
+  } else if (entry.yarnType && !entriesByDateAndMachine[key].yarnType) {
+    // If we already have an entry but no yarn type yet, and this entry has one, use it
+    entriesByDateAndMachine[key].yarnType = entry.yarnType;
+  }
+  
+  // Get the production value - check multiple possible field names
+  const rawProd = entry.actualProduction || entry.production || 0;
+  // Use Number instead of parseFloat to better handle zero values
+  const productionValue = typeof rawProd === 'string' ? Number(rawProd) : Number(rawProd || 0);
+
+  console.log(`Processing production value for ${entry.shift} shift: 
+    - Raw value: ${rawProd}
+    - Type: ${typeof rawProd}
+    - Converted value: ${productionValue}
+    - Converted type: ${typeof productionValue}`);
+  
+  // Add the production value to the appropriate shift and store the ID
+  if (entry.shift === 'day') {
+    entriesByDateAndMachine[key].dayShift = productionValue;
+    entriesByDateAndMachine[key].dayShiftId = entry.id; // Store day shift entry ID
+    console.log(`Set dayShift to ${productionValue} for ${key}`);
+    // If this is the first entry we see for this key, use its ID as the main ID
+    if (!entriesByDateAndMachine[key].id) {
+      entriesByDateAndMachine[key].id = entry.id;
+    }
+  } else if (entry.shift === 'night') {
+    // Extra logging for night shift values
+    console.log(`NIGHT SHIFT VALUE PROCESSING - Entry ID ${entry.id}, Date ${entry.date}:`, {
+      rawProd,
+      productionValue,
+      entryActualProduction: entry.actualProduction,
+      entryProduction: entry.production,
+      convertedValue: productionValue,
+      entryObject: entry
+    });
+    
+    // Ensure it's a proper number by using parseFloat
+    const nightShiftValue = parseFloat(String(rawProd)) || 0;
+    
+    console.log(`SETTING NIGHT SHIFT for ${key}: ${nightShiftValue} (original: ${rawProd})`);
+    
+    entriesByDateAndMachine[key].nightShift = nightShiftValue;
+    entriesByDateAndMachine[key].nightShiftId = entry.id; // Store night shift entry ID
+    console.log(`Set nightShift to ${nightShiftValue} for ${key} (type: ${typeof nightShiftValue})`);
+    
+    // Log the current state of the entry
+    console.log(`Current entry state for ${key}:`, entriesByDateAndMachine[key]);
+    
+    // If this is the first entry we see for this key, use its ID as the main ID
+    if (!entriesByDateAndMachine[key].id) {
+      entriesByDateAndMachine[key].id = entry.id;
+    }
+  }
+  
+  // Always update the machine data to ensure we have it
+  if (entry.machine) {
+    // Only update if we don't have machine data yet or if this machine data is more complete
+    if (!entriesByDateAndMachine[key].machine || 
+        (entry.machine.productionAt100 && !entriesByDateAndMachine[key].machine.productionAt100)) {
+      console.log(`Updating machine data for ${key} with:`, entry.machine);
+      entriesByDateAndMachine[key].machine = { ...entry.machine };
+    }
+  }
+});

@@ -105,11 +105,13 @@ const createProductionEntry = async (req, res) => {
       shift, 
       actualProduction, 
       theoreticalProduction, 
-      remarks 
+      remarks,
+      yarnType // Added yarnType parameter
     } = req.body;
 
     console.log('Creating production entry with data:', req.body);
     console.log('actualProduction value:', actualProduction, 'type:', typeof actualProduction);
+    console.log('yarnType value:', yarnType);
 
     if (!machineNumber || !date || !shift) {
       return res.status(400).json({ 
@@ -131,6 +133,7 @@ const createProductionEntry = async (req, res) => {
       // Find the machine to get productionAt100 if theoreticalProduction is not provided
       let finalTheoreticalProduction = theoreticalProduction;
       let machine = null;
+      let machineYarnType = null;
       
       // Find the machine
       try {
@@ -149,6 +152,8 @@ const createProductionEntry = async (req, res) => {
         if (machine.productionAt100) {
           finalTheoreticalProduction = machine.productionAt100;
         }
+        
+        machineYarnType = machine.yarnType || 'Cotton';
       } catch (error) {
         console.error('Error finding machine for theoretical production:', error);
         throw error;
@@ -181,6 +186,8 @@ const createProductionEntry = async (req, res) => {
         machineNumber: parseInt(machineNumber),
         date,
         shift,
+        // Use provided yarnType or fall back to machine's yarnType
+        yarnType: yarnType || machineYarnType || 'Cotton',
         actualProduction: actualProduction !== undefined && actualProduction !== null ? parseFloat(actualProduction) : 0,
         theoreticalProduction: finalTheoreticalProduction ? parseFloat(finalTheoreticalProduction) : null,
         efficiency,
@@ -192,6 +199,7 @@ const createProductionEntry = async (req, res) => {
         machineNumber: entry.machineNumber,
         date: entry.date,
         shift: entry.shift,
+        yarnType: entry.yarnType,
         actualProduction: entry.actualProduction,
         type: typeof entry.actualProduction
       });
@@ -264,7 +272,7 @@ const createProductionEntry = async (req, res) => {
 const updateProductionEntry = async (req, res) => {
   try {
     const { id } = req.params;
-    const { actualProduction, theoreticalProduction, remarks } = req.body;
+    const { actualProduction, theoreticalProduction, remarks, yarnType, date } = req.body;
 
     const entry = await ASUProductionEntry.findByPk(id);
 
@@ -309,6 +317,18 @@ const updateProductionEntry = async (req, res) => {
       if (actualProduction !== undefined) updateData.actualProduction = newActual;
       if (theoreticalProduction !== undefined) updateData.theoreticalProduction = newTheoretical;
       if (remarks !== undefined) updateData.remarks = remarks;
+      if (date !== undefined) updateData.date = date;
+      
+      // IMPORTANT: Add yarnType to the update data if provided
+      if (yarnType !== undefined) {
+        console.log(`Updating yarnType to: ${yarnType}`);
+        updateData.yarnType = yarnType;
+      } else if (!entry.yarnType && machine) {
+        // If entry doesn't have a yarnType, set it from the machine
+        console.log(`Entry has no yarnType, setting from machine: ${machine.yarnType}`);
+        updateData.yarnType = machine.yarnType || 'Cotton';
+      }
+      
       updateData.efficiency = efficiency;
 
       await entry.update(updateData, { transaction: t });

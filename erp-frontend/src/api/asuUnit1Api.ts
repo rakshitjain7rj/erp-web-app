@@ -154,6 +154,7 @@ export interface ASUProductionEntry {
   createdAt: string;
   updatedAt: string;
   machine?: ASUMachine;
+  yarnType: string;      // The yarn type explicitly associated with this production entry
   
   // Backend original fields that may be present
   machineNumber?: number;
@@ -173,12 +174,14 @@ export interface CreateProductionEntryData {
   dayShift: number;
   nightShift: number;
   productionAt100?: number; // Optional, as it's determined by the machine configuration
+  yarnType: string;         // Required to track yarn type explicitly with production entries
 }
 
 export interface UpdateProductionEntryData {
   dayShift?: number;
   nightShift?: number;
   date?: string;
+  yarnType: string;  // Required to ensure yarn type is always associated with entries
 }
 
 export interface ProductionStats {
@@ -505,6 +508,8 @@ export const asuUnit1Api = {
             percentage: 0,
             createdAt: entry.createdAt,
             updatedAt: entry.updatedAt,
+            // Preserve the yarn type from the entry if available
+            yarnType: entry.yarnType || entry.machine?.yarnType,
             // Make sure we keep a reference to the machine
             machine: entry.machine 
           };
@@ -732,13 +737,18 @@ export const asuUnit1Api = {
     // Create entries only when there's actual production
     const entriesToCreate = [];
     
+    // Use the provided yarn type or fall back to the machine's yarn type
+    const entryYarnType = data.yarnType || machine.yarnType || 'Cotton';
+    console.log(`Using yarn type for production entry: ${entryYarnType}`);
+    
     if (data.dayShift > 0) {
       entriesToCreate.push({
         machineNumber: machineNumber,
         date: data.date,
         shift: 'day',
         actualProduction: parseFloat(String(data.dayShift)),
-        theoreticalProduction: productionAt100Value
+        theoreticalProduction: productionAt100Value,
+        yarnType: entryYarnType
       });
     }
     
@@ -748,7 +758,8 @@ export const asuUnit1Api = {
         date: data.date,
         shift: 'night',
         actualProduction: nightShiftValue,
-        theoreticalProduction: productionAt100Value
+        theoreticalProduction: productionAt100Value,
+        yarnType: entryYarnType
       });
     }
     
@@ -879,7 +890,8 @@ export const asuUnit1Api = {
       // Prepare the update data based on the shift
       const updateData = {
         date: data.date || existingEntry.date,
-        actualProduction: productionValue
+        actualProduction: productionValue,
+        yarnType: data.yarnType || existingEntry.yarnType
       };
       
       console.log('Sending update data to API:', updateData);

@@ -23,11 +23,16 @@ const DailyProduction: React.FC = () => {
   const [selectedMachine, setSelectedMachine] = useState<ASUMachine | null>(null);
   const [loading, setLoading] = useState(false);
   const [editingEntry, setEditingEntry] = useState<EditingEntry | null>(null);
+  // Add state for historical yarn type data
+  const [machineYarnHistory, setMachineYarnHistory] = useState<{
+    [machineId: number]: {date: string, yarnType: string}[]
+  }>({});
   const [formData, setFormData] = useState<CreateProductionEntryData>({
     machineId: 0,
     date: new Date().toISOString().split('T')[0],
     dayShift: 0,
     nightShift: 0,
+    yarnType: '', // Include the current machine's yarn type
     // productionAt100 is not needed in the form as it comes from machine configuration
     productionAt100: 0 // Kept for backward compatibility only
   });
@@ -65,6 +70,76 @@ const DailyProduction: React.FC = () => {
     );
   };
 
+  // Function to load machine yarn history from localStorage
+  const loadMachineYarnHistory = useCallback(() => {
+    try {
+      const savedHistory = localStorage.getItem('machineYarnHistory');
+      if (savedHistory) {
+        const parsedHistory = JSON.parse(savedHistory);
+        console.log('Loaded machine yarn history from localStorage:', parsedHistory);
+        setMachineYarnHistory(parsedHistory);
+      }
+    } catch (error) {
+      console.error('Error loading machine yarn history:', error);
+    }
+  }, []);
+
+  // Function to save machine yarn history to localStorage
+  const saveMachineYarnHistory = useCallback((history: {[machineId: number]: {date: string, yarnType: string}[]}) => {
+    try {
+      localStorage.setItem('machineYarnHistory', JSON.stringify(history));
+      console.log('Saved machine yarn history to localStorage:', history);
+    } catch (error) {
+      console.error('Error saving machine yarn history:', error);
+    }
+  }, []);
+
+  // Helper function to find historical yarn type for a specific date and machine
+  const findHistoricalYarnType = (machineId: number, date: string): string | undefined => {
+    // If no machine ID or date provided, return undefined
+    if (!machineId || !date) return undefined;
+    
+    try {
+      // Check if this machine has history entries
+      if (!machineYarnHistory[machineId] || machineYarnHistory[machineId].length === 0) {
+        return undefined;
+      }
+      
+      // Find machine configuration history for this specific date
+      const exactMatch = machineYarnHistory[machineId].find(entry => entry.date === date);
+      if (exactMatch) {
+        return exactMatch.yarnType;
+      }
+      
+      // If no exact match, find the most recent history entry before this date
+      const entryDate = new Date(date);
+      
+      // Sort history by date in descending order (newest first)
+      const sortedHistory = [...machineYarnHistory[machineId]].sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+      
+      // Find the most recent configuration before or on the entry date
+      for (const historyEntry of sortedHistory) {
+        const historyDate = new Date(historyEntry.date);
+        if (historyDate <= entryDate) {
+          return historyEntry.yarnType;
+        }
+      }
+      
+      // If all history entries are after this date, use the oldest history entry
+      // This is a fallback option
+      const oldestEntry = [...machineYarnHistory[machineId]].sort(
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+      )[0];
+      
+      return oldestEntry?.yarnType;
+    } catch (error) {
+      console.error("Error finding historical yarn type:", error);
+      return undefined;
+    }
+  };
+
   const loadProductionEntries = useCallback(async () => {
     if (!selectedMachine) return;
     
@@ -75,7 +150,8 @@ const DailyProduction: React.FC = () => {
       console.log('Loading production entries for machine:', {
         id: selectedMachine.id,
         machineNo: selectedMachine.machineNo,
-        machine_number: selectedMachine.machine_number
+        machine_number: selectedMachine.machine_number,
+        yarnType: selectedMachine.yarnType
       });
       
       // Make sure the selected machine has a valid machineNo
@@ -91,19 +167,77 @@ const DailyProduction: React.FC = () => {
       // Add debug logging to verify data integrity
       console.log('Loaded production entries:', data.items);
       
-      // Debug night shift values specifically
-      data.items.forEach((entry: ASUProductionEntry) => {
-        console.log(`Final verified entry for date ${entry.date}:`, {
-          id: entry.id,
-          dayShift: entry.dayShift,
-          nightShift: entry.nightShift,
-          nightShiftType: typeof entry.nightShift,
-          total: entry.total,
-          originalEntry: entry
-        });
-      });
+      // Update yarn history if not already present for this machine
+      if (selectedMachine.yarnType && (!machineYarnHistory[selectedMachine.id] || machineYarnHistory[selectedMachine.id].length === 0)) {
+        // If we don't have any history for this machine, create an initial history entry with today's date
+        const newHistory = {
+          ...machineYarnHistory,
+          [selectedMachine.id]: [
+            { date: new Date().toISOString().split('T')[0], yarnType: selectedMachine.yarnType }
+          ]
+        };
+        setMachineYarnHistory(newHistory);
+        saveMachineYarnHistory(newHistory);
+        console.log(`Created initial yarn history for machine ${selectedMachine.id}:`, newHistory[selectedMachine.id]);
+      }
       
-      // Sort entries by date in descending order (newest first)
+        // Process entries to enhance with historical yarn type data
+        data.items.forEach((entry: ASUProductionEntry) => {
+          // Log entry details
+          console.log(`Processing entry for date ${entry.date}:`, {
+            id: entry.id,
+            machineId: entry.machineId,
+            dayShift: entry.dayShift,
+            nightShift: entry.nightShift,
+            nightShiftType: typeof entry.nightShift,
+            total: entry.total,
+            yarnType: entry.yarnType, // Log the entry's own yarn type if present
+            machineYarnType: entry.machine?.yarnType // Log machine's current yarn type
+          });
+          
+          // IMPORTANT: If the entry has its own yarn type, prioritize it over machine's yarn type
+          // This ensures historical accuracy
+          if (entry.yarnType && entry.machineId) {
+            console.log(`Entry has its own yarn type: ${entry.yarnType} for date ${entry.date}`);
+            
+            // Still maintain history for backward compatibility
+            const machineHistory = machineYarnHistory[entry.machineId] || [];
+            const existingEntry = machineHistory.find(h => h.date === entry.date);
+            
+            if (!existingEntry) {
+              console.log(`Adding entry's yarn type ${entry.yarnType} to history for date ${entry.date}`);
+              const newMachineHistory = [
+                ...machineHistory,
+                { date: entry.date, yarnType: entry.yarnType }
+              ];
+              
+              const newHistory = {
+                ...machineYarnHistory,
+                [entry.machineId]: newMachineHistory
+              };
+              
+              setMachineYarnHistory(newHistory);
+              saveMachineYarnHistory(newHistory);
+            }
+          }
+          // Only fall back to machine yarn type if entry doesn't have one
+          else if (entry.machine?.yarnType && !entry.yarnType && !findHistoricalYarnType(entry.machineId, entry.date)) {
+            console.log(`Entry missing yarn type, adding machine's yarn type for date ${entry.date}:`, entry.machine.yarnType);
+            const machineHistory = machineYarnHistory[entry.machineId] || [];
+            const newMachineHistory = [
+              ...machineHistory,
+              { date: entry.date, yarnType: entry.machine.yarnType }
+            ];
+            
+            const newHistory = {
+              ...machineYarnHistory,
+              [entry.machineId]: newMachineHistory
+            };
+            
+            setMachineYarnHistory(newHistory);
+            saveMachineYarnHistory(newHistory);
+          }
+        });      // Sort entries by date in descending order (newest first)
       const sortedEntries = sortEntriesByDate(data.items);
       
       setProductionEntries(sortedEntries);
@@ -113,7 +247,7 @@ const DailyProduction: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedMachine]);
+  }, [selectedMachine, machineYarnHistory, saveMachineYarnHistory]);
 
   const loadStats = async () => {
     try {
@@ -128,7 +262,8 @@ const DailyProduction: React.FC = () => {
   useEffect(() => {
     loadMachines();
     loadStats();
-  }, [loadMachines]);
+    loadMachineYarnHistory(); // Load saved yarn history from localStorage
+  }, [loadMachines, loadMachineYarnHistory]);
 
   // Load production entries when machine is selected
   useEffect(() => {
@@ -141,7 +276,7 @@ const DailyProduction: React.FC = () => {
     // Handle empty selection or "no-machines" placeholder
     if (!machineId || machineId === "no-machines") {
       setSelectedMachine(null);
-      setFormData(prev => ({ ...prev, machineId: 0 }));
+      setFormData(prev => ({ ...prev, machineId: 0, yarnType: '' }));
       return;
     }
     
@@ -150,13 +285,38 @@ const DailyProduction: React.FC = () => {
     
     if (machine) {
       console.log("Machine selected:", machine);
+      
+      // Check if this is a different machine than the previously selected one
+      const isNewMachine = !selectedMachine || selectedMachine.id !== machine.id;
+      
+      // Update selected machine
       setSelectedMachine(machine);
       
-      // Update form with machine ID - productionAt100 will come from the API
+      // Update form with machine ID and current yarn type (not historical)
       setFormData(prev => ({ 
         ...prev, 
-        machineId: machineIdNum
+        machineId: machineIdNum,
+        yarnType: machine.yarnType || 'Cotton' // Always use current machine yarn type
       }));
+      
+      // If this is a new machine selection and it has a yarn type, make sure we have history for it
+      if (isNewMachine && machine.yarnType) {
+        // Check if we already have history for this machine
+        if (!machineYarnHistory[machine.id] || machineYarnHistory[machine.id].length === 0) {
+          // Create initial history with today's date
+          const today = new Date().toISOString().split('T')[0];
+          const newHistory = {
+            ...machineYarnHistory,
+            [machine.id]: [
+              { date: today, yarnType: machine.yarnType }
+            ]
+          };
+          
+          setMachineYarnHistory(newHistory);
+          saveMachineYarnHistory(newHistory);
+          console.log(`Created initial yarn history for machine ${machine.id}:`, newHistory[machine.id]);
+        }
+      }
       
       console.log(`Machine selected: ${machineIdNum}`);
     } else {
@@ -185,6 +345,53 @@ const DailyProduction: React.FC = () => {
       // This helps prevent the "Missing productionAt100" error
       const prodAt100Value = getProductionAt100({ machine: selectedMachine } as ASUProductionEntry, selectedMachine);
       
+      // For NEW production entries, ALWAYS use the current machine configuration's yarn type
+      // This ensures that when machine configurations change, new entries reflect the current state
+      const entryYarnType = selectedMachine.yarnType || 'Cotton';
+      
+      console.log('Creating new production entry with current machine yarn type:', {
+        machineId: selectedMachine.id,
+        currentMachineYarnType: selectedMachine.yarnType,
+        entryYarnType,
+        date: formData.date
+      });
+      
+      // Add yarn type history entry for this date with current machine configuration
+      const machineHistory = machineYarnHistory[selectedMachine.id] || [];
+      
+      // Check if we already have an entry for this exact date
+      const existingHistoryEntry = machineHistory.find(h => h.date === formData.date);
+      
+      if (!existingHistoryEntry) {
+        const newMachineHistory = [
+          ...machineHistory,
+          { date: formData.date, yarnType: entryYarnType }
+        ];
+        
+        const newHistory = {
+          ...machineYarnHistory,
+          [selectedMachine.id]: newMachineHistory
+        };
+        
+        setMachineYarnHistory(newHistory);
+        saveMachineYarnHistory(newHistory);
+        console.log(`Added yarn type history for date ${formData.date}:`, entryYarnType);
+      } else {
+        // Update existing history entry with current machine yarn type
+        const updatedHistory = machineHistory.map(h => 
+          h.date === formData.date ? { ...h, yarnType: entryYarnType } : h
+        );
+        
+        const newHistory = {
+          ...machineYarnHistory,
+          [selectedMachine.id]: updatedHistory
+        };
+        
+        setMachineYarnHistory(newHistory);
+        saveMachineYarnHistory(newHistory);
+        console.log(`Updated yarn type history for date ${formData.date}:`, entryYarnType);
+      }
+      
       // Explicitly convert night shift value to ensure it's properly handled
       // Full detailed logging of night shift value processing
       const rawNightShift = formData.nightShift;
@@ -204,12 +411,65 @@ const DailyProduction: React.FC = () => {
         isFalsy: !nightShiftValue
       });
       
+      // Check if there's already an entry for this date and machine
+      const existingEntries = productionEntries.filter(entry => 
+        entry.machineId === selectedMachine.id && entry.date === formData.date
+      );
+      
+      if (existingEntries.length > 0) {
+        // Entry already exists, ask user if they want to update instead
+        const confirm = window.confirm(
+          `A production entry for ${selectedMachine.machineName || 'Machine ' + selectedMachine.machineNo} on ${formData.date} already exists. Do you want to update it instead?`
+        );
+        
+        if (confirm) {
+          // Update the existing entry
+          const existingEntry = existingEntries[0];
+          
+          // For updates, use current machine yarn type to reflect any configuration changes
+          const entryYarnType = selectedMachine.yarnType || 'Cotton';
+          
+          const updateData = {
+            dayShift: parseFloat(String(formData.dayShift)) || 0,
+            nightShift: nightShiftValue,
+            productionAt100: prodAt100Value || 87,
+            yarnType: entryYarnType // Use current machine yarn type for updates
+          };
+          
+          console.log('Updating existing entry:', existingEntry.id, updateData);
+          
+          await asuUnit1Api.updateProductionEntry(existingEntry.id, updateData);
+          toast.success('Production entry updated successfully');
+          await loadProductionEntries();
+          
+          // Reset form with current machine yarn type
+          setFormData({
+            machineId: selectedMachine.id,
+            date: new Date().toISOString().split('T')[0],
+            dayShift: 0,
+            nightShift: 0,
+            yarnType: selectedMachine.yarnType || 'Cotton', // Use current machine yarn type
+            productionAt100: 0
+          });
+          
+          setLoading(false);
+          return;
+        } else {
+          // User chose not to update, cancel submission
+          toast.error('Form submission cancelled');
+          setLoading(false);
+          return;
+        }
+      }
+      
       const submissionData = {
         machineId: formData.machineId,
         date: formData.date,
         dayShift: parseFloat(String(formData.dayShift)) || 0,
         nightShift: nightShiftValue,
-        productionAt100: prodAt100Value || 87 // Use our helper with a fallback value of 87
+        productionAt100: prodAt100Value || 87, 
+        // Include yarn type explicitly for historical record - use historical yarn type if available
+        yarnType: entryYarnType
       };
       
       console.log('Creating production entry with data:', submissionData);
@@ -225,7 +485,8 @@ const DailyProduction: React.FC = () => {
       console.log('Machine number info:', {
         machineNo: selectedMachine.machineNo,
         machine_number: selectedMachine.machine_number,
-        productionAt100: prodAt100Value
+        productionAt100: prodAt100Value,
+        yarnType: selectedMachine.yarnType
       });
       
       // CRITICAL DEBUG: Log the exact data being sent to the API
@@ -239,12 +500,13 @@ const DailyProduction: React.FC = () => {
       
       toast.success('Production entry created successfully');
       
-      // Reset the form data after submission
+      // Reset the form data after submission with current machine yarn type
       setFormData({
         machineId: selectedMachine.id,
         date: new Date().toISOString().split('T')[0],
         dayShift: 0,
         nightShift: 0,
+        yarnType: selectedMachine.yarnType || 'Cotton', // Use current machine yarn type
         productionAt100: 0  // This field is only kept for API compatibility
       });
       
@@ -295,20 +557,33 @@ const DailyProduction: React.FC = () => {
     try {
       setLoading(true);
       
+      // Find the original entry to get its yarn type
+      const originalEntry = productionEntries.find(entry => entry.id === editingEntry.id);
+      
+      // Get the yarn type from the original entry, or use a fallback
+      const yarnTypeToUse = 
+        originalEntry?.yarnType || 
+        findHistoricalYarnType(originalEntry?.machineId || 0, editingEntry.date) || 
+        selectedMachine?.yarnType || 
+        'Cotton';
+      
       // Log the values before sending to API
       console.log('Saving edited entry:', {
         id: editingEntry.id,
         dayShift: editingEntry.dayShift,
         nightShift: editingEntry.nightShift,
         dayShiftType: typeof editingEntry.dayShift,
-        nightShiftType: typeof editingEntry.nightShift
+        nightShiftType: typeof editingEntry.nightShift,
+        yarnType: yarnTypeToUse
       });
       
       // Ensure values are properly formatted as numbers
       const dataToUpdate = {
         dayShift: parseFloat(String(editingEntry.dayShift)) || 0,
         nightShift: parseFloat(String(editingEntry.nightShift)) || 0,
-        date: editingEntry.date
+        date: editingEntry.date,
+        // Include the original yarn type in the update
+        yarnType: yarnTypeToUse
       };
       
       console.log('Sending update data:', dataToUpdate);
@@ -429,6 +704,23 @@ const DailyProduction: React.FC = () => {
     } else {
       return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
     }
+  };
+
+  // Helper function to format yarn type display
+  const formatYarnType = (yarnType: string | undefined): string => {
+    if (!yarnType) return 'Unknown';
+    
+    // Format the yarn type to look better (capitalize first letter of each word)
+    return yarnType
+      .split(' ')
+      .map(word => {
+        // Special case for common abbreviations that should be uppercase
+        if (['pp', 'cvc', 'pc'].includes(word.toLowerCase())) {
+          return word.toUpperCase();
+        }
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+      })
+      .join(' ');
   };
 
   return (
@@ -601,6 +893,107 @@ const DailyProduction: React.FC = () => {
                       </div>
                     </div>
 
+                    {/* Yarn Type History Section */}
+                    <div className="lg:col-span-2">
+                      <div className="p-4 mb-5 border border-purple-100 rounded-lg bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 dark:border-purple-800/30">
+                        <div className="flex justify-between items-center mb-3">
+                          <h4 className="text-sm font-semibold text-purple-800 dark:text-purple-300">Yarn Type History</h4>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="text-xs bg-white dark:bg-gray-800"
+                            onClick={() => {
+                              // Add a new entry with today's date and current yarn type
+                              if (!selectedMachine?.id || !selectedMachine?.yarnType) return;
+                              
+                              const today = new Date().toISOString().split('T')[0];
+                              const machineId = selectedMachine.id;
+                              const yarnType = selectedMachine.yarnType;
+                              
+                              // Create a new history entry
+                              const machineHistory = machineYarnHistory[machineId] || [];
+                              const newMachineHistory = [
+                                ...machineHistory,
+                                { date: today, yarnType }
+                              ];
+                              
+                              const newHistory = {
+                                ...machineYarnHistory,
+                                [machineId]: newMachineHistory
+                              };
+                              
+                              setMachineYarnHistory(newHistory);
+                              saveMachineYarnHistory(newHistory);
+                              toast.success(`Added yarn type "${yarnType}" for today's date`);
+                            }}
+                          >
+                            Add Current Yarn
+                          </Button>
+                        </div>
+                        
+                        {selectedMachine?.id && machineYarnHistory[selectedMachine.id] && machineYarnHistory[selectedMachine.id].length > 0 ? (
+                          <div className="max-h-40 overflow-y-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b border-purple-200 dark:border-purple-800/30">
+                                  <th className="px-2 py-1 text-left text-xs font-medium text-purple-700 dark:text-purple-300">Date</th>
+                                  <th className="px-2 py-1 text-left text-xs font-medium text-purple-700 dark:text-purple-300">Yarn Type</th>
+                                  <th className="px-2 py-1 text-right text-xs font-medium text-purple-700 dark:text-purple-300">Action</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {machineYarnHistory[selectedMachine.id]
+                                  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) // Sort by date, newest first
+                                  .map((entry, index) => (
+                                    <tr key={`${entry.date}-${index}`} className="border-b border-purple-100 dark:border-purple-800/20">
+                                      <td className="px-2 py-1 text-gray-700 dark:text-gray-300">
+                                        {new Date(entry.date).toLocaleDateString()}
+                                      </td>
+                                      <td className="px-2 py-1 font-medium text-purple-700 dark:text-purple-300">
+                                        {formatYarnType(entry.yarnType)}
+                                      </td>
+                                      <td className="px-2 py-1 text-right">
+                                        <button 
+                                          className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                                          onClick={() => {
+                                            // Remove this entry from history
+                                            if (!selectedMachine?.id) return;
+                                            
+                                            const machineId = selectedMachine.id;
+                                            const machineHistory = [...(machineYarnHistory[machineId] || [])];
+                                            
+                                            // Remove the entry at this index
+                                            machineHistory.splice(index, 1);
+                                            
+                                            const newHistory = {
+                                              ...machineYarnHistory,
+                                              [machineId]: machineHistory
+                                            };
+                                            
+                                            setMachineYarnHistory(newHistory);
+                                            saveMachineYarnHistory(newHistory);
+                                            toast.success("Removed yarn type history entry");
+                                          }}
+                                          title="Delete this history entry"
+                                        >
+                                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                                          </svg>
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-2">
+                            No yarn type history available for this machine
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
                     <div>
                       <Label htmlFor="date" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Date</Label>
                       <Input
@@ -750,6 +1143,7 @@ const DailyProduction: React.FC = () => {
                 <TableHeader className="bg-gray-50 dark:bg-gray-800">
                   <TableRow className="border-b dark:border-gray-700">
                     <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400">Date</TableHead>
+                    <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400">Yarn Type</TableHead>
                     <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400">Day Shift</TableHead>
                     <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400">Night Shift</TableHead>
                     <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400">Total</TableHead>
@@ -773,6 +1167,53 @@ const DailyProduction: React.FC = () => {
                             {new Date(entry.date).toLocaleDateString()}
                           </span>
                         )}
+                      </TableCell>
+                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
+                        <div className="flex items-center">
+                          {(() => {
+                            // Determine which yarn type to display
+                            let displayYarnType = 'Cotton'; // Default to Cotton
+                            
+                            // First check if the entry has its own yarnType field (most reliable source)
+                            if (entry.yarnType) {
+                              // Entry has its own yarn type (explicitly saved with the entry)
+                              displayYarnType = entry.yarnType;
+                              console.log(`Using entry's own yarn type: ${displayYarnType}`);
+                            } else {
+                              // Try to find a historical yarn type for this date
+                              const historicalYarnType = findHistoricalYarnType(entry.machineId, entry.date);
+                              
+                              if (historicalYarnType) {
+                                displayYarnType = historicalYarnType;
+                                console.log(`Using historical yarn type: ${displayYarnType}`);
+                              } else {
+                                // Fall back to machine's current yarn type
+                                displayYarnType = entry.machine?.yarnType || selectedMachine?.yarnType || 'Cotton';
+                                console.log(`Using machine's current yarn type: ${displayYarnType}`);
+                              }
+                            }
+                            
+                            // Current yarn type from machine
+                            const currentYarnType = entry.machine?.yarnType || selectedMachine?.yarnType || 'Cotton';
+                            
+                            // Check if this is different from the current yarn type
+                            const isHistoricalYarnType = displayYarnType !== currentYarnType;
+                            
+                            return (
+                              <>
+                                <div className={`w-2 h-2 mr-2 rounded-full ${isHistoricalYarnType ? 'bg-purple-500' : 'bg-blue-500'}`}></div>
+                                <span className={`font-medium ${isHistoricalYarnType ? 'text-purple-600 dark:text-purple-400' : 'text-blue-600 dark:text-blue-400'}`}>
+                                  {formatYarnType(displayYarnType)}
+                                </span>
+                                {isHistoricalYarnType && (
+                                  <span className="ml-2 px-1.5 py-0.5 text-xs rounded-md bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                                    Historical
+                                  </span>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
                       </TableCell>
                       <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
                         {editingEntry?.id === entry.id ? (
@@ -901,6 +1342,35 @@ const DailyProduction: React.FC = () => {
                   ))}
                 </TableBody>
               </Table>
+            </div>
+          )}
+          
+          {/* Legend for yarn type indicators */}
+          {productionEntries.length > 0 && (
+            <div className="mt-4 px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Legend</h3>
+              <div className="flex flex-wrap gap-x-6 gap-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                  <span className="text-xs text-gray-600 dark:text-gray-400">Current Yarn Type</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                  <span className="text-xs text-gray-600 dark:text-gray-400">Historical Yarn Type</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="ml-2 px-1.5 py-0.5 text-xs rounded-md bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                    Historical
+                  </span>
+                  <span className="text-xs text-gray-600 dark:text-gray-400">Production with previous machine configuration</span>
+                </div>
+              </div>
+              <div className="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  <strong>Note:</strong> Production entries store the yarn type used at the time of creation. 
+                  If a machine's yarn type is changed later, historical entries will still show the original yarn type.
+                </p>
+              </div>
             </div>
           )}
         </div>

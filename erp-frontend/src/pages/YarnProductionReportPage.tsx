@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Badge } from '../components/ui/badge';
-import YarnProductionSummary from '../components/YarnProductionSummary';
+import YarnProductionSummary from '../components/asuUnit1/YarnProductionSummary';
 
 const YarnProductionReportPage: React.FC = () => {
   return (

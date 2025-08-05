@@ -1,0 +1,174 @@
+// Update to the createProductionEntry function in asuUnit1Controller.js
+
+// Create new production entry
+const createProductionEntry = async (req, res) => {
+  try {
+    const { 
+      // Removed unit param - always use unit 1
+      machineNumber, 
+      date, 
+      shift, 
+      actualProduction, 
+      theoreticalProduction, 
+      remarks,
+      yarnType // Added yarnType parameter
+    } = req.body;
+
+    console.log('Creating production entry with data:', req.body);
+    console.log('actualProduction value:', actualProduction, 'type:', typeof actualProduction);
+    console.log('yarnType value:', yarnType);
+
+    if (!machineNumber || !date || !shift) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Machine number, date, and shift are required' 
+      });
+    }
+
+    // Validate shift
+    if (!['day', 'night'].includes(shift)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Shift must be either "day" or "night"' 
+      });
+    }
+
+    // Start a transaction to ensure data integrity
+    const result = await sequelize.transaction(async (t) => {
+      // Find the machine to get productionAt100 if theoreticalProduction is not provided
+      let finalTheoreticalProduction = theoreticalProduction;
+      let machine = null;
+      let machineYarnType = null;
+      
+      // Find the machine
+      try {
+        machine = await ASUMachine.findOne({
+          where: { 
+            machineNo: parseInt(machineNumber),
+            unit: 1 
+          },
+          transaction: t
+        });
+        
+        if (!machine) {
+          throw new Error(`Machine number ${machineNumber} not found`);
+        }
+        
+        if (machine.productionAt100) {
+          finalTheoreticalProduction = machine.productionAt100;
+        }
+        
+        machineYarnType = machine.yarnType || 'Cotton';
+      } catch (error) {
+        console.error('Error finding machine for theoretical production:', error);
+        throw error;
+      }
+      
+      // Calculate efficiency
+      let efficiency = null;
+      if (actualProduction && finalTheoreticalProduction && finalTheoreticalProduction > 0) {
+        efficiency = parseFloat(((actualProduction / finalTheoreticalProduction) * 100).toFixed(2));
+      }
+
+      // Check if entry already exists for this combination
+      const existingEntry = await ASUProductionEntry.findOne({
+        where: { 
+          unit: 1,
+          machineNumber: parseInt(machineNumber), 
+          date, 
+          shift 
+        },
+        transaction: t
+      });
+
+      if (existingEntry) {
+        throw new Error(`Production entry for Machine ${machineNumber} on ${date} (${shift} shift) already exists. Please edit the existing entry instead.`);
+      }
+
+      // Create the production entry
+      const entry = await ASUProductionEntry.create({
+        unit: 1, // Always use unit 1
+        machineNumber: parseInt(machineNumber),
+        date,
+        shift,
+        // Use provided yarnType or fall back to machine's yarnType
+        yarnType: yarnType || machineYarnType || 'Cotton',
+        actualProduction: actualProduction !== undefined && actualProduction !== null ? parseFloat(actualProduction) : 0,
+        theoreticalProduction: finalTheoreticalProduction ? parseFloat(finalTheoreticalProduction) : null,
+        efficiency,
+        remarks: remarks || null
+      }, { transaction: t });
+      
+      console.log('Production entry created:', {
+        id: entry.id,
+        machineNumber: entry.machineNumber,
+        date: entry.date,
+        shift: entry.shift,
+        yarnType: entry.yarnType,
+        actualProduction: entry.actualProduction,
+        type: typeof entry.actualProduction
+      });
+      
+      // Only save machine configuration if there's actual production
+      // This ensures we only save configurations that were actually used in production
+      if (actualProduction > 0 && machine) {
+        const MachineConfiguration = require('../models/MachineConfiguration');
+        
+        // Check if we need to save a new machine configuration
+        // Get the most recent configuration for this machine
+        const latestConfig = await MachineConfiguration.findOne({
+          where: { 
+            machineId: machine.id
+          },
+          order: [['createdAt', 'DESC']],
+          transaction: t
+        });
+        
+        // Function to normalize values for comparison (avoids issues like 343 vs 343.00)
+        const normalizeNumber = (value) => {
+          if (value === null || value === undefined) return 0;
+          return parseFloat(parseFloat(value).toFixed(2));
+        };
+        
+        // Check if the configuration has changed since last saved - use normalized values
+        const shouldSaveNewConfig = !latestConfig || 
+          normalizeNumber(latestConfig.spindleCount) !== normalizeNumber(machine.spindles) || 
+          (latestConfig.yarnType || '').trim() !== (machine.yarnType || '').trim() || 
+          normalizeNumber(latestConfig.productionAt100) !== normalizeNumber(machine.productionAt100);
+        
+        // If configuration changed, save a new one
+        if (shouldSaveNewConfig) {
+          console.log('Saving new machine configuration with production entry');
+          
+          // If there's an active config (with null endDate), close it
+          if (latestConfig && latestConfig.endDate === null) {
+            await latestConfig.update(
+              { endDate: date }, // Use the production entry date as the end date
+              { transaction: t }
+            );
+          }
+          
+          // Create a new machine configuration record
+          await MachineConfiguration.create({
+            machineId: machine.id,
+            spindleCount: machine.spindles || 0,
+            yarnType: machine.yarnType || 'Default',
+            productionAt100: machine.productionAt100 || 0,
+            startDate: date, // Use production entry date as start date
+            endDate: null    // This is the new active configuration
+          }, { transaction: t });
+        }
+      }
+      
+      return entry;
+    });
+
+    res.status(201).json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error creating production entry:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};

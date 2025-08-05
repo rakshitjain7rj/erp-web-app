@@ -1,0 +1,77 @@
+// Update a production entry
+updateProductionEntry: async (
+  id: number,
+  data: UpdateProductionEntryData
+): Promise<ASUProductionEntry> => {
+  try {
+    // First, get the existing entry to determine its shift
+    const entryResponse = await api.get(`/production-entries/${id}`);
+    if (!entryResponse.data.success) {
+      throw new Error('Failed to find production entry');
+    }
+    
+    const existingEntry = entryResponse.data.data;
+    const shift = existingEntry.shift; // 'day' or 'night'
+    
+    // Process the value being updated based on the shift
+    let productionValue;
+    if (shift === 'day') {
+      productionValue = parseFloat(String(data.dayShift)) || 0;
+    } else { // night shift
+      productionValue = parseFloat(String(data.nightShift)) || 0;
+    }
+    
+    console.log(`Updating ${shift} shift entry ${id}:`, {
+      originalValue: shift === 'day' ? data.dayShift : data.nightShift,
+      parsedValue: productionValue,
+      shift: shift,
+      yarnType: data.yarnType // Log the yarn type being sent
+    });
+    
+    // Prepare the update data based on the shift
+    const updateData = {
+      date: data.date || existingEntry.date,
+      actualProduction: productionValue,
+      yarnType: data.yarnType || existingEntry.yarnType || 'Cotton' // Make sure we're always sending a yarn type
+    };
+    
+    console.log('Sending update data to API:', updateData);
+    
+    // Update the entry
+    const response = await api.put(`/production-entries/${id}`, updateData);
+    return response.data.success ? response.data.data : response.data;
+  } catch (error) {
+    // Check if this could be a localStorage entry by looking for entries with id matching
+    // the pattern we use for local entries
+    if (typeof id === 'number') {
+      // Try to find this entry in localStorage
+      // We need to check all possible machine IDs
+      const allStorageKeys = Object.keys(localStorage).filter(key => key.startsWith('local_production_entries_'));
+      
+      for (const key of allStorageKeys) {
+        const localEntries = JSON.parse(localStorage.getItem(key) || '[]');
+        const entryIndex = localEntries.findIndex((e: any) => e.id === id);
+        
+        if (entryIndex >= 0) {
+          // Found the entry in localStorage, update it
+          const updatedEntry = {
+            ...localEntries[entryIndex],
+            ...data,
+            // Make sure we're storing the yarn type in localStorage too
+            yarnType: data.yarnType || localEntries[entryIndex].yarnType || 'Cotton',
+            updatedAt: new Date().toISOString()
+          };
+          
+          localEntries[entryIndex] = updatedEntry;
+          localStorage.setItem(key, JSON.stringify(localEntries));
+          console.log('Updated local production entry:', updatedEntry);
+          
+          return updatedEntry as ASUProductionEntry;
+        }
+      }
+    }
+    
+    // If we get here, we couldn't find a matching local entry, so propagate the original error
+    throw error;
+  }
+}
