@@ -63,7 +63,9 @@ export const deleteFollowUp = async (
 
 // ==================== DYEING RECORDS ====================
 export const getAllDyeingRecords = async (): Promise<DyeingRecord[]> => {
-  const response = await api.get("/");
+  // Add cache busting parameter to ensure fresh data
+  const timestamp = Date.now();
+  const response = await api.get(`/?_t=${timestamp}`);
   return response.data.data || response.data;
 };
 

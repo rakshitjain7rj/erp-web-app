@@ -243,11 +243,15 @@ const CountProductOverview: React.FC = () => {
       }
       
       if (data.length > 0) {
+        console.log('✅ Setting products state with data:', data.length, 'products');
+        console.log('📊 Sample product for verification:', data[0]);
+        console.log('📊 Products have quantity field:', data.every(p => typeof p.quantity === 'number'));
         setProducts(data);
         toast.success(`Loaded ${data.length} count products`);
       } else {
         // Final fallback to demo data
         console.log('🔄 No products available, falling back to mock data');
+        console.log('📊 Mock data length:', mockCountProducts.length);
         setProducts(mockCountProducts);
         localStorage.setItem('countProducts', JSON.stringify(mockCountProducts));
         localStorage.setItem('countProductsTimestamp', new Date().getTime().toString());
@@ -311,6 +315,9 @@ const CountProductOverview: React.FC = () => {
       // Sort firms alphabetically for consistent display
       const sortedFirms = firms.sort((a, b) => a.name.localeCompare(b.name));
       
+      console.log('✅ Setting dyeing firms state with data:', sortedFirms.length, 'firms');
+      console.log('📊 Sample firm for verification:', sortedFirms[0]);
+      console.log('📊 Firms have isActive field:', sortedFirms.every(f => typeof f.isActive === 'boolean'));
       setCentralizedDyeingFirms(sortedFirms);
       console.log('📋 Final firms list:', sortedFirms.map(f => f.name));
       
@@ -332,6 +339,23 @@ const CountProductOverview: React.FC = () => {
     fetchCountProducts();
     fetchCentralizedDyeingFirms();
   }, []);
+
+  // Debug effect to track when products state changes
+  useEffect(() => {
+    console.log('🔄 Products state updated:', {
+      count: products.length,
+      sampleProducts: products.slice(0, 2).map(p => ({ id: p.id, customerName: p.customerName, quantity: p.quantity }))
+    });
+  }, [products]);
+
+  // Debug effect to track when firms state changes
+  useEffect(() => {
+    console.log('🏭 Firms state updated:', {
+      count: centralizedDyeingFirms.length,
+      activeCount: centralizedDyeingFirms.filter(f => f.isActive).length,
+      firms: centralizedDyeingFirms.map(f => ({ name: f.name, isActive: f.isActive }))
+    });
+  }, [centralizedDyeingFirms]);
 
   // Handle escape key to close modal
   useEffect(() => {
@@ -817,10 +841,17 @@ const CountProductOverview: React.FC = () => {
     }
   };
 
-  // Calculate summary statistics
-  const totalQuantity = filteredProducts.reduce((sum, product) => sum + product.quantity, 0);
-  const gradeACounts = filteredProducts.filter(p => p.qualityGrade === 'A').length;
-  const totalFirms = uniqueFirms.length;
+  // Calculate summary statistics (using real-time data from all products, not filtered)
+  const totalQuantity = products.reduce((sum, product) => sum + product.quantity, 0);
+  const totalFirms = centralizedDyeingFirms.filter(firm => firm.isActive).length;
+  
+  // Debug logging for real-time data
+  console.log('📊 Real-time Summary Stats:');
+  console.log('  - Total Products:', products.length);
+  console.log('  - Total Quantity:', totalQuantity);
+  console.log('  - Total Active Firms:', totalFirms);
+  console.log('  - Centralized Firms:', centralizedDyeingFirms.length);
+  console.log('  - Products data:', products.slice(0, 2)); // Show first 2 products for debugging
 
   return (
     <div className="min-h-screen p-6 bg-gray-50 dark:bg-gray-900">
@@ -838,42 +869,6 @@ const CountProductOverview: React.FC = () => {
       {/* Main Content */}
       {!isLoading && (
         <>
-          {/* Debug Info Panel (temporary for debugging) */}
-          {import.meta.env.DEV && (
-            <div className="mb-4 p-4 bg-gray-100 rounded-lg border">
-              <h3 className="text-sm font-bold mb-2">🔧 Debug Info:</h3>
-              <div className="text-xs space-y-1">
-                <div>📋 Centralized Firms ({centralizedDyeingFirms.length}): {centralizedDyeingFirms.map(f => f.name).join(', ')}</div>
-                <div>💾 LocalStorage Firms: {(() => {
-                  try {
-                    const saved = localStorage.getItem('dyeingFirms');
-                    if (saved) {
-                      const firms = JSON.parse(saved);
-                      return `(${firms.length}) ${firms.map((f: any) => f.name).join(', ')}`;
-                    }
-                    return 'None';
-                  } catch {
-                    return 'Error parsing';
-                  }
-                })()}</div>
-                <div>� Current Products ({products.length}): {products.slice(0, 3).map(p => `${p.customerName}-${p.dyeingFirm}`).join(', ')}{products.length > 3 ? '...' : ''}</div>
-                <div>💾 LocalStorage Products: {(() => {
-                  try {
-                    const saved = localStorage.getItem('countProducts');
-                    if (saved) {
-                      const prods = JSON.parse(saved);
-                      return `(${prods.length}) items saved`;
-                    }
-                    return 'None';
-                  } catch {
-                    return 'Error parsing';
-                  }
-                })()}</div>
-                <div>�🔄 Loading Firms: {isLoadingFirms ? 'Yes' : 'No'}</div>
-                <div>� Loading Products: {isLoading ? 'Yes' : 'No'}</div>
-              </div>
-            </div>
-          )}
           {/* Header Section */}
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center space-x-3">
@@ -922,46 +917,6 @@ const CountProductOverview: React.FC = () => {
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
             <span>{isLoading ? 'Refreshing...' : 'Refresh'}</span>
           </Button>
-        </div>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Products</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{filteredProducts.length}</p>
-            </div>
-            <Package className="w-8 h-8 text-blue-500" />
-          </div>
-        </div>
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <div className="flex-1 min-w-0 pr-4">
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Quantity</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white truncate" title={`${totalQuantity} kg`}>{totalQuantity} kg</p>
-            </div>
-            <TrendingUp className="w-8 h-8 text-green-500 flex-shrink-0" />
-          </div>
-        </div>
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Grade A Products</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{gradeACounts}</p>
-            </div>
-            <BarChart3 className="w-8 h-8 text-yellow-500" />
-          </div>
-        </div>
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Active Firms</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalFirms}</p>
-            </div>
-            <Calendar className="w-8 h-8 text-purple-500" />
-          </div>
         </div>
       </div>
 

@@ -1,13 +1,14 @@
 import React, { useState, useRef, useEffect } from "react";
 import { format, addDays } from "date-fns";
 import { toast } from "sonner";
-import { createDyeingRecord } from "../api/dyeingApi";
+import { createDyeingRecord, updateDyeingRecord } from "../api/dyeingApi";
 import { CreateDyeingRecordRequest } from "../types/dyeing";
 import { Button } from "./ui/Button";
 import { X, ChevronDown, Check, Package, Calendar, Plus } from "lucide-react";
 
 // Simplified data structure for business-friendly form (matches CountProduct structure)
 interface SimplifiedDyeingOrderData {
+  id?: number;                  // Record ID for editing
   quantity: number;              // Total quantity ordered
   customerName: string;          // Customer/client name
   sentToDye: number;            // Quantity sent to dyeing (matches count product pattern)
@@ -28,20 +29,23 @@ interface SimplifiedDyeingOrderData {
 }
 
 interface SimplifiedDyeingOrderFormProps {
-  onSuccess: (orderData: SimplifiedDyeingOrderData) => void;
+  onSuccess: (orderData: any) => void; // Changed to any to allow success signals
   orderToEdit?: SimplifiedDyeingOrderData | null;
   onCancel?: () => void;
+  existingFirms?: string[]; // Add prop for existing dyeing firms from database
 }
 
 const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
   onSuccess,
   orderToEdit,
   onCancel,
+  existingFirms = [], // Add existingFirms prop with default empty array
 }) => {
   const today = format(new Date(), "yyyy-MM-dd");
   const defaultExpectedDate = format(addDays(new Date(), 7), "yyyy-MM-dd");
 
-  const initialState: SimplifiedDyeingOrderData = {
+  const getInitialState = (): SimplifiedDyeingOrderData => ({
+    id: undefined,
     quantity: 0,
     customerName: "",
     sentToDye: 0,
@@ -59,9 +63,9 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
     count: "",
     lot: "",
     expectedArrivalDate: defaultExpectedDate,
-  };
+  });
 
-  const [formData, setFormData] = useState<SimplifiedDyeingOrderData>(initialState);
+  const [formData, setFormData] = useState<SimplifiedDyeingOrderData>(getInitialState());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -71,31 +75,47 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
   const [selectedFirmIndex, setSelectedFirmIndex] = useState(-1);
   const firmDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Common dyeing firms
-  const commonDyeingFirms = [
-    "Premium Dye Works",
-    "Color Masters Ltd",
-    "Rainbow Dyeing Co",
-    "Professional Dyers",
-    "Elite Color Solutions",
-    "Modern Dyeing Mills",
-    "Quality Dye House",
-    "Artistic Colors Inc",
-    "Spectrum Dyeing",
-    "Advanced Color Tech"
-  ];
-
-  // Filter firms based on input
-  const filteredFirms = commonDyeingFirms.filter(firm =>
+  // Filter existing firms based on input (use dynamic firms from database)
+  const filteredFirms = existingFirms.filter(firm =>
     firm.toLowerCase().includes(firmFilter.toLowerCase())
   );
 
   useEffect(() => {
+    console.log('🔄 useEffect triggered');
+    console.log('📥 orderToEdit prop:', orderToEdit);
+    console.log('📋 Previous formData.id:', formData.id);
+    
     if (orderToEdit) {
-      setFormData(orderToEdit);
+      console.log('✅ Setting form data to orderToEdit');
+      console.log('🆔 OrderToEdit ID:', orderToEdit.id);
+      console.log('🔍 OrderToEdit full object:', JSON.stringify(orderToEdit, null, 2));
+      
+      // CRITICAL DEBUG: Log the specific fields we're interested in
+      console.log('🎯 FORM POPULATION DEBUG:');
+      console.log('  - orderToEdit.quantity (original):', orderToEdit.quantity);
+      console.log('  - orderToEdit.sentToDye (sent):', orderToEdit.sentToDye);
+      console.log('  - Are they different?', orderToEdit.quantity !== orderToEdit.sentToDye);
+      
+      // Ensure the ID is preserved when setting form data
+      const dataToSet = { ...orderToEdit };
+      console.log('📋 Data to set:', dataToSet);
+      console.log('🆔 Data to set ID:', dataToSet.id);
+      console.log('📋 Data to set quantity:', dataToSet.quantity);
+      console.log('📋 Data to set sentToDye:', dataToSet.sentToDye);
+      
+      setFormData(dataToSet);
       setFirmFilter(orderToEdit.dyeingFirm);
+      
+      // Verify the state was set correctly
+      setTimeout(() => {
+        console.log('⏰ Checking formData after setState:', formData);
+        console.log('⏰ FormData quantity after setState:', formData.quantity);
+        console.log('⏰ FormData sentToDye after setState:', formData.sentToDye);
+      }, 100);
+      
     } else {
-      setFormData(initialState);
+      console.log('🆕 Setting form data to initial state');
+      setFormData(getInitialState());
       setFirmFilter("");
     }
     setErrors({});
@@ -117,13 +137,40 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     
-    // Handle number fields
+    console.log('📝 Input change:', name, '=', value);
+    console.log('📋 Current formData ID before change:', formData.id);
+    
+    // Handle number fields with proper precision
     if (name === "quantity" || name === "sentToDye" || name === "received" || name === "dispatch") {
-      const numValue = parseFloat(value) || 0;
-      setFormData(prev => ({ ...prev, [name]: numValue }));
+      let numValue = 0;
+      
+      if (value === '' || value === null || value === undefined) {
+        numValue = 0;
+      } else {
+        // Parse the number and round to 2 decimal places to avoid floating point issues
+        const parsed = parseFloat(value);
+        if (!isNaN(parsed)) {
+          // Round to 2 decimal places and ensure it's a clean number
+          numValue = Math.round(parsed * 100) / 100;
+        }
+      }
+      
+      console.log(`🔢 Updating ${name} from ${formData[name as keyof typeof formData]} to ${numValue}`);
+      
+      setFormData(prev => {
+        const newData = { ...prev, [name]: numValue };
+        console.log(`🔢 Updated formData with ${name}:`, newData[name as keyof typeof newData]);
+        console.log('🆔 FormData ID after number update:', newData.id);
+        return newData;
+      });
     } 
     else {
-      setFormData(prev => ({ ...prev, [name]: value }));
+      console.log(`📝 Updating text field ${name} to:`, value);
+      setFormData(prev => {
+        const newData = { ...prev, [name]: value };
+        console.log('📝 Updated formData with text:', newData.id);
+        return newData;
+      });
     }
 
     // Clear error when user starts typing
@@ -249,76 +296,203 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
 
     setIsSubmitting(true);
 
+    // CRITICAL DEBUG: Let's check EVERYTHING about the edit mode detection
+    console.log('🔍 CRITICAL DEBUG - Form submission analysis:');
+    console.log('  - orderToEdit prop:', orderToEdit);
+    console.log('  - orderToEdit?.id:', orderToEdit?.id);
+    console.log('  - formData:', formData);
+    console.log('  - formData.id:', formData.id);
+    console.log('  - typeof formData.id:', typeof formData.id);
+    console.log('  - Boolean(orderToEdit):', Boolean(orderToEdit));
+    console.log('  - Boolean(formData.id):', Boolean(formData.id));
+    console.log('  - orderToEdit && formData.id:', !!(orderToEdit && formData.id));
+    console.log('  - formData.id > 0:', formData.id ? formData.id > 0 : false);
+    console.log('  - orderToEdit !== null:', orderToEdit !== null);
+    console.log('  - orderToEdit !== undefined:', orderToEdit !== undefined);
+    console.log('  - formData.id !== null:', formData.id !== null);
+    console.log('  - formData.id !== undefined:', formData.id !== undefined);
+    
+    // Use the most explicit check possible
+    const hasValidId = formData.id !== null && 
+                      formData.id !== undefined && 
+                      typeof formData.id === 'number' &&
+                      !isNaN(formData.id) &&
+                      formData.id > 0;
+                      
+    const shouldUpdate = orderToEdit !== null && 
+                        orderToEdit !== undefined && 
+                        hasValidId;
+    
+    console.log('🎯 Has valid ID?', hasValidId);
+    console.log('🎯 FINAL DECISION - Should update?', shouldUpdate);
+    console.log('🎯 Will call API:', shouldUpdate ? 'updateDyeingRecord' : 'createDyeingRecord');
+
     try {
-      // Create enhanced remarks that include tracking information
+      console.log('🚀 Form submit started');
+      console.log('📝 Form data at submission:', JSON.stringify(formData, null, 2));
+      console.log('🔍 Order to edit prop:', orderToEdit);
+      console.log('🆔 Form data ID:', formData.id);
+      console.log('🔎 OrderToEdit exists:', !!orderToEdit);
+      console.log('🔎 FormData ID exists:', !!formData.id);
+      console.log('🔎 Should update:', !!(orderToEdit && formData.id));
+      
+      // CRITICAL: Log the exact values being processed
+      console.log('🎯 CRITICAL VALUES CHECK:');
+      console.log('  - formData.received:', formData.received, typeof formData.received);
+      console.log('  - formData.dispatch:', formData.dispatch, typeof formData.dispatch);
+      console.log('  - formData.sentToDye:', formData.sentToDye, typeof formData.sentToDye);
+      console.log('  - formData.receivedDate:', formData.receivedDate);
+      console.log('  - formData.dispatchDate:', formData.dispatchDate);
+      
+      // Create enhanced remarks that include tracking information with updated values
       const trackingInfo = [];
-      if (formData.received > 0) {
-        trackingInfo.push(`Received: ${formData.received}kg${formData.receivedDate ? ` on ${formData.receivedDate}` : ''}`);
-      }
-      if (formData.dispatch > 0) {
-        trackingInfo.push(`Dispatched: ${formData.dispatch}kg${formData.dispatchDate ? ` on ${formData.dispatchDate}` : ''}`);
-      }
-      if (formData.partyName) {
-        trackingInfo.push(`Middleman: ${formData.partyName}`);
+      
+      // Add original quantity info if it's different from sentToDye
+      if (formData.quantity && formData.quantity !== formData.sentToDye) {
+        trackingInfo.push(`OriginalQty: ${formData.quantity}kg`);
+        console.log('📦 Adding original quantity to remarks:', formData.quantity);
       }
       
+      // Always add received information when updating an existing record
+      // This ensures we can clear/update previous values
+      if (shouldUpdate || formData.received >= 0) {
+        const receivedInfo = `Received: ${formData.received || 0}kg${formData.receivedDate ? ` on ${formData.receivedDate}` : ''}`;
+        trackingInfo.push(receivedInfo);
+        console.log('📥 Adding received info to remarks:', receivedInfo);
+        console.log('📥 Received value being saved:', formData.received);
+      }
+      
+      // Always add dispatch information when updating an existing record  
+      if (shouldUpdate || formData.dispatch >= 0) {
+        const dispatchInfo = `Dispatched: ${formData.dispatch || 0}kg${formData.dispatchDate ? ` on ${formData.dispatchDate}` : ''}`;
+        trackingInfo.push(dispatchInfo);
+        console.log('📤 Adding dispatch info to remarks:', dispatchInfo);
+        console.log('📤 Dispatch value being saved:', formData.dispatch);
+      }
+      
+      // Add middleman/party information if provided
+      if (formData.partyName) {
+        trackingInfo.push(`Middleman: ${formData.partyName}`);
+        console.log('👥 Adding middleman info to remarks:', formData.partyName);
+      }
+      
+      // CRITICAL FIX: Use ONLY the original remarks (without existing tracking info) 
+      // to prevent duplicate tracking entries
+      const cleanRemarks = formData.remarks || ''; // This should already be cleaned by handleEdit
+      
+      // Combine CLEAN original remarks with NEW tracking info
       const enhancedRemarks = [
-        formData.remarks,
+        cleanRemarks,
         ...trackingInfo
       ].filter(Boolean).join(' | ');
 
-      // Create the dyeing record using the API (with only supported fields)
+      console.log('📝 Clean original remarks:', cleanRemarks);
+      console.log('📝 New tracking info:', trackingInfo);
+      console.log('📝 Final enhanced remarks:', enhancedRemarks);
+      console.log('🔍 Should update?', shouldUpdate);
+      console.log('🔍 FormData received:', formData.received);
+      console.log('🔍 FormData dispatch:', formData.dispatch);
+
+      // Create the dyeing record data for API (with only supported fields)
       const dyeingRecordData: CreateDyeingRecordRequest = {
         yarnType: formData.yarnType || "Standard", // Provide default if empty
         sentDate: formData.sentDate,
         expectedArrivalDate: formData.expectedArrivalDate || formData.sentDate, // Use sent date as fallback
         remarks: enhancedRemarks,
         partyName: formData.customerName, // Map customerName to partyName for API
-        quantity: formData.quantity,
+        quantity: formData.sentToDye || formData.quantity, // Use sentToDye as the main quantity (what was actually sent)
         shade: formData.shade || "Natural", // Provide default if empty
         count: formData.count || "Standard", // Provide default if empty
-        lot: formData.lot || `LOT-${Date.now()}`, // Generate lot number if empty
+        lot: formData.lot || (orderToEdit ? formData.lot : `LOT-${Date.now()}`), // Keep existing lot for updates, generate new for creates
         dyeingFirm: formData.dyeingFirm,
       };
 
-      const result = await createDyeingRecord(dyeingRecordData);
+      console.log('📤 API Request Data:', dyeingRecordData);
+      console.log('📋 Main Quantity (sentToDye) in API request:', dyeingRecordData.quantity);
+      console.log('� Form sentToDye value:', formData.sentToDye);
+      console.log('📋 Form received value:', formData.received);
+      console.log('📋 Form dispatch value:', formData.dispatch);
+      console.log('�👤 PartyName (Customer) in API request:', dyeingRecordData.partyName);
+      console.log('🏭 DyeingFirm in API request:', dyeingRecordData.dyeingFirm);
+      console.log('🧵 YarnType in API request:', dyeingRecordData.yarnType);
+      console.log('🎨 Shade in API request:', dyeingRecordData.shade);
+      console.log('🔢 Count in API request:', dyeingRecordData.count);
+      console.log('📦 Lot in API request:', dyeingRecordData.lot);
+      console.log('📅 SentDate in API request:', dyeingRecordData.sentDate);
+      console.log('📅 ExpectedArrivalDate in API request:', dyeingRecordData.expectedArrivalDate);
+      console.log('📝 Enhanced Remarks in API request:', dyeingRecordData.remarks);
+      console.log('🔍 Total fields being sent:', Object.keys(dyeingRecordData).length);
+
+      let result;
       
-      // Create the complete order data for the success callback
-      const completeOrderData = {
-        ...formData,
-        // Include API response data
-        id: result?.id || Date.now(),
-        // Map form fields to expected display names
-        partyName: formData.customerName,
-        // Store tracking fields for display
-        receivedQuantity: formData.received,
-        dispatchQuantity: formData.dispatch,
-        middleman: formData.partyName || "Direct",
-        // Technical fields with defaults
-        yarnType: formData.yarnType || "Standard",
-        shade: formData.shade || "Natural",
-        count: formData.count || "Standard",
-        lot: formData.lot || `LOT-${Date.now()}`,
-        // Enhanced remarks with tracking info
-        remarks: enhancedRemarks,
-        // Add metadata
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+      if (shouldUpdate) {
+        const idToUse = formData.id || orderToEdit?.id;
+        console.log('🔄 UPDATE PATH: Updating existing record with ID:', idToUse);
+        console.log('🔄 ID source:', formData.id ? 'formData' : 'orderToEdit prop');
+        console.log('🔄 Update data:', dyeingRecordData);
+        
+        if (!idToUse || idToUse <= 0) {
+          throw new Error(`Invalid ID for update: ${idToUse}`);
+        }
+        
+        result = await updateDyeingRecord(idToUse, dyeingRecordData);
+        console.log('✅ Record updated successfully:', result);
+        console.log('✅ Updated record ID:', result?.id);
+        console.log('✅ Updated record remarks:', result?.remarks);
+        console.log('✅ Updated record quantity:', result?.quantity);
+      } else {
+        console.log('🔄 CREATE PATH: Creating new record');
+        console.log('🔄 Create data:', dyeingRecordData);
+        result = await createDyeingRecord(dyeingRecordData);
+        console.log('✅ Record created successfully:', result);
+      }
+      
+      // Create a simple success signal for the parent component
+      const successData = {
+        action: shouldUpdate ? 'updated' : 'created',
+        recordId: result?.id || formData.id,
+        timestamp: new Date().toISOString(),
+        updatedFields: {
+          quantity: dyeingRecordData.quantity,
+          partyName: dyeingRecordData.partyName,
+          dyeingFirm: dyeingRecordData.dyeingFirm,
+          yarnType: dyeingRecordData.yarnType,
+          shade: dyeingRecordData.shade,
+          count: dyeingRecordData.count,
+          lot: dyeingRecordData.lot,
+          // Include tracking information for verification
+          sentToDye: formData.sentToDye,
+          received: formData.received,
+          dispatch: formData.dispatch,
+          remarks: dyeingRecordData.remarks
+        }
       };
       
-      onSuccess(completeOrderData);
-      toast.success(orderToEdit ? "Order updated successfully!" : "Order created successfully!");
-      handleReset();
+      console.log('📤 Sending success signal to parent:', successData);
+      onSuccess(successData);
+      
+      const actionType = shouldUpdate ? 'updated' : 'created';
+      toast.success(`Order ${actionType} successfully! ${shouldUpdate ? `(ID: ${formData.id}) - Quantities and tracking info updated` : 'New order created with tracking'}`, {
+        duration: 4000,
+        description: shouldUpdate ? 'The listing will refresh automatically to show updated values in Sent to Dye, Received, and Dispatch columns.' : undefined
+      });
+      
+      // Only reset form if not editing, let parent component handle form closure for edits
+      if (!orderToEdit) {
+        handleReset();
+      }
     } catch (error) {
       console.error("Failed to submit order:", error);
-      toast.error("Failed to submit order. Please try again.");
+      const actionType = (orderToEdit && formData.id) ? 'update' : 'create';
+      toast.error(`Failed to ${actionType} order. Please try again.`);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleReset = () => {
-    setFormData(initialState);
+    console.log('🔄 handleReset called');
+    setFormData(getInitialState());
     setFirmFilter("");
     setErrors({});
     setShowFirmDropdown(false);
@@ -326,6 +500,7 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
   };
 
   const handleCancel = () => {
+    console.log('❌ handleCancel called');
     handleReset();
     if (onCancel) {
       onCancel();
@@ -347,21 +522,24 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
           {/* Quantity */}
           <div className="space-y-1">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block">
-              Quantity (kg) *
+              Quantity (kg) * {/* DEBUG: Show current value */}
+              <span className="text-xs text-blue-500 ml-2">
+                [Current: {formData.quantity}]
+              </span>
             </label>
             <input
               type="number"
               min="0"
               step="0.01"
               name="quantity"
-              value={formData.quantity || ""}
+              value={formData.quantity === 0 ? "" : formData.quantity}
               onChange={handleInputChange}
               className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors ${
                 errors.quantity 
                   ? 'border-red-500 focus:ring-red-500' 
                   : 'border-gray-300 dark:border-gray-600'
               }`}
-              placeholder="0.00"
+              placeholder="0"
             />
             {errors.quantity && (
               <p className="text-xs text-red-500">{errors.quantity}</p>
@@ -393,21 +571,24 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
           {/* Sent to Dye */}
           <div className="space-y-1">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block">
-              Sent to Dye (kg) *
+              Sent to Dye (kg) * {/* DEBUG: Show current value */}
+              <span className="text-xs text-green-500 ml-2">
+                [Current: {formData.sentToDye}]
+              </span>
             </label>
             <input
               type="number"
               min="0"
               step="0.01"
               name="sentToDye"
-              value={formData.sentToDye || ""}
+              value={formData.sentToDye === 0 ? "" : formData.sentToDye}
               onChange={handleInputChange}
               className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors ${
                 errors.sentToDye 
                   ? 'border-red-500 focus:ring-red-500' 
                   : 'border-gray-300 dark:border-gray-600'
               }`}
-              placeholder="0.00"
+              placeholder="0"
             />
             {errors.sentToDye && (
               <p className="text-xs text-red-500">{errors.sentToDye}</p>
@@ -451,10 +632,10 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
               min="0"
               step="0.01"
               name="received"
-              value={formData.received || ""}
+              value={formData.received === 0 ? "" : formData.received}
               onChange={handleInputChange}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors"
-              placeholder="0.00"
+              placeholder="0"
             />
           </div>
 
@@ -485,10 +666,10 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
               min="0"
               step="0.01"
               name="dispatch"
-              value={formData.dispatch || ""}
+              value={formData.dispatch === 0 ? "" : formData.dispatch}
               onChange={handleInputChange}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors"
-              placeholder="0.00"
+              placeholder="0"
             />
           </div>
 
