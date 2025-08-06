@@ -390,7 +390,7 @@ const DailyProduction: React.FC = () => {
         setMachineYarnHistory(newHistory);
         saveMachineYarnHistory(newHistory);
         console.log(`Updated yarn type history for date ${formData.date}:`, entryYarnType);
-      }
+       }
       
       // Explicitly convert night shift value to ensure it's properly handled
       // Full detailed logging of night shift value processing
