@@ -188,6 +188,8 @@ const createProductionEntry = async (req, res) => {
         shift,
         // Use provided yarnType or fall back to machine's yarnType
         yarnType: yarnType || machineYarnType || 'Cotton',
+        // Store the productionAt100 value for historical accuracy
+        productionAt100: finalTheoreticalProduction ? parseFloat(finalTheoreticalProduction) : 87.0,
         actualProduction: actualProduction !== undefined && actualProduction !== null ? parseFloat(actualProduction) : 0,
         theoreticalProduction: finalTheoreticalProduction ? parseFloat(finalTheoreticalProduction) : null,
         efficiency,
