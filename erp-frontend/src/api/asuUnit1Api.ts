@@ -155,6 +155,7 @@ export interface ASUProductionEntry {
   updatedAt: string;
   machine?: ASUMachine;
   yarnType: string;      // The yarn type explicitly associated with this production entry
+  productionAt100?: number; // Production@100% value stored with this entry for historical accuracy
   
   // Backend original fields that may be present
   machineNumber?: number;
@@ -510,6 +511,8 @@ export const asuUnit1Api = {
             updatedAt: entry.updatedAt,
             // Preserve the yarn type from the entry if available
             yarnType: entry.yarnType || entry.machine?.yarnType,
+            // Store the production@100% value from the entry for historical accuracy
+            productionAt100: entry.productionAt100,
             // Make sure we keep a reference to the machine
             machine: entry.machine 
           };
@@ -610,25 +613,29 @@ export const asuUnit1Api = {
         
         console.log(`Calculated total: ${entry.total} (${typeof entry.total})`);
         
-        // Calculate percentage using machine.productionAt100
-        // Check for both string and number types of productionAt100
-        if (entry.machine && entry.machine.productionAt100) {
-          // Convert productionAt100 to a number if it's a string
-          const productionAt100Value = typeof entry.machine.productionAt100 === 'string' 
+        // Calculate percentage using the stored productionAt100 value from the entry first,
+        // then fall back to machine.productionAt100 for older entries
+        let productionAt100Value = 0;
+        
+        // Prioritize the entry's stored productionAt100 value for historical accuracy
+        if (entry.productionAt100 !== undefined && entry.productionAt100 !== null) {
+          productionAt100Value = typeof entry.productionAt100 === 'string' 
+            ? parseFloat(entry.productionAt100) 
+            : entry.productionAt100;
+        }
+        // Fall back to machine's current productionAt100 for older entries
+        else if (entry.machine && entry.machine.productionAt100) {
+          productionAt100Value = typeof entry.machine.productionAt100 === 'string' 
             ? parseFloat(entry.machine.productionAt100) 
             : entry.machine.productionAt100;
+        }
             
-          if (!isNaN(productionAt100Value) && productionAt100Value > 0) {
-            entry.percentage = (entry.total / productionAt100Value) * 100;
-          } else {
-            // Default to 0 if conversion failed
-            entry.percentage = 0;
-            console.warn(`Invalid productionAt100 value for machine ${entry.machineId || entry.machine.machineNo}: ${entry.machine.productionAt100}`);
-          }
+        if (!isNaN(productionAt100Value) && productionAt100Value > 0) {
+          entry.percentage = (entry.total / productionAt100Value) * 100;
         } else {
           // Default to 0 if we can't calculate
           entry.percentage = 0;
-          console.warn(`Missing productionAt100 for machine ${entry.machineId || (entry.machine ? entry.machine.machineNo : 'unknown')}, cannot calculate percentage accurately`);
+          console.warn(`No valid productionAt100 value found for entry ${entry.id}. Entry value: ${entry.productionAt100}, Machine value: ${entry.machine?.productionAt100}`);
         }
         
         // Debug info

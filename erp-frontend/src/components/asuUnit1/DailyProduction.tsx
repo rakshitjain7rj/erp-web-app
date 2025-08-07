@@ -27,11 +27,6 @@ const DailyProduction: React.FC = () => {
   const [machineYarnHistory, setMachineYarnHistory] = useState<{
     [machineId: number]: {date: string, yarnType: string}[]
   }>({});
-  
-  // Add state for historical machine configuration data (productionAt100, etc.)
-  const [machineConfigHistory, setMachineConfigHistory] = useState<{
-    [machineId: number]: {date: string, yarnType: string, productionAt100: number}[]
-  }>({});
   const [formData, setFormData] = useState<CreateProductionEntryData>({
     machineId: 0,
     date: new Date().toISOString().split('T')[0],
@@ -99,30 +94,6 @@ const DailyProduction: React.FC = () => {
     }
   }, []);
 
-  // Function to load machine configuration history from localStorage
-  const loadMachineConfigHistory = useCallback(() => {
-    try {
-      const savedConfigHistory = localStorage.getItem('machineConfigHistory');
-      if (savedConfigHistory) {
-        const parsedConfigHistory = JSON.parse(savedConfigHistory);
-        console.log('Loaded machine configuration history from localStorage:', parsedConfigHistory);
-        setMachineConfigHistory(parsedConfigHistory);
-      }
-    } catch (error) {
-      console.error('Error loading machine configuration history:', error);
-    }
-  }, []);
-
-  // Function to save machine configuration history to localStorage
-  const saveMachineConfigHistory = useCallback((configHistory: {[machineId: number]: {date: string, yarnType: string, productionAt100: number}[]}) => {
-    try {
-      localStorage.setItem('machineConfigHistory', JSON.stringify(configHistory));
-      console.log('Saved machine configuration history to localStorage:', configHistory);
-    } catch (error) {
-      console.error('Error saving machine configuration history:', error);
-    }
-  }, []);
-
   // Helper function to find historical yarn type for a specific date and machine
   const findHistoricalYarnType = (machineId: number, date: string): string | undefined => {
     // If no machine ID or date provided, return undefined
@@ -165,65 +136,6 @@ const DailyProduction: React.FC = () => {
       return oldestEntry?.yarnType;
     } catch (error) {
       console.error("Error finding historical yarn type:", error);
-      return undefined;
-    }
-  };
-
-  // Helper function to find historical machine configuration for a specific date and machine
-  const findHistoricalMachineConfig = (machineId: number, date: string): {yarnType: string, productionAt100: number} | undefined => {
-    // If no machine ID or date provided, return undefined
-    if (!machineId || !date) return undefined;
-    
-    try {
-      // Check if this machine has configuration history entries
-      if (!machineConfigHistory[machineId] || machineConfigHistory[machineId].length === 0) {
-        return undefined;
-      }
-      
-      // Find machine configuration history for this specific date
-      const exactMatch = machineConfigHistory[machineId].find(entry => entry.date === date);
-      if (exactMatch) {
-        return {
-          yarnType: exactMatch.yarnType,
-          productionAt100: exactMatch.productionAt100
-        };
-      }
-      
-      // If no exact match, find the most recent configuration before this date
-      const entryDate = new Date(date);
-      
-      // Sort history by date in descending order (newest first)
-      const sortedHistory = [...machineConfigHistory[machineId]].sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-      );
-      
-      // Find the most recent configuration before or on the entry date
-      for (const historyEntry of sortedHistory) {
-        const historyDate = new Date(historyEntry.date);
-        if (historyDate <= entryDate) {
-          return {
-            yarnType: historyEntry.yarnType,
-            productionAt100: historyEntry.productionAt100
-          };
-        }
-      }
-      
-      // If all history entries are after this date, use the oldest history entry
-      // This is a fallback option
-      const oldestEntry = [...machineConfigHistory[machineId]].sort(
-        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-      )[0];
-      
-      if (oldestEntry) {
-        return {
-          yarnType: oldestEntry.yarnType,
-          productionAt100: oldestEntry.productionAt100
-        };
-      }
-      
-      return undefined;
-    } catch (error) {
-      console.error("Error finding historical machine configuration:", error);
       return undefined;
     }
   };
@@ -351,8 +263,7 @@ const DailyProduction: React.FC = () => {
     loadMachines();
     loadStats();
     loadMachineYarnHistory(); // Load saved yarn history from localStorage
-    loadMachineConfigHistory(); // Load saved machine configuration history from localStorage
-  }, [loadMachines, loadMachineYarnHistory, loadMachineConfigHistory]);
+  }, [loadMachines, loadMachineYarnHistory]);
 
   // Load production entries when machine is selected
   useEffect(() => {
@@ -390,11 +301,10 @@ const DailyProduction: React.FC = () => {
       
       // If this is a new machine selection and it has a yarn type, make sure we have history for it
       if (isNewMachine && machine.yarnType) {
-        const today = new Date().toISOString().split('T')[0];
-        
-        // Check if we already have yarn type history for this machine
+        // Check if we already have history for this machine
         if (!machineYarnHistory[machine.id] || machineYarnHistory[machine.id].length === 0) {
           // Create initial history with today's date
+          const today = new Date().toISOString().split('T')[0];
           const newHistory = {
             ...machineYarnHistory,
             [machine.id]: [
@@ -405,54 +315,6 @@ const DailyProduction: React.FC = () => {
           setMachineYarnHistory(newHistory);
           saveMachineYarnHistory(newHistory);
           console.log(`Created initial yarn history for machine ${machine.id}:`, newHistory[machine.id]);
-        }
-
-        // Check if we already have configuration history for this machine
-        if (!machineConfigHistory[machine.id] || machineConfigHistory[machine.id].length === 0) {
-          // Create initial configuration history with today's date
-          const productionAt100Value = getProductionAt100({ machine } as ASUProductionEntry, machine);
-          
-          const newConfigHistory = {
-            ...machineConfigHistory,
-            [machine.id]: [
-              { 
-                date: today, 
-                yarnType: machine.yarnType,
-                productionAt100: productionAt100Value
-              }
-            ]
-          };
-          
-          setMachineConfigHistory(newConfigHistory);
-          saveMachineConfigHistory(newConfigHistory);
-          console.log(`Created initial configuration history for machine ${machine.id}:`, newConfigHistory[machine.id]);
-        } else {
-          // Check if current configuration is different from the latest recorded configuration
-          const latestConfig = [...machineConfigHistory[machine.id]]
-            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-          
-          const currentProductionAt100 = getProductionAt100({ machine } as ASUProductionEntry, machine);
-          
-          // If configuration has changed, add a new history entry
-          if (latestConfig && 
-              (latestConfig.yarnType !== machine.yarnType || 
-               latestConfig.productionAt100 !== currentProductionAt100)) {
-            
-            const newConfigEntry = {
-              date: today,
-              yarnType: machine.yarnType,
-              productionAt100: currentProductionAt100
-            };
-            
-            const updatedConfigHistory = {
-              ...machineConfigHistory,
-              [machine.id]: [...machineConfigHistory[machine.id], newConfigEntry]
-            };
-            
-            setMachineConfigHistory(updatedConfigHistory);
-            saveMachineConfigHistory(updatedConfigHistory);
-            console.log(`Added new configuration history entry for machine ${machine.id}:`, newConfigEntry);
-          }
         }
       }
       
@@ -528,51 +390,7 @@ const DailyProduction: React.FC = () => {
         setMachineYarnHistory(newHistory);
         saveMachineYarnHistory(newHistory);
         console.log(`Updated yarn type history for date ${formData.date}:`, entryYarnType);
-      }
-
-      // Add machine configuration history entry for this date with current machine configuration
-      const configHistory = machineConfigHistory[selectedMachine.id] || [];
-      
-      // Check if we already have a configuration entry for this exact date
-      const existingConfigEntry = configHistory.find(h => h.date === formData.date);
-      
-      if (!existingConfigEntry) {
-        const newConfigEntry = {
-          date: formData.date,
-          yarnType: entryYarnType,
-          productionAt100: prodAt100Value
-        };
-        
-        const newConfigHistory = [
-          ...configHistory,
-          newConfigEntry
-        ];
-        
-        const newMachineConfigHistory = {
-          ...machineConfigHistory,
-          [selectedMachine.id]: newConfigHistory
-        };
-        
-        setMachineConfigHistory(newMachineConfigHistory);
-        saveMachineConfigHistory(newMachineConfigHistory);
-        console.log(`Added machine configuration history for date ${formData.date}:`, newConfigEntry);
-      } else {
-        // Update existing configuration entry with current machine configuration
-        const updatedConfigHistory = configHistory.map(h => 
-          h.date === formData.date 
-            ? { ...h, yarnType: entryYarnType, productionAt100: prodAt100Value } 
-            : h
-        );
-        
-        const newMachineConfigHistory = {
-          ...machineConfigHistory,
-          [selectedMachine.id]: updatedConfigHistory
-        };
-        
-        setMachineConfigHistory(newMachineConfigHistory);
-        saveMachineConfigHistory(newMachineConfigHistory);
-        console.log(`Updated machine configuration history for date ${formData.date}:`, { yarnType: entryYarnType, productionAt100: prodAt100Value });
-      }
+       }
       
       // Explicitly convert night shift value to ensure it's properly handled
       // Full detailed logging of night shift value processing
@@ -853,21 +671,22 @@ const DailyProduction: React.FC = () => {
     return isNaN(percentage) ? 0 : percentage;
   };
 
-  // Helper function to safely get production at 100 value with historical support
+  // Helper function to safely get production at 100 value
   const getProductionAt100 = (entry: ASUProductionEntry, fallbackMachine?: ASUMachine | null) => {
-    // First, try to get historical configuration for this specific entry date and machine
-    if (entry.machineId && entry.date) {
-      const historicalConfig = findHistoricalMachineConfig(entry.machineId, entry.date);
-      if (historicalConfig && historicalConfig.productionAt100 > 0) {
-        console.log(`Using historical productionAt100 for machine ${entry.machineId} on ${entry.date}:`, historicalConfig.productionAt100);
-        return historicalConfig.productionAt100;
+    // PRIORITIZE the entry's stored productionAt100 value for historical accuracy
+    if (entry.productionAt100 !== undefined && entry.productionAt100 !== null) {
+      const storedValue = typeof entry.productionAt100 === 'string' 
+        ? parseFloat(entry.productionAt100) 
+        : entry.productionAt100;
+      if (!isNaN(storedValue) && storedValue > 0) {
+        return storedValue;
       }
     }
     
-    // Try entry.machine first, then fallback to selectedMachine
+    // Fall back to machine's current value for older entries or new entry creation
     const machine = entry.machine || fallbackMachine;
     
-    if (!machine) return 87; // Default fallback
+    if (!machine) return 400; // Default fallback value
     
     // Handle both string and number types of productionAt100
     let productionValue = 0;
@@ -881,7 +700,7 @@ const DailyProduction: React.FC = () => {
     }
     
     // Default to a sensible value if the value is invalid
-    return !isNaN(productionValue) && productionValue > 0 ? productionValue : 87; // Default to 87 as fallback
+    return !isNaN(productionValue) && productionValue > 0 ? productionValue : 400; // Increased default fallback
   };
 
   // Helper function to get efficiency badge color
@@ -897,31 +716,8 @@ const DailyProduction: React.FC = () => {
     }
   };
 
-  // Helper function to format yarn type display with historical support
-  const formatYarnType = (entry: ASUProductionEntry): string => {
-    // First try to get the yarn type from the entry itself
-    if (entry.yarnType) {
-      return formatYarnTypeString(entry.yarnType);
-    }
-    
-    // If no yarn type in entry, try to get historical yarn type
-    if (entry.machineId && entry.date) {
-      const historicalYarnType = findHistoricalYarnType(entry.machineId, entry.date);
-      if (historicalYarnType) {
-        return formatYarnTypeString(historicalYarnType);
-      }
-    }
-    
-    // Fall back to machine's current yarn type
-    if (entry.machine?.yarnType) {
-      return formatYarnTypeString(entry.machine.yarnType);
-    }
-    
-    return 'Unknown';
-  };
-
-  // Helper function to format yarn type string
-  const formatYarnTypeString = (yarnType: string | undefined): string => {
+  // Helper function to format yarn type display
+  const formatYarnType = (yarnType: string | undefined): string => {
     if (!yarnType) return 'Unknown';
     
     // Format the yarn type to look better (capitalize first letter of each word)
@@ -1164,7 +960,7 @@ const DailyProduction: React.FC = () => {
                                         {new Date(entry.date).toLocaleDateString()}
                                       </td>
                                       <td className="px-2 py-1 font-medium text-purple-700 dark:text-purple-300">
-                                        {formatYarnTypeString(entry.yarnType)}
+                                        {formatYarnType(entry.yarnType)}
                                       </td>
                                       <td className="px-2 py-1 text-right">
                                         <button 
@@ -1417,7 +1213,7 @@ const DailyProduction: React.FC = () => {
                               <>
                                 <div className={`w-2 h-2 mr-2 rounded-full ${isHistoricalYarnType ? 'bg-purple-500' : 'bg-blue-500'}`}></div>
                                 <span className={`font-medium ${isHistoricalYarnType ? 'text-purple-600 dark:text-purple-400' : 'text-blue-600 dark:text-blue-400'}`}>
-                                  {formatYarnTypeString(displayYarnType)}
+                                  {formatYarnType(displayYarnType)}
                                 </span>
                                 {isHistoricalYarnType && (
                                   <span className="ml-2 px-1.5 py-0.5 text-xs rounded-md bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">

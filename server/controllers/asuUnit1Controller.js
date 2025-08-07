@@ -188,10 +188,10 @@ const createProductionEntry = async (req, res) => {
         shift,
         // Use provided yarnType or fall back to machine's yarnType
         yarnType: yarnType || machineYarnType || 'Cotton',
-        // Store the productionAt100 value for historical accuracy
-        productionAt100: finalTheoreticalProduction ? parseFloat(finalTheoreticalProduction) : 87.0,
         actualProduction: actualProduction !== undefined && actualProduction !== null ? parseFloat(actualProduction) : 0,
         theoreticalProduction: finalTheoreticalProduction ? parseFloat(finalTheoreticalProduction) : null,
+        // Store the production@100% value at the time of entry creation for historical accuracy
+        productionAt100: finalTheoreticalProduction ? parseFloat(finalTheoreticalProduction) : null,
         efficiency,
         remarks: remarks || null
       }, { transaction: t });
@@ -284,18 +284,19 @@ const updateProductionEntry = async (req, res) => {
 
     // Start a transaction for updating
     const result = await sequelize.transaction(async (t) => {
-      // Calculate new efficiency
+      // Calculate new efficiency using the ORIGINAL production@100% value stored with the entry
       let efficiency = entry.efficiency;
       const newActual = actualProduction !== undefined ? parseFloat(actualProduction) : entry.actualProduction;
-      let machine = null;
       
-      // Try to get theoreticalProduction from the machine's productionAt100 if not provided
-      let newTheoretical = theoreticalProduction !== undefined ? parseFloat(theoreticalProduction) : entry.theoreticalProduction;
+      // IMPORTANT: Use the entry's stored productionAt100 value for efficiency calculation
+      // This ensures efficiency calculations remain accurate regardless of machine configuration changes
+      let theoreticalForCalculation = entry.productionAt100 || entry.theoreticalProduction;
       
-      // If still no theoretical production, try to get it from the machine
-      if (!newTheoretical) {
+      // If we still don't have a theoretical value, fall back to machine's current value
+      // but this should only happen for old entries created before this fix
+      if (!theoreticalForCalculation) {
         try {
-          machine = await ASUMachine.findOne({
+          const machine = await ASUMachine.findOne({
             where: { 
               machineNo: entry.machineNumber,
               unit: 1 
@@ -304,20 +305,24 @@ const updateProductionEntry = async (req, res) => {
           });
           
           if (machine && machine.productionAt100) {
-            newTheoretical = machine.productionAt100;
+            theoreticalForCalculation = machine.productionAt100;
+            // Also update the entry's productionAt100 field for future consistency
+            await entry.update({ productionAt100: theoreticalForCalculation }, { transaction: t });
           }
         } catch (error) {
           console.error('Error finding machine for theoretical production on update:', error);
         }
       }
       
-      if (newActual && newTheoretical && newTheoretical > 0) {
-        efficiency = parseFloat(((newActual / newTheoretical) * 100).toFixed(2));
+      // Calculate efficiency using the historical production@100% value
+      if (newActual && theoreticalForCalculation && theoreticalForCalculation > 0) {
+        efficiency = parseFloat(((newActual / theoreticalForCalculation) * 100).toFixed(2));
       }
 
       const updateData = {};
       if (actualProduction !== undefined) updateData.actualProduction = newActual;
-      if (theoreticalProduction !== undefined) updateData.theoreticalProduction = newTheoretical;
+      // Don't update theoreticalProduction or productionAt100 - preserve historical values
+      if (theoreticalProduction !== undefined) updateData.theoreticalProduction = parseFloat(theoreticalProduction);
       if (remarks !== undefined) updateData.remarks = remarks;
       if (date !== undefined) updateData.date = date;
       

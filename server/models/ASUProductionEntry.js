@@ -38,12 +38,6 @@ const ASUProductionEntry = sequelize.define('ASUProductionEntry', {
     defaultValue: 'Cotton',
     field: 'yarn_type'
   },
-  productionAt100: {
-    type: DataTypes.DECIMAL(10, 2),
-    allowNull: false,
-    defaultValue: 87.0,
-    field: 'production_at_100'
-  },
   actualProduction: {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: true,
@@ -57,6 +51,12 @@ const ASUProductionEntry = sequelize.define('ASUProductionEntry', {
   efficiency: {
     type: DataTypes.DECIMAL(5, 2),
     allowNull: true
+  },
+  productionAt100: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: true,
+    field: 'production_at_100',
+    comment: 'Production@100% value from machine configuration at the time of entry creation'
   },
   remarks: {
     type: DataTypes.TEXT,
