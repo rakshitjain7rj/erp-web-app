@@ -1,4 +1,16 @@
 // src/components/asuUnit1/YarnProductionSummary.tsx
+// 
+// Current Yarn Type Production Summary Component
+// 
+// This component displays production data organized by date and yarn type,
+// showing ONLY the current yarn types configured on machines.
+// 
+// Key Features:
+// - Shows daily production amounts for current machine yarn types only
+// - When machine yarn types change, past production data is filtered to current types
+// - Zero values shown when no production exists for current yarn type on specific dates
+// - No historical yarn type data - focuses on current machine configurations
+//
 
 import React, { useState, useEffect } from "react";
 import {
@@ -87,44 +99,7 @@ const getYarnTypeColor = (type: string | undefined): string => {
   return colorMap.default;
 };
 
-// Helper function to find historical yarn type for a specific date
-const findHistoricalYarnType = (
-  history: Array<{date: string, yarnType: string}>, 
-  date: string
-): string | undefined => {
-  if (!history || history.length === 0 || !date) {
-    return undefined;
-  }
-  
-  // Find exact match for date
-  const exactMatch = history.find(entry => entry.date === date);
-  if (exactMatch) {
-    return exactMatch.yarnType;
-  }
-  
-  // If no exact match, find the most recent entry before this date
-  const entryDate = new Date(date);
-  
-  // Sort history by date in descending order (newest first)
-  const sortedHistory = [...history].sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-  );
-  
-  // Find the most recent entry that is on or before the given date
-  for (const historyEntry of sortedHistory) {
-    const historyDate = new Date(historyEntry.date);
-    if (historyDate <= entryDate) {
-      return historyEntry.yarnType;
-    }
-  }
-  
-  // If all entries are after this date, use the oldest one as fallback
-  const oldestEntry = [...history].sort(
-    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-  )[0];
-  
-  return oldestEntry?.yarnType;
-};
+
 
 // Define machine interface
 interface Machine {
@@ -181,40 +156,68 @@ const YarnProductionSummary: React.FC = () => {
     });
   };
 
-  // Helper function to process production entries into summary format
+  // Helper function to process production entries into summary format - CURRENT YARN TYPES ONLY (aggregated per date)
+  // REVISED: Aggregate only current active yarn types; no start-date filtering (natural zero if not produced yet)
   const processProductionData = (
-    entries: YarnProductionEntry[]
+    entries: YarnProductionEntry[],
+    currentYarnTypes: string[]
   ): YarnProductionSummaryRow[] => {
-    // The backend already returns data in the correct format, we just need to transform it
-    const summaryRows: YarnProductionSummaryRow[] = entries.map((entry) => {
-      // The backend returns yarnBreakdown which is exactly what we need
-      const yarnTypes: { [key: string]: number } = {};
-      
-      // Only add yarn types that have production values > 0 for this specific date
-      // We don't initialize with zeros for all types to avoid showing unnecessary columns
-      if (entry.yarnBreakdown) {
-        Object.entries(entry.yarnBreakdown).forEach(([type, production]) => {
-          const normalizedType = normalizeYarnType(type);
-          // Only include yarn types with actual production data
-          if (normalizedType && production > 0) {
-            yarnTypes[normalizedType] = production;
-          }
-        });
-      }
+    const currentSet = new Set(currentYarnTypes);
+    const dailyMap: Map<string, { yarn: Map<string, number>; machines: Set<number>; effSum: number; effCount: number }> = new Map();
 
+    entries.forEach(entry => {
+      if (!entry.yarnBreakdown) return;
+      if (!dailyMap.has(entry.date)) {
+        dailyMap.set(entry.date, { yarn: new Map(), machines: new Set(), effSum: 0, effCount: 0 });
+      }
+      const rec = dailyMap.get(entry.date)!;
+
+      Object.entries(entry.yarnBreakdown).forEach(([rawKey, val]) => {
+        if (val <= 0) return;
+        const normKey = normalizeYarnType(rawKey);
+        if (!currentSet.has(normKey)) return; // only count current yarn types
+        rec.yarn.set(normKey, (rec.yarn.get(normKey) || 0) + val);
+      });
+
+      if (entry.machineId) rec.machines.add(entry.machineId);
+      if (entry.avgEfficiency !== undefined && !isNaN(entry.avgEfficiency)) {
+        rec.effSum += entry.avgEfficiency;
+        rec.effCount += 1;
+      }
+    });
+
+    const rows: YarnProductionSummaryRow[] = Array.from(dailyMap.entries()).map(([date, rec]) => {
+      const yarnTypesObj: { [k: string]: number } = {};
+      rec.yarn.forEach((v, k) => { yarnTypesObj[k] = v; });
+      const total = Array.from(rec.yarn.values()).reduce((a, b) => a + b, 0);
+      const avgEff = rec.effCount > 0 ? rec.effSum / rec.effCount : 0;
       return {
-        date: entry.date,
-        yarnTypes,
-        totalProductionForDate: entry.totalProduction || 0,
-        machineCount: entry.machines || 0,
-        averageEfficiency: entry.avgEfficiency || 0,
+        date,
+        yarnTypes: yarnTypesObj,
+        totalProductionForDate: total,
+        machineCount: rec.machines.size,
+        averageEfficiency: avgEff,
       };
     });
 
-    // Sort by date descending
-    return summaryRows.sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
+    // Ensure dates with no current yarn production but entries existed appear (optional)
+    const existingDates = new Set(rows.map(r => r.date));
+    entries.forEach(e => {
+      if (!existingDates.has(e.date)) {
+        // Check if any breakdown key matches current types; if not, add zero row
+        const hasCurrent = e.yarnBreakdown && Object.keys(e.yarnBreakdown).some(k => currentSet.has(normalizeYarnType(k)));
+        if (hasCurrent) return; // would have been added
+        rows.push({
+          date: e.date,
+          yarnTypes: {},
+          totalProductionForDate: 0,
+          machineCount: 0,
+          averageEfficiency: 0,
+        });
+      }
+    });
+
+    return rows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   };
 
   // Handle refresh button click
@@ -225,21 +228,7 @@ const YarnProductionSummary: React.FC = () => {
     setLastRefreshed(new Date());
   };
 
-  // Function to load machine yarn history from localStorage
-  const loadMachineYarnHistory = (): Record<string, Array<{date: string, yarnType: string}>> => {
-    try {
-      const savedHistory = localStorage.getItem('machineYarnHistory');
-      if (savedHistory) {
-        const parsedHistory = JSON.parse(savedHistory);
-        console.log('Loaded machine yarn history from localStorage:', parsedHistory);
-        return parsedHistory;
-      }
-    } catch (error) {
-      console.error('Error loading machine yarn history:', error);
-    }
-    return {};
-  };
-  
+
   // Fetch yarn production summary data
   const fetchYarnSummary = async () => {
     try {
@@ -254,11 +243,9 @@ const YarnProductionSummary: React.FC = () => {
       };
 
       // Fetch both machine configurations and production entries in parallel
-      const [machinesResponse, entriesResponse, yarnHistoryResponse] = await Promise.all([
+      const [machinesResponse, entriesResponse] = await Promise.all([
         axios.get(`${BASE_URL}/asu-machines`, { headers }),
-        axios.get(`${BASE_URL}/yarn/production-entries`, { headers }),
-        // Try to fetch yarn history from API (will implement this endpoint later)
-        axios.get(`${BASE_URL}/yarn/history`, { headers }).catch(() => null)
+        axios.get(`${BASE_URL}/yarn/production-entries`, { headers })
       ]);
 
       // Parse the production entries data
@@ -270,132 +257,81 @@ const YarnProductionSummary: React.FC = () => {
       const machines: Machine[] = machinesResponse.data.success 
         ? machinesResponse.data.data 
         : machinesResponse.data;
-      
-      // Get yarn types specifically from active machines for special highlighting
+
+      // ---- Yarn type change tracking (start dates) ----
+      const prevTypesRaw = localStorage.getItem('machineCurrentYarnTypes');
+      const prevTypes: Record<string,string> = prevTypesRaw ? JSON.parse(prevTypesRaw) : {};
+
+      const startDatesRaw = localStorage.getItem('machineYarnTypeStartDates');
+      const storedStartDates: Record<string,string> = startDatesRaw ? JSON.parse(startDatesRaw) : {};
+
+      const todayISO = new Date().toISOString().split('T')[0];
+      const machineStartDates = new Map<number,string>();
+
+      // Track changes & preserve existing start dates
+      machines.forEach(m => {
+        const currentNorm = normalizeYarnType(m.yarnType);
+        const prevNorm = prevTypes[m.id];
+        if (!storedStartDates[m.id]) {
+          // If we can detect earliest production date for this current type, use it later; provisional assignment now
+          machineStartDates.set(m.id, storedStartDates[m.id] || todayISO);
+        } else {
+          machineStartDates.set(m.id, storedStartDates[m.id]);
+        }
+        // If yarn type changed vs previous snapshot and no start date recorded yet -> set today
+        if (prevNorm && prevNorm !== currentNorm) {
+          machineStartDates.set(m.id, todayISO);
+        }
+      });
+
+      // Derive earliest production date for current yarn type (if earlier than provisional) per machine
+      entries.forEach(e => {
+        if (!e.machineId || !e.yarnBreakdown) return;
+        const machine = machines.find(m => m.id === e.machineId);
+        if (!machine) return;
+        const currentNorm = normalizeYarnType(machine.yarnType);
+        if (!currentNorm) return;
+        const prodKeys = Object.keys(e.yarnBreakdown).map(k => normalizeYarnType(k));
+        if (prodKeys.includes(currentNorm)) {
+          const existing = machineStartDates.get(e.machineId);
+            const entryDateISO = e.date.split('T')[0];
+          if (!existing || new Date(entryDateISO) < new Date(existing)) {
+            machineStartDates.set(e.machineId, entryDateISO);
+          }
+        }
+      });
+
+      // Persist snapshots
+      const newPrevTypes: Record<string,string> = {};
+      machines.forEach(m => { newPrevTypes[m.id] = normalizeYarnType(m.yarnType); });
+      const newStartDatesObj: Record<string,string> = {};
+      machineStartDates.forEach((v,k) => { newStartDatesObj[k] = v; });
+      localStorage.setItem('machineCurrentYarnTypes', JSON.stringify(newPrevTypes));
+      localStorage.setItem('machineYarnTypeStartDates', JSON.stringify(newStartDatesObj));
+
+      // Get yarn types specifically from active machines
       const activeMachines = machines.filter((machine: Machine) => machine.isActive);
       const activeMachineYarnTypes = activeMachines
         .filter((machine: Machine) => machine.yarnType)
         .map((machine: Machine) => normalizeYarnType(machine.yarnType));
-      
-      // Store active machine yarn types separately (for validation/highlighting)
       setActiveMachineYarnTypes(activeMachineYarnTypes);
-      
-      // Try to load yarn history from localStorage if API endpoint is not available yet
-      let yarnHistory: Record<string, Array<{date: string, yarnType: string}>> = {};
-      
-      try {
-        if (yarnHistoryResponse && yarnHistoryResponse.data) {
-          // If API endpoint is implemented, use that data
-          yarnHistory = yarnHistoryResponse.data.success 
-            ? yarnHistoryResponse.data.data 
-            : yarnHistoryResponse.data;
-        } else {
-          // Otherwise fall back to localStorage
-          yarnHistory = loadMachineYarnHistory();
-        }
-      } catch (error) {
-        console.error('Error loading yarn history:', error);
-      }
-      
-      console.log('Loaded yarn history for processing entries:', yarnHistory);
-      
-      // Process entries to use historical yarn types where available
-      const processedEntries = entries.map(entry => {
-        // Create a copy of the entry
-        const processedEntry = {...entry};
-        
-        // Check if there's historical yarn type data for this entry
-        if (entry.machineId && yarnHistory[entry.machineId]) {
-          const machineHistory = yarnHistory[entry.machineId];
-          const entryDate = entry.date;
-          
-          console.log(`Processing entry for date ${entryDate}, machine ${entry.machineId}`);
-          console.log('Machine history:', machineHistory);
-          
-          // Find historical yarn type for this date
-          const historicalYarnType = findHistoricalYarnType(machineHistory, entryDate);
-          
-          console.log(`Historical yarn type for date ${entryDate}: ${historicalYarnType}`);
-          
-          // If historical yarn type is found and different from the current one, use it
-          if (historicalYarnType) {
-            // Create a modified yarn breakdown using the historical type
-            const modifiedBreakdown = {...entry.yarnBreakdown};
-            
-            // Find the machine in the machines array
-            const machine = machines.find(m => m.id === entry.machineId);
-            const currentYarnType = machine?.yarnType;
-            
-            console.log(`Current yarn type: ${currentYarnType}, Historical yarn type: ${historicalYarnType}`);
-            
-            // If current and historical yarn types are different, update the breakdown
-            if (currentYarnType && currentYarnType !== historicalYarnType && 
-                modifiedBreakdown[currentYarnType]) {
-              
-              console.log(`Yarn type changed for entry on ${entryDate}. Moving production from ${currentYarnType} to ${historicalYarnType}`);
-              
-              // Move production from current yarn type to historical yarn type
-              const productionValue = modifiedBreakdown[currentYarnType];
-              delete modifiedBreakdown[currentYarnType];
-              modifiedBreakdown[historicalYarnType] = 
-                (modifiedBreakdown[historicalYarnType] || 0) + productionValue;
-              
-              // Update the entry with modified breakdown
-              processedEntry.yarnBreakdown = modifiedBreakdown;
-              
-              console.log('Modified yarn breakdown:', modifiedBreakdown);
-            }
-          }
-        }
-        
-        return processedEntry;
-      });
-      
-      // Use processed entries for the rest of the function
-      
-      // Extract yarn types ONLY from the breakdown data in entries
-      // This ensures we only include yarn types that have actual production data
-      const breakdownYarnTypes: string[] = [];
-      processedEntries.forEach(entry => {
-        if (entry.yarnBreakdown && typeof entry.yarnBreakdown === 'object') {
-          Object.keys(entry.yarnBreakdown).forEach(key => {
-            const normalizedKey = normalizeYarnType(key);
-            if (normalizedKey && entry.yarnBreakdown[key] > 0) {
-              breakdownYarnTypes.push(normalizedKey);
-            }
-          });
-        }
-      });
-      
-      // Only use yarn types from actual production data, not from machine configurations
-      // This ensures we're only showing yarn types actually produced, not all possible types
-      const normalizedYarnTypes = [...new Set(breakdownYarnTypes)]
-        .filter(Boolean)
-        .sort((a, b) => {
-          // Prioritize active machine yarn types
-          const aIsActive = activeMachineYarnTypes.includes(a);
-          const bIsActive = activeMachineYarnTypes.includes(b);
-          
-          if (aIsActive && !bIsActive) return -1;
-          if (!aIsActive && bIsActive) return 1;
-          
-          // Then sort alphabetically
-          return a.localeCompare(b);
-        });
-      
-      // Use this unified, normalized list of yarn types
+
+      const currentYarnTypes = activeMachines
+        .filter((machine: Machine) => machine.yarnType)
+        .map((machine: Machine) => normalizeYarnType(machine.yarnType))
+        .filter(Boolean);
+      const normalizedYarnTypes = [...new Set(currentYarnTypes)].sort((a, b) => a.localeCompare(b));
       setDistinctYarnTypes(normalizedYarnTypes);
 
-      // Process data into summary format
-      const summary = processProductionData(processedEntries);
+      const summary = processProductionData(entries, normalizedYarnTypes);
       setSummaryData(summary);
 
       // Calculate stats
-      const totalProduction = processedEntries.reduce(
-        (sum, entry) => sum + entry.totalProduction,
+      const totalProduction = entries.reduce(
+        (sum: number, entry: YarnProductionEntry) => sum + entry.totalProduction,
         0
       );
-      const uniqueDates = new Set(processedEntries.map((entry) => entry.date));
+      const uniqueDates = new Set(entries.map((entry: YarnProductionEntry) => entry.date));
       const stats: YarnSummaryStats = {
         totalProduction,
         totalDays: uniqueDates.size,
@@ -675,22 +611,13 @@ const YarnProductionSummary: React.FC = () => {
                         <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400 w-[120px]">
                           Date
                         </TableHead>
-                        {/* Dynamic yarn type columns - only for yarn types with actual production */}
+                        {/* Dynamic yarn type columns - only for current machine yarn types */}
                         {distinctYarnTypes.map((yarnType, index) => {
                           // Format the display name using our helper function
                           const displayName = formatYarnTypeDisplay(yarnType);
                           
-                          // Check if this is an active yarn type from machines
-                          const isActiveMachineYarn = activeMachineYarnTypes.includes(yarnType);
-                          
-                          // Check if any production entries actually use this yarn type
-                          // This ensures we only show columns for yarn types that have been produced
-                          const hasProduction = summaryData.some(row => 
-                            row.yarnTypes[yarnType] && row.yarnTypes[yarnType] > 0
-                          );
-                          
-                          // Only render columns for yarn types that have actual production data
-                          if (!hasProduction) return null;
+                          // All yarn types in distinctYarnTypes are current machine yarn types
+                          const isActiveMachineYarn = true;
                           
                           return (
                             <TableHead 
@@ -701,15 +628,13 @@ const YarnProductionSummary: React.FC = () => {
                                 <span
                                   className={`inline-block w-2 h-2 mb-1 rounded-full ${getYarnTypeColor(yarnType)}`}
                                 ></span>
-                                <span className={isActiveMachineYarn ? "font-semibold" : ""}>
+                                <span className="font-semibold">
                                   {displayName}
                                 </span>
-                                {/* Add a small historical indicator for yarn types that are no longer active */}
-                                {!isActiveMachineYarn && (
-                                  <span className="ml-1 px-1 py-0.5 text-[10px] rounded bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
-                                    H
-                                  </span>
-                                )}
+                                {/* Add CURRENT badge to indicate these are current yarn types */}
+                                <span className="ml-1 px-1 py-0.5 text-[10px] rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                                  CURRENT
+                                </span>
                               </div>
                             </TableHead>
                           );
@@ -743,16 +668,8 @@ const YarnProductionSummary: React.FC = () => {
                               </span>
                             </div>
                           </TableCell>
-                          {/* Dynamic yarn type data columns */}
+                          {/* Dynamic yarn type data columns - current yarn types only */}
                           {distinctYarnTypes.map((yarnType, typeIndex) => {
-                            // Check if any production entries actually use this yarn type
-                            const hasProductionInAnyRow = summaryData.some(r => 
-                              r.yarnTypes[yarnType] && r.yarnTypes[yarnType] > 0
-                            );
-                            
-                            // Skip columns that don't have any production data
-                            if (!hasProductionInAnyRow) return null;
-                            
                             return (
                               <TableCell
                                 key={`row-${index}-type-${yarnType}-${typeIndex}`}
@@ -761,18 +678,14 @@ const YarnProductionSummary: React.FC = () => {
                                 {(() => {
                                   // Get the production value for this yarn type on this date
                                   const productionValue = row.yarnTypes[yarnType] || 0;
-                                  
-                                  // Check if this is an active yarn type from machines
-                                  const isActiveMachineYarn = activeMachineYarnTypes.includes(yarnType);
                                   const hasValue = productionValue > 0;
                                   
+                                  // All yarn types are current machine yarn types
                                   return (
                                     <span
                                       className={`${
                                         hasValue
-                                          ? isActiveMachineYarn 
-                                            ? "text-blue-600 dark:text-blue-400 font-medium"
-                                            : "text-purple-600 dark:text-purple-400 font-medium" 
+                                          ? "text-blue-600 dark:text-blue-400 font-medium"
                                           : "text-gray-400 dark:text-gray-500"
                                       }`}
                                     >
@@ -782,10 +695,6 @@ const YarnProductionSummary: React.FC = () => {
                                       <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
                                         kg
                                       </span>
-                                      {/* Show a small indicator for historical yarn types with production */}
-                                      {hasValue && !isActiveMachineYarn && (
-                                        <span className="ml-1 text-xs text-purple-500 dark:text-purple-400">*</span>
-                                      )}
                                     </span>
                                   );
                                 })()}
@@ -852,22 +761,26 @@ const YarnProductionSummary: React.FC = () => {
                   <div className="flex flex-wrap gap-x-6 gap-y-2">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                      <span className="text-xs text-gray-600 dark:text-gray-400">Current Machine Yarn Types</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">Current Machine Yarn Types Only</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
-                      <span className="text-xs text-gray-600 dark:text-gray-400">Historical Yarn Types</span>
+                      <span className="px-1 py-0.5 text-[10px] rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">CURRENT</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">Shows production for current yarn type only</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-purple-600 dark:text-purple-400 font-medium">
-                        123.45<span className="text-xs text-purple-500 dark:text-purple-400">*</span>
-                      </span>
-                      <span className="text-xs text-gray-600 dark:text-gray-400">Historical Production (previous machine config)</span>
+                      <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">123.45</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">Production amount for current yarn type on this date</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="px-1 py-0.5 text-[10px] rounded bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">H</span>
-                      <span className="text-xs text-gray-600 dark:text-gray-400">Historical Yarn Type (no longer in use)</span>
+                      <span className="text-xs text-gray-400 dark:text-gray-500">0.00</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">No production for this yarn type on this date</span>
                     </div>
+                  </div>
+                  <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800">
+                    <p className="text-xs text-blue-700 dark:text-blue-300">
+                      📝 <strong>Note:</strong> This view shows production data mapped to current machine yarn types only. 
+                      If a machine's yarn type was changed, past production data will only be visible if it matches the current yarn type.
+                    </p>
                   </div>
                 </div>
               )}
