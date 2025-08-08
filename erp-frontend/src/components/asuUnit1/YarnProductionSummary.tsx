@@ -12,7 +12,7 @@
 // - No historical yarn type data - focuses on current machine configurations
 //
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Table,
   TableBody,
@@ -145,6 +145,34 @@ const YarnProductionSummary: React.FC = () => {
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const [showLegend, setShowLegend] = useState<boolean>(true);
+
+  // Aggregated per-column (current yarn types) totals & grand total
+  const yarnTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    summaryData.forEach(row => {
+      Object.entries(row.yarnTypes).forEach(([type, val]) => {
+        totals[type] = (totals[type] || 0) + val;
+      });
+    });
+    return totals;
+  }, [summaryData]);
+  const grandTotal = useMemo(() => Object.values(yarnTotals).reduce((a,b)=>a+b,0), [yarnTotals]);
+  // Production-weighted overall average efficiency (more accurate than simple mean of daily averages)
+  const productionWeightedAvgEfficiency = useMemo(() => {
+    let weightedSum = 0;
+    let prodSum = 0;
+    summaryData.forEach(r => {
+      if (!isNaN(r.averageEfficiency) && r.totalProductionForDate > 0) {
+        weightedSum += r.averageEfficiency * r.totalProductionForDate;
+        prodSum += r.totalProductionForDate;
+      }
+    });
+    if (prodSum > 0) return weightedSum / prodSum;
+    // fallback: simple mean if no production totals
+    const valid = summaryData.filter(r => !isNaN(r.averageEfficiency));
+    if (!valid.length) return 0;
+    return valid.reduce((s,r)=>s+r.averageEfficiency,0)/valid.length;
+  }, [summaryData]);
 
   // Helper function to format date
   const formatDate = (dateString: string): string => {
@@ -676,25 +704,14 @@ const YarnProductionSummary: React.FC = () => {
                                 className="px-4 py-4 font-medium text-center whitespace-nowrap sm:px-6"
                               >
                                 {(() => {
-                                  // Get the production value for this yarn type on this date
                                   const productionValue = row.yarnTypes[yarnType] || 0;
                                   const hasValue = productionValue > 0;
-                                  
-                                  // All yarn types are current machine yarn types
                                   return (
                                     <span
-                                      className={`${
-                                        hasValue
-                                          ? "text-blue-600 dark:text-blue-400 font-medium"
-                                          : "text-gray-400 dark:text-gray-500"
-                                      }`}
+                                      className={`${hasValue ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-400 dark:text-gray-500'}`}
                                     >
-                                      {hasValue
-                                        ? productionValue.toFixed(2)
-                                        : "0.00"}
-                                      <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
-                                        kg
-                                      </span>
+                                      {hasValue ? productionValue.toFixed(2) : '0.00'}
+                                      <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">kg</span>
                                     </span>
                                   );
                                 })()}
@@ -704,17 +721,13 @@ const YarnProductionSummary: React.FC = () => {
                           <TableCell className="px-4 py-4 font-medium text-center whitespace-nowrap sm:px-6">
                             <span className="font-semibold text-indigo-600 dark:text-indigo-400">
                               {row.totalProductionForDate.toFixed(2)}
-                              <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
-                                kg
-                              </span>
+                              <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">kg</span>
                             </span>
                           </TableCell>
                           <TableCell className="px-4 py-4 text-center whitespace-nowrap sm:px-6">
                             <div className="flex items-center justify-center gap-2">
                               <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                              <span className="text-gray-700 dark:text-gray-300">
-                                {row.machineCount}
-                              </span>
+                              <span className="text-gray-700 dark:text-gray-300">{row.machineCount}</span>
                             </div>
                           </TableCell>
                           <TableCell className="px-4 py-4 text-center whitespace-nowrap sm:px-6">
@@ -723,16 +736,11 @@ const YarnProductionSummary: React.FC = () => {
                                 const efficiency = row.averageEfficiency;
                                 const isValidEfficiency = !isNaN(efficiency) && efficiency !== null && efficiency !== undefined;
                                 const displayEfficiency = isValidEfficiency ? efficiency : 0;
-                                
                                 return (
                                   <>
-                                    <div
-                                      className={`w-3 h-3 rounded-full ${getEfficiencyColorClass(displayEfficiency)}`}
-                                    ></div>
-                                    <Badge
-                                      className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${getEfficiencyBadgeClass(displayEfficiency)}`}
-                                    >
-                                      {isValidEfficiency ? displayEfficiency.toFixed(1) : "0.0"}%
+                                    <div className={`w-3 h-3 rounded-full ${getEfficiencyColorClass(displayEfficiency)}`}></div>
+                                    <Badge className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${getEfficiencyBadgeClass(displayEfficiency)}`}>
+                                      {isValidEfficiency ? displayEfficiency.toFixed(1) : '0.0'}%
                                     </Badge>
                                   </>
                                 );
@@ -745,6 +753,45 @@ const YarnProductionSummary: React.FC = () => {
                   </Table>
                 </div>
               </div>
+              {/* New Totals section outside scrollable area */}
+              {summaryData.length > 0 && (
+                <div className="mt-4 w-full overflow-x-auto">
+                  <Table className="w-full min-w-full table-fixed">
+                    <TableBody>
+                      <TableRow className="bg-indigo-50 dark:bg-indigo-900/20 border-t border-indigo-200 dark:border-indigo-800">
+                        <TableCell className="px-4 py-3 font-semibold text-left whitespace-nowrap sm:px-6 text-indigo-700 dark:text-indigo-300">
+                          Totals
+                        </TableCell>
+                        {distinctYarnTypes.map((yarnType, idx) => (
+                          <TableCell
+                            key={`outside-total-${yarnType}-${idx}`}
+                            className="px-4 py-3 font-semibold text-center whitespace-nowrap sm:px-6"
+                          >
+                            <span className="text-indigo-700 dark:text-indigo-300">
+                              {(yarnTotals[yarnType] || 0).toFixed(2)}
+                              <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">kg</span>
+                            </span>
+                          </TableCell>
+                        ))}
+                        <TableCell className="px-4 py-3 font-bold text-center whitespace-nowrap sm:px-6 text-indigo-800 dark:text-indigo-200">
+                          {grandTotal.toFixed(2)}
+                          <span className="ml-1 text-xs font-normal text-gray-500 dark:text-gray-400">kg</span>
+                        </TableCell>
+                        {/* Machines column placeholder (no aggregate) */}
+                        <TableCell className="px-4 py-3 text-center whitespace-nowrap sm:px-6">
+                          <span className="text-gray-500 dark:text-gray-400 text-xs font-medium">—</span>
+                        </TableCell>
+                        {/* Avg Efficiency overall */}
+                        <TableCell className="px-4 py-3 text-center whitespace-nowrap sm:px-6" title="Production-weighted average efficiency across all visible days">
+                          <span className="inline-flex items-center gap-1 text-indigo-800 dark:text-indigo-200 font-semibold">
+                            {productionWeightedAvgEfficiency.toFixed(1)}%
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
               
               {/* Legend for the yarn type indicators */}
               {showLegend && (
