@@ -1,10 +1,4 @@
--- Add machine_configurations table to track machine configuration history
-CREATE TABLE IF NOT EXISTS machine_configurations (
-  id SERIAL PRIMARY KEY,
-  machine_id INTEGER NOT NULL REFERENCES asu_machines(id) ON DELETE CASCADE,
-  count INTEGER NOT NULL DEFAULT 0, -- Changed from spindle_count to match frontend
-  spindles INTEGER NOT NULL DEFAULT 0, -- Added to match frontend
-  speed INTEGER NOT NULL DEFAULT 0, -- Added to match frontend
+ frontend
   yarn_type VARCHAR(255) NOT NULL DEFAULT 'Cotton',
   production_at_100 DECIMAL(10, 2) NOT NULL DEFAULT 0.00, -- Changed from efficiency_at_100_percent to match frontend
   is_active BOOLEAN NOT NULL DEFAULT TRUE, -- Added to match frontend

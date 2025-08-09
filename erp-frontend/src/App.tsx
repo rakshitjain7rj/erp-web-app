@@ -26,6 +26,7 @@ import PartyMaster from "./pages/PartyMaster";
 import ArchivedParties from "./pages/ArchivedParties";
 import ASUUnit1Page from "./pages/ASUUnit1Page";
 import CountProductOverview from "./pages/CountProductOverview";
+import ASUUnit2Page from "./pages/ASUUnit2Page";
 import ASUAuthTest from "./components/ASUAuthTest";
 import ApiTest from "./components/ApiTest";
 import SimplePartyTest from "./components/SimplePartyTest";
@@ -182,6 +183,14 @@ const App = () => {
                   element={
                     <PrivateRoute roles={["admin", "manager", "operator"]}>
                       <ASUUnit1Page />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/production/asu-unit-2"
+                  element={
+                    <PrivateRoute roles={["admin", "manager", "operator"]}>
+                      <ASUUnit2Page />
                     </PrivateRoute>
                   }
                 />

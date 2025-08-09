@@ -26,6 +26,7 @@ import { Button } from "../ui/Button";
 import { toast } from "react-hot-toast";
 import { Calendar, Package, RefreshCw, TrendingUp } from "lucide-react";
 import axios from "axios";
+import { asuUnit1Api } from "../../api/asuUnit1Api";
 
 // Helper function to normalize yarn type
 const normalizeYarnType = (type: string | undefined): string => {
@@ -263,82 +264,29 @@ const YarnProductionSummary: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      const BASE_URL = import.meta.env.VITE_API_URL || "";
-      const token = localStorage.getItem("token");
-      const headers = {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      };
-
-      // Fetch both machine configurations and production entries in parallel
-      const [machinesResponse, entriesResponse] = await Promise.all([
-        axios.get(`${BASE_URL}/asu-machines`, { headers }),
-        axios.get(`${BASE_URL}/yarn/production-entries`, { headers })
+      // Scope to Unit 1 endpoints and fetch raw entries; aggregate on the client using entry.yarnType
+      const [machines, paged] = await Promise.all([
+        asuUnit1Api.getAllMachines(),
+        asuUnit1Api.getProductionEntries({ limit: 500 })
       ]);
 
-      // Parse the production entries data
-      const entries: YarnProductionEntry[] = entriesResponse.data.success
-        ? entriesResponse.data.data
-        : entriesResponse.data;
-
-      // Extract and normalize yarn types from machine configurations
-      const machines: Machine[] = machinesResponse.data.success 
-        ? machinesResponse.data.data 
-        : machinesResponse.data;
-
-      // ---- Yarn type change tracking (start dates) ----
-      const prevTypesRaw = localStorage.getItem('machineCurrentYarnTypes');
-      const prevTypes: Record<string,string> = prevTypesRaw ? JSON.parse(prevTypesRaw) : {};
-
-      const startDatesRaw = localStorage.getItem('machineYarnTypeStartDates');
-      const storedStartDates: Record<string,string> = startDatesRaw ? JSON.parse(startDatesRaw) : {};
-
-      const todayISO = new Date().toISOString().split('T')[0];
-      const machineStartDates = new Map<number,string>();
-
-      // Track changes & preserve existing start dates
-      machines.forEach(m => {
-        const currentNorm = normalizeYarnType(m.yarnType);
-        const prevNorm = prevTypes[m.id];
-        if (!storedStartDates[m.id]) {
-          // If we can detect earliest production date for this current type, use it later; provisional assignment now
-          machineStartDates.set(m.id, storedStartDates[m.id] || todayISO);
-        } else {
-          machineStartDates.set(m.id, storedStartDates[m.id]);
-        }
-        // If yarn type changed vs previous snapshot and no start date recorded yet -> set today
-        if (prevNorm && prevNorm !== currentNorm) {
-          machineStartDates.set(m.id, todayISO);
-        }
+      // Transform combined day/night items into YarnProductionEntry[] records keyed by entry yarn type
+      const entries: YarnProductionEntry[] = (paged?.items || []).map((it: any) => {
+        const key = normalizeYarnType(it.yarnType || it.machine?.yarnType || "");
+        const total = Number(it.total || 0);
+        const pct = Number(it.percentage || 0);
+        return {
+          date: it.date,
+          yarnBreakdown: key ? { [key]: total } : {},
+          totalProduction: total,
+          machines: 1,
+          avgEfficiency: isNaN(pct) ? 0 : pct,
+          machineId: it.machineId,
+        } as YarnProductionEntry;
       });
-
-      // Derive earliest production date for current yarn type (if earlier than provisional) per machine
-      entries.forEach(e => {
-        if (!e.machineId || !e.yarnBreakdown) return;
-        const machine = machines.find(m => m.id === e.machineId);
-        if (!machine) return;
-        const currentNorm = normalizeYarnType(machine.yarnType);
-        if (!currentNorm) return;
-        const prodKeys = Object.keys(e.yarnBreakdown).map(k => normalizeYarnType(k));
-        if (prodKeys.includes(currentNorm)) {
-          const existing = machineStartDates.get(e.machineId);
-            const entryDateISO = e.date.split('T')[0];
-          if (!existing || new Date(entryDateISO) < new Date(existing)) {
-            machineStartDates.set(e.machineId, entryDateISO);
-          }
-        }
-      });
-
-      // Persist snapshots
-      const newPrevTypes: Record<string,string> = {};
-      machines.forEach(m => { newPrevTypes[m.id] = normalizeYarnType(m.yarnType); });
-      const newStartDatesObj: Record<string,string> = {};
-      machineStartDates.forEach((v,k) => { newStartDatesObj[k] = v; });
-      localStorage.setItem('machineCurrentYarnTypes', JSON.stringify(newPrevTypes));
-      localStorage.setItem('machineYarnTypeStartDates', JSON.stringify(newStartDatesObj));
 
       // Get yarn types specifically from active machines
-      const activeMachines = machines.filter((machine: Machine) => machine.isActive);
+      const activeMachines = (machines as any[]).filter((machine: Machine) => machine.isActive);
       const activeMachineYarnTypes = activeMachines
         .filter((machine: Machine) => machine.yarnType)
         .map((machine: Machine) => normalizeYarnType(machine.yarnType));
@@ -355,11 +303,8 @@ const YarnProductionSummary: React.FC = () => {
       setSummaryData(summary);
 
       // Calculate stats
-      const totalProduction = entries.reduce(
-        (sum: number, entry: YarnProductionEntry) => sum + entry.totalProduction,
-        0
-      );
-      const uniqueDates = new Set(entries.map((entry: YarnProductionEntry) => entry.date));
+      const totalProduction = (entries || []).reduce((sum: number, entry: YarnProductionEntry) => sum + (entry.totalProduction || 0), 0);
+      const uniqueDates = new Set((entries || []).map((entry: YarnProductionEntry) => entry.date));
       const stats: YarnSummaryStats = {
         totalProduction,
         totalDays: uniqueDates.size,
@@ -380,11 +325,11 @@ const YarnProductionSummary: React.FC = () => {
             errorMessage = "You do not have permission to access this data.";
           } else if (err.response.status === 404) {
             const endpoint = err.config?.url || "";
-            if (endpoint.includes("asu-machines")) {
-              errorMessage = "Machine configuration data not found.";
-            } else {
-              errorMessage = "Yarn production data not found.";
-            }
+            if (endpoint.includes("asu-machines") || endpoint.includes("/asu-unit1/asu-machines")) {
+               errorMessage = "Machine configuration data not found.";
+             } else {
+               errorMessage = "Yarn production data not found.";
+             }
           } else {
             errorMessage = `Server error: ${
               err.response.data?.message || err.message

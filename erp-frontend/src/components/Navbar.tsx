@@ -78,7 +78,7 @@ const Navbar = () => {
   const renderNavLinks = () => {
     if (!user) return null;
     const { role } = user;
-    const links: { to: string; label: string; icon: React.ReactElement }[] = [];
+    const links: { to: string; label: string; icon: React.ReactNode }[] = [];
 
     if (["admin", "manager", "storekeeper"].includes(role)) links.push({ to: "/dashboard", label: "Dashboard", icon: <FaChartBar /> });
     if (["admin", "manager", "storekeeper"].includes(role)) links.push({ to: "/inventory", label: "Inventory", icon: <FaWarehouse /> });
@@ -93,6 +93,7 @@ const Navbar = () => {
     
     // Production Module
     if (["admin", "manager", "operator"].includes(role)) links.push({ to: "/production/asu-unit-1", label: "ASU Unit 1", icon: <FaIndustry /> });
+    if (["admin", "manager", "operator"].includes(role)) links.push({ to: "/production/asu-unit-2", label: "ASU Unit 2", icon: <FaIndustry /> });
     // ASU Machines link removed - functionality now integrated into ASU Unit 1 page
     
     if (role === "admin") {
