@@ -10,7 +10,7 @@ const ASUMachine = sequelize.define('ASUMachine', {
   machineNo: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    unique: true,
+    // Removed global unique so we can enforce composite unique (unit, machine_no)
     field: 'machine_no'
   },
   machineName: {
@@ -49,9 +49,8 @@ const ASUMachine = sequelize.define('ASUMachine', {
     type: DataTypes.INTEGER,
     allowNull: false,
     defaultValue: 1,
-    // Removed Unit 2 option from validation
     validate: {
-      isIn: [[1]]
+      isIn: [[1, 2]]
     }
   },
   isActive: {
@@ -77,7 +76,17 @@ const ASUMachine = sequelize.define('ASUMachine', {
   tableName: 'asu_machines',
   timestamps: true,
   createdAt: 'created_at',
-  updatedAt: 'updated_at'
+  updatedAt: 'updated_at',
+  indexes: [
+    {
+      unique: true,
+      fields: ['unit', 'machine_no'],
+      name: 'unique_unit_machine_no'
+    },
+    { fields: ['unit'] },
+    { fields: ['machine_no'] },
+    { fields: ['is_active'] },
+  ]
 });
 
 ASUMachine.associate = (models) => {

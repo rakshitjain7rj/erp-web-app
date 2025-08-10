@@ -75,7 +75,9 @@ const getProductionEntries = async (req, res) => {
       include: [{
         model: ASUMachine,
         as: 'machine',
-        attributes: ['id', 'machineNo', 'productionAt100', 'isActive', 'spindles', 'speed', 'count', 'yarnType']
+        attributes: ['id', 'machineNo', 'productionAt100', 'isActive', 'spindles', 'speed', 'count', 'yarnType'],
+        where: { unit: 1 },
+        required: false
       }]
     });
 

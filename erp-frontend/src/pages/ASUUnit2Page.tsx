@@ -8,10 +8,10 @@ import { Badge } from '../components/ui/badge';
 import { ASU_UNITS } from '../config/asuUnits';
 import { asuUnit2Api } from '../api/asuUnit2Api';
 
-// Reuse existing Unit1 components for now
+// Use Unit 2 components
 import DailyProductionUnit2 from '../components/asuUnit2/DailyProductionUnit2';
-import YarnSummary from '../components/asuUnit1/YarnSummary';
-import MachineManager from '../components/asuUnit1/MachineManager';
+import YarnSummaryUnit2 from '../components/asuUnit2/YarnSummaryUnit2';
+import MachineManagerUnit2 from '../components/asuUnit2/MachineManagerUnit2';
 
 // NOTE: If later we add Unit2-specific fields (e.g. mains readings, worker name),
 // convert these components into generic versions (e.g. /components/asuShared/) and
@@ -95,8 +95,8 @@ const ASUUnit2Page: React.FC = () => {
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         {activeTab === 'production' && <DailyProductionUnit2 />}
-        {activeTab === 'summary' && <YarnSummary />}
-        {activeTab === 'machines' && <MachineManager />}
+        {activeTab === 'summary' && <YarnSummaryUnit2 />}
+        {activeTab === 'machines' && <MachineManagerUnit2 />}
       </div>
     </div>
   );

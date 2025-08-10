@@ -49,6 +49,7 @@ const authRoutes = require('./routes/authRoutes');
 const dyeingRoutes = require('./routes/dyeingRoutes');
 const partyRoutes = require('./routes/partyRoutes');
 const asuUnit1Routes = require('./routes/asuUnit1Routes');
+const asuUnit2Routes = require('./routes/asuUnit2Routes');
 const asuMachineRoutes = require('./routes/asuMachineRoutes');
 const yarnProductionRoutes = require('./routes/yarnProductionRoutes');
 const inventoryRoutes = require('./routes/inventoryRoutes');
@@ -105,6 +106,9 @@ app.use('/api/parties', partyRoutes);
 console.log('✅ Party routes registered at /api/parties');
 
 app.use('/api/asu-unit1', asuUnit1Routes);
+console.log('✅ Registered ASU Unit 1 routes at /api/asu-unit1');
+app.use('/api/asu-unit2', asuUnit2Routes);
+console.log('✅ Registered ASU Unit 2 routes at /api/asu-unit2');
 app.use('/api/asu-machines', asuMachineRoutes);
 app.use('/api/yarn', yarnProductionRoutes);
 app.use('/api/inventory', inventoryRoutes);

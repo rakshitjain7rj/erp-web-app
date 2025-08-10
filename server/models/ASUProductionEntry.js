@@ -11,9 +11,8 @@ const ASUProductionEntry = sequelize.define('ASUProductionEntry', {
     type: DataTypes.INTEGER,
     allowNull: false,
     defaultValue: 1,
-    // Removed Unit 2 option from validation
     validate: {
-      isIn: [[1]]
+      isIn: [[1, 2]]
     }
   },
   machineNumber: {
