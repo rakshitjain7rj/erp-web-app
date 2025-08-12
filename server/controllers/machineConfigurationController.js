@@ -78,7 +78,7 @@ const createMachineConfiguration = async (req, res) => {
         // Function to normalize numeric values for comparison
         const normalizeNumber = (value) => {
           if (value === null || value === undefined) return 0;
-          return parseFloat(parseFloat(value).toFixed(2));
+          return parseFloat(parseFloat(value).toFixed(5));
         };
         
         // Check if there's an active configuration (where endDate is null)

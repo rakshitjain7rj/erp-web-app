@@ -194,7 +194,7 @@ const MachineConfigurationHistory: React.FC<MachineConfigurationHistoryProps> = 
                     <td className="px-4 py-3 whitespace-nowrap">{formattedDuration}</td>
                     <td className="px-4 py-3 whitespace-nowrap">{config.spindleCount}</td>
                     <td className="px-4 py-3 whitespace-nowrap">{config.yarnType}</td>
-                    <td className="px-4 py-3 whitespace-nowrap">{config.efficiencyAt100Percent}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">{Number((config as any).efficiencyAt100Percent ?? (config as any).productionAt100 ?? 0).toFixed(5)}</td>
                     <td className="px-4 py-3 whitespace-nowrap text-center">
                       <div className="flex justify-center space-x-2">
                         <button
@@ -296,7 +296,7 @@ const MachineConfigurationHistory: React.FC<MachineConfigurationHistoryProps> = 
                   <Input
                     id="efficiencyAt100Percent"
                     type="number"
-                    step="0.01"
+                    step="0.00001"
                     value={formData.efficiencyAt100Percent}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
                       setFormData({ ...formData, efficiencyAt100Percent: parseFloat(e.target.value) || 0 })}
@@ -395,7 +395,7 @@ const MachineConfigurationHistory: React.FC<MachineConfigurationHistoryProps> = 
                   <Input
                     id="editEfficiencyAt100Percent"
                     type="number"
-                    step="0.01"
+                    step="0.00001"
                     value={formData.efficiencyAt100Percent}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
                       setFormData({ ...formData, efficiencyAt100Percent: parseFloat(e.target.value) || 0 })}

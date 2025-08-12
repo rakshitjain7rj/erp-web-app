@@ -241,9 +241,9 @@ export const asuUnit1Api = {
     const sanitizedData = {
       ...data,
       machineNo: typeof data.machineNo === 'string' ? parseInt(data.machineNo, 10) : Number(data.machineNo),
-      // Convert count to a number (only numeric part is sent to backend)
+      // Convert count to a number (allow decimals like 0.65)
       count: typeof data.count === 'string' 
-        ? parseInt(String(data.count).replace(/[^0-9]/g, '') || '0', 10)
+        ? (() => { const m = String(data.count).match(/\d*\.?\d+/); return m ? parseFloat(m[0]) : 0; })()
         : Number(data.count || 0),
       // Handle potentially null spindles and speed - convert to 0 if null
       spindles: data.spindles !== null ? Number(data.spindles || 0) : 0,
@@ -1278,7 +1278,7 @@ export const asuUnit1Api = {
       ...(data.isActive !== undefined && { isActive: data.isActive }),
       ...(data.isActive !== undefined && { status: data.isActive ? 'active' : 'inactive' }),
       ...(data.yarnType !== undefined && { yarnType: data.yarnType }),
-      ...(data.count !== undefined && { count: data.count }),
+      ...(data.count !== undefined && { count: typeof data.count === 'string' ? parseFloat(data.count as any) : Number(data.count) }),
       ...(data.spindles !== undefined && { spindles: data.spindles }),
       ...(data.speed !== undefined && { speed: data.speed }),
       ...(data.productionAt100 !== undefined && { productionAt100: data.productionAt100 })

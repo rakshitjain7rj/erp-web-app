@@ -19,9 +19,9 @@ const ASUMachine = sequelize.define('ASUMachine', {
     field: 'machine_name'
   },
   count: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.DECIMAL(12, 5),
     allowNull: false,
-    defaultValue: 0
+    defaultValue: 0.00
   },
   yarnType: {
     type: DataTypes.STRING,
@@ -40,7 +40,7 @@ const ASUMachine = sequelize.define('ASUMachine', {
     defaultValue: 0.00
   },
   productionAt100: {
-    type: DataTypes.DECIMAL(10, 2),
+    type: DataTypes.DECIMAL(12, 5),
     allowNull: false,
     defaultValue: 0.00,
     field: 'production_at_100'

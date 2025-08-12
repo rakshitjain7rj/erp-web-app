@@ -177,8 +177,8 @@ const MachineManager: React.FC = () => {
 
   const handleEdit = (machine: ASUMachine) => {
     const numericCount = typeof machine.count === 'string' 
-      ? parseInt(String(machine.count).replace(/[^0-9]/g, '') || '0', 10) 
-      : (machine.count || 0);
+      ? (() => { const m = String(machine.count).match(/\d*\.?\d+/); return m ? parseFloat(m[0]) : 0; })()
+      : (Number(machine.count) || 0);
       
     setEditingMachine({
       id: machine.id,
@@ -482,15 +482,13 @@ const MachineManager: React.FC = () => {
                             value={editingMachine.countDisplay || editingMachine.count}
                             onChange={(e) => {
                               const displayValue = e.target.value;
-                              // Extract numeric part for the actual count
-                              const numericMatch = displayValue.match(/^\d+/);
-                              const numericValue = numericMatch ? parseInt(numericMatch[0], 10) : 0;
+                              // Extract numeric part (supports decimals like 0.65)
+                              const numericMatch = displayValue.match(/^\d*\.?\d+/);
+                              const numericValue = numericMatch ? parseFloat(numericMatch[0]) : 0;
                               
                               setEditingMachine({ 
                                 ...editingMachine, 
-                                count: numericValue, // Store the numeric part for the API
-                                countDisplay: displayValue // Store the full string for display
-                              });
+                                count: numericValue,                                countDisplay: displayValue                              });
                             }}
                             className="w-20 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
                             onClick={(e) => e.stopPropagation()}
@@ -556,12 +554,13 @@ const MachineManager: React.FC = () => {
                         {editingMachine?.id === machine.id ? (
                           <Input
                             type="number"
+                            step="0.01"
                             value={editingMachine.speed || ''}
                             onChange={(e) => {
                               const val = e.target.value.trim();
                               setEditingMachine({ 
                                 ...editingMachine, 
-                                speed: val ? parseInt(val) : null 
+                                speed: val ? parseFloat(val) : null 
                               });
                             }}
                             className="w-24 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
@@ -576,6 +575,7 @@ const MachineManager: React.FC = () => {
                           <Input
                             type="number"
                             value={editingMachine.productionAt100 || ''}
+                            step="0.00001"
                             onChange={(e) => {
                               const val = e.target.value.trim();
                               setEditingMachine({ 
@@ -588,7 +588,7 @@ const MachineManager: React.FC = () => {
                           />
                         ) : (
                           <span className="text-purple-600 font-medium dark:text-purple-400">
-                            {machine.productionAt100 ? Number(machine.productionAt100).toFixed(2) : 'N/A'}
+                            {machine.productionAt100 ? Number(machine.productionAt100).toFixed(5) : 'N/A'}
                           </span>
                         )}
                       </TableCell>

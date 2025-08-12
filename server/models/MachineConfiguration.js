@@ -31,7 +31,7 @@ const MachineConfiguration = sequelize.define('MachineConfiguration', {
     field: 'yarn_type'
   },
   productionAt100: {
-  type: DataTypes.DECIMAL(10, 2),
+  type: DataTypes.DECIMAL(12, 5),
   allowNull: false,
   defaultValue: 0.00,
   field: 'production_at_100'

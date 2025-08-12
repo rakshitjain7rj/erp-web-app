@@ -45,7 +45,7 @@ export const asuUnit2Api = {
     const sanitized = {
       ...data,
       machineNo: typeof data.machineNo === 'string' ? parseInt(data.machineNo, 10) : Number(data.machineNo),
-      count: typeof data.count === 'string' ? parseInt(String(data.count).replace(/[^0-9]/g, '') || '0', 10) : Number(data.count || 0),
+      count: typeof data.count === 'string' ? (() => { const m = String(data.count).match(/\d*\.?\d+/); return m ? parseFloat(m[0]) : 0; })() : Number(data.count || 0),
       spindles: data.spindles !== null ? Number(data.spindles || 0) : 0,
       speed: data.speed !== null ? Number(data.speed || 0) : 0
     };

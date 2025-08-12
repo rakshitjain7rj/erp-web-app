@@ -43,7 +43,7 @@ const ASUProductionEntry = sequelize.define('ASUProductionEntry', {
     field: 'actual_production'
   },
   theoreticalProduction: {
-    type: DataTypes.DECIMAL(10, 2),
+    type: DataTypes.DECIMAL(12, 5),
     allowNull: true,
     field: 'theoretical_production'
   },
@@ -52,7 +52,7 @@ const ASUProductionEntry = sequelize.define('ASUProductionEntry', {
     allowNull: true
   },
   productionAt100: {
-    type: DataTypes.DECIMAL(10, 2),
+    type: DataTypes.DECIMAL(12, 5),
     allowNull: true,
     field: 'production_at_100',
     comment: 'Production@100% value from machine configuration at the time of entry creation'

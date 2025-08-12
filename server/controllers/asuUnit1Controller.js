@@ -223,10 +223,10 @@ const createProductionEntry = async (req, res) => {
           transaction: t
         });
         
-        // Function to normalize values for comparison (avoids issues like 343 vs 343.00)
+        // Function to normalize values for comparison (avoids issues like 343 vs 343.00000)
         const normalizeNumber = (value) => {
           if (value === null || value === undefined) return 0;
-          return parseFloat(parseFloat(value).toFixed(2));
+          return parseFloat(parseFloat(value).toFixed(5));
         };
         
         // Check if the configuration has changed since last saved - use normalized values
@@ -359,10 +359,10 @@ const updateProductionEntry = async (req, res) => {
           transaction: t
         });
         
-        // Function to normalize values for comparison (avoids issues like 343 vs 343.00)
+        // Function to normalize values for comparison (avoids issues like 343 vs 343.00000)
         const normalizeNumber = (value) => {
           if (value === null || value === undefined) return 0;
-          return parseFloat(parseFloat(value).toFixed(2));
+          return parseFloat(parseFloat(value).toFixed(5));
         };
         
         // Check if the configuration has changed since last saved - use normalized values
@@ -787,14 +787,14 @@ const updateMachineYarnTypeAndCount = async (req, res) => {
     }
     
     if (count !== undefined) {
-      // Validate count is a number
-      if (isNaN(parseInt(count))) {
+      // Validate count is a number (allow decimals)
+      if (isNaN(parseFloat(count))) {
         return res.status(400).json({ 
           success: false, 
           error: 'count must be a number' 
         });
       }
-      updateData.count = parseInt(count);
+      updateData.count = parseFloat(count);
     }
     
     if (productionAt100 !== undefined) {

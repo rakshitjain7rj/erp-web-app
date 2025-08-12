@@ -349,7 +349,7 @@ const updateMachineYarnTypeAndCount = async (req, res) => {
 
     const updateData = {};
     if (yarnType !== undefined) updateData.yarnType = yarnType;
-    if (count !== undefined) updateData.count = parseInt(count);
+    if (count !== undefined) updateData.count = parseFloat(count);
     if (productionAt100 !== undefined) updateData.productionAt100 = parseFloat(productionAt100);
 
     await machine.update(updateData);

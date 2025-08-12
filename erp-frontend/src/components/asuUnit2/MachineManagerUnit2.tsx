@@ -70,7 +70,9 @@ const MachineManagerUnit2: React.FC = () => {
   };
 
   const handleEdit = (machine: ASUMachine) => {
-    const numericCount = typeof machine.count === 'string' ? parseInt(String(machine.count).replace(/[^0-9]/g, '') || '0', 10) : (machine.count || 0);
+    const numericCount = typeof machine.count === 'string'
+      ? (() => { const m = String(machine.count).match(/\d*\.?\d+/); return m ? parseFloat(m[0]) : 0; })()
+      : (Number(machine.count) || 0);
     setEditingMachine({ id: machine.id, machineNo: Number(machine.machineNo) || 0, machineName: machine.machineName || '', count: numericCount, countDisplay: String(machine.count || numericCount), spindles: machine.spindles || 0, speed: Number(machine.speed) || 0, yarnType: machine.yarnType || 'Cotton', isActive: machine.isActive || false, productionAt100: Number(machine.productionAt100) || 0 });
   };
 
@@ -195,7 +197,7 @@ const MachineManagerUnit2: React.FC = () => {
                       </TableCell>
                       <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
                         {editingMachine?.id === machine.id ? (
-                          <Input type="text" value={editingMachine.countDisplay || editingMachine.count} onChange={(e) => { const displayValue = e.target.value; const numericMatch = displayValue.match(/^\d+/); const numericValue = numericMatch ? parseInt(numericMatch[0], 10) : 0; setEditingMachine({ ...editingMachine, count: numericValue, countDisplay: displayValue }); }} className="w-20 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" onClick={(e) => e.stopPropagation()} placeholder="e.g., 30s" />
+                          <Input type="text" value={editingMachine.countDisplay || editingMachine.count} onChange={(e) => { const displayValue = e.target.value; const numericMatch = displayValue.match(/^\d*\.?\d+/); const numericValue = numericMatch ? parseFloat(numericMatch[0]) : 0; setEditingMachine({ ...editingMachine, count: numericValue, countDisplay: displayValue }); }} className="w-20 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" onClick={(e) => e.stopPropagation()} placeholder="e.g., 30s or 0.65" />
                         ) : (
                           <span className="text-gray-700 dark:text-gray-300">{machine.count}</span>
                         )}
@@ -225,16 +227,16 @@ const MachineManagerUnit2: React.FC = () => {
                       </TableCell>
                       <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
                         {editingMachine?.id === machine.id ? (
-                          <Input type="number" value={editingMachine.speed || ''} onChange={(e) => { const val = e.target.value.trim(); setEditingMachine({ ...editingMachine, speed: val ? parseInt(val) : null }); }} className="w-24 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" onClick={(e) => e.stopPropagation()} />
+                          <Input type="number" step="0.01" value={editingMachine.speed || ''} onChange={(e) => { const val = e.target.value.trim(); setEditingMachine({ ...editingMachine, speed: val ? parseFloat(val) : null }); }} className="w-24 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" onClick={(e) => e.stopPropagation()} />
                         ) : (
                           <span className="text-gray-700 dark:text-gray-300">{machine.speed} RPM</span>
                         )}
                       </TableCell>
                       <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
                         {editingMachine?.id === machine.id ? (
-                          <Input type="number" value={editingMachine.productionAt100 || ''} onChange={(e) => { const val = e.target.value.trim(); setEditingMachine({ ...editingMachine, productionAt100: val ? parseFloat(val) : 0 }); }} className="w-24 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" onClick={(e) => e.stopPropagation()} />
+                          <Input type="number" step="0.00001" value={editingMachine.productionAt100 || ''} onChange={(e) => { const val = e.target.value.trim(); setEditingMachine({ ...editingMachine, productionAt100: val ? parseFloat(val) : 0 }); }} className="w-24 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" onClick={(e) => e.stopPropagation()} />
                         ) : (
-                          <span className="text-purple-600 font-medium dark:text-purple-400">{machine.productionAt100 ? Number(machine.productionAt100).toFixed(2) : 'N/A'}</span>
+                          <span className="text-purple-600 font-medium dark:text-purple-400">{machine.productionAt100 ? Number(machine.productionAt100).toFixed(5) : 'N/A'}</span>
                         )}
                       </TableCell>
                       <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">

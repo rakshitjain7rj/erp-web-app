@@ -168,18 +168,18 @@ const MachineFormModal: React.FC<MachineFormModalProps> = ({
                   value={formData.countDisplay || ''}
                   onChange={(e) => {
                     const displayValue = e.target.value;
-                    // Extract numeric part for the actual count
-                    const numericMatch = displayValue.match(/^\d+/);
-                    const numericValue = numericMatch ? parseInt(numericMatch[0], 10) : 30;
+                    // Extract numeric part for the actual count (supports decimals)
+                    const numericMatch = displayValue.match(/^\d*\.?\d+/);
+                    const numericValue = numericMatch ? parseFloat(numericMatch[0]) : 30;
                     
                     setFormData({ 
                       ...formData, 
-                      count: numericValue, // Store the numeric part for the API
+                      count: numericValue, // Store the numeric (can be decimal)
                       countDisplay: displayValue // Store the full string for display
                     });
                   }}
                   className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                  placeholder="Enter count (e.g. 30s)"
+                  placeholder="Enter count (e.g. 30s or 0.65)"
                   required
                 />
               </div>
@@ -239,12 +239,13 @@ const MachineFormModal: React.FC<MachineFormModalProps> = ({
                 <Input
                   id="speed"
                   type="number"
+                  step="0.01"
                   value={formData.speed || ''}
                   onChange={(e) => {
                     const val = e.target.value.trim();
                     setFormData({ 
                       ...formData, 
-                      speed: val ? parseInt(val) : null 
+                      speed: val ? parseFloat(val) : null 
                     });
                   }}
                   className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
@@ -258,6 +259,7 @@ const MachineFormModal: React.FC<MachineFormModalProps> = ({
                 <Input
                   id="productionAt100"
                   type="number"
+                  step="0.00001"
                   value={formData.productionAt100 !== null ? formData.productionAt100 : ''}
                   onChange={(e) => {
                     const val = e.target.value.trim();

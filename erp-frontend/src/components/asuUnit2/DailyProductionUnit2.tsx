@@ -29,7 +29,8 @@ interface Unit2FormData {
   // Unit 2 extras
   dayMains?: number;
   nightMains?: number;
-  workerName?: string;
+  dayWorkerName?: string;
+  nightWorkerName?: string;
 }
 
 const DailyProductionUnit2: React.FC = () => {
@@ -48,8 +49,10 @@ const DailyProductionUnit2: React.FC = () => {
     yarnType: '',
     dayMains: undefined,
     nightMains: undefined,
-    workerName: ''
+    dayWorkerName: '',
+    nightWorkerName: ''
   });
+  const [importing, setImporting] = useState(false);
 
   const loadMachines = useCallback(async () => {
     try {
@@ -126,7 +129,7 @@ const DailyProductionUnit2: React.FC = () => {
     if (!selectedMachine) return;
     try {
       setLoading(true);
-      const resp = await asuUnit2Api.getProductionEntries({ machineId: selectedMachine.id, limit: 30 } as any);
+      const resp = await asuUnit2Api.getProductionEntries({ machineId: selectedMachine.id, limit: 300 } as any);
       const rawItems = resp?.items || resp?.data?.items || [];
 
       // Group backend day/night entries into combined entries
@@ -137,7 +140,6 @@ const DailyProductionUnit2: React.FC = () => {
           map[key] = {
             id: entry.id,
             originalId: entry.id,
-            // Use DB machine id for history lookups; fall back to selectedMachine
             machineId: entry.machine?.id || selectedMachine?.id,
             date: entry.date,
             dayShift: 0,
@@ -146,8 +148,37 @@ const DailyProductionUnit2: React.FC = () => {
             percentage: 0,
             machine: entry.machine,
             yarnType: entry.yarnType,
-            productionAt100: entry.productionAt100
-          } as ASUProductionEntry & { dayShiftId?: number; nightShiftId?: number };
+            productionAt100: entry.productionAt100,
+            // extras to show in history
+            dayMains: undefined,
+            nightMains: undefined,
+            dayWorkerName: undefined,
+            nightWorkerName: undefined
+          } as any;
+        }
+        // Parse remarks for worker/dayMains/nightMains
+        const remarksStr = String(entry.remarks || entry.remark || '').trim();
+        if (remarksStr) {
+          const pairs = remarksStr.split(';').map((s: string) => s.trim()).filter(Boolean);
+          const kv: Record<string, string> = {};
+          for (const p of pairs) {
+            const idx = p.indexOf('=');
+            if (idx > -1) {
+              const k = p.slice(0, idx).trim();
+              const v = p.slice(idx + 1).trim();
+              kv[k] = v;
+            }
+          }
+          const worker = kv['worker'];
+          const dayMainsVal = kv['dayMains'] !== undefined ? parseFloat(kv['dayMains']) : undefined;
+          const nightMainsVal = kv['nightMains'] !== undefined ? parseFloat(kv['nightMains']) : undefined;
+          if (entry.shift === 'day') {
+            if (worker && !map[key].dayWorkerName) map[key].dayWorkerName = worker;
+            if (!Number.isNaN(dayMainsVal as any) && dayMainsVal !== undefined) map[key].dayMains = dayMainsVal;
+          } else if (entry.shift === 'night') {
+            if (worker && !map[key].nightWorkerName) map[key].nightWorkerName = worker;
+            if (!Number.isNaN(nightMainsVal as any) && nightMainsVal !== undefined) map[key].nightMains = nightMainsVal;
+          }
         }
         const prod = typeof entry.actualProduction === 'string' ? parseFloat(entry.actualProduction) : Number(entry.actualProduction || 0);
         if (entry.shift === 'day') {
@@ -251,12 +282,16 @@ const DailyProductionUnit2: React.FC = () => {
       setMachineYarnHistory(newHistory);
       saveMachineYarnHistory(newHistory);
 
-      // Build remarks string with Unit 2 extras
-      const extras: string[] = [];
-      if (formData.workerName) extras.push(`worker=${formData.workerName}`);
-      if (formData.dayMains !== undefined && formData.dayMains !== null) extras.push(`dayMains=${formData.dayMains}`);
-      if (formData.nightMains !== undefined && formData.nightMains !== null) extras.push(`nightMains=${formData.nightMains}`);
-      const remarks = extras.join('; ');
+      // Build remarks strings per shift with Unit 2 extras
+      const dayRemarksParts: string[] = [];
+      if (formData.dayWorkerName) dayRemarksParts.push(`worker=${formData.dayWorkerName}`);
+      if (formData.dayMains !== undefined && formData.dayMains !== null) dayRemarksParts.push(`dayMains=${formData.dayMains}`);
+      const dayRemarks = dayRemarksParts.join('; ');
+
+      const nightRemarksParts: string[] = [];
+      if (formData.nightWorkerName) nightRemarksParts.push(`worker=${formData.nightWorkerName}`);
+      if (formData.nightMains !== undefined && formData.nightMains !== null) nightRemarksParts.push(`nightMains=${formData.nightMains}`);
+      const nightRemarks = nightRemarksParts.join('; ');
 
       const requests: Promise<any>[] = [];
       // Prefer machine_number/machineNumber, fallback to machineNo. Coerce safely
@@ -273,8 +308,6 @@ const DailyProductionUnit2: React.FC = () => {
       if (dayVal > 0) {
         requests.push(
           asuUnit2Api.createProductionEntry({
-            // backend expects machineNumber, date, shift, actualProduction, theoreticalProduction, yarnType, remarks
-            // we pass with type override
             ...(undefined as any),
             machineNumber,
             date: formData.date,
@@ -282,7 +315,7 @@ const DailyProductionUnit2: React.FC = () => {
             actualProduction: dayVal,
             theoreticalProduction: productionAt100,
             yarnType: entryYarnType,
-            remarks
+            remarks: dayRemarks
           } as any)
         );
       }
@@ -296,7 +329,7 @@ const DailyProductionUnit2: React.FC = () => {
             actualProduction: nightVal,
             theoreticalProduction: productionAt100,
             yarnType: entryYarnType,
-            remarks
+            remarks: nightRemarks
           } as any)
         );
       }
@@ -319,7 +352,8 @@ const DailyProductionUnit2: React.FC = () => {
         yarnType: selectedMachine.yarnType || 'Cotton',
         dayMains: undefined,
         nightMains: undefined,
-        workerName: ''
+        dayWorkerName: '',
+        nightWorkerName: ''
       });
 
       await loadMachines();
@@ -424,6 +458,119 @@ const DailyProductionUnit2: React.FC = () => {
       .join(' ');
   };
 
+  // Parse flexible date formats to yyyy-MM-dd
+  const parseDateFlexible = (s: string): string => {
+    const str = String(s).trim();
+    if (!str) throw new Error('Empty date');
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+    const m = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+    if (m) {
+      let d = parseInt(m[1], 10), mo = parseInt(m[2], 10), y = parseInt(m[3], 10);
+      if (y < 100) y += 2000;
+      // Heuristic: if first > 12, it's dd/MM else MM/dd
+      if (d > 12) {
+        const dd = d, mm = mo;
+        const iso = new Date(y, mm - 1, dd);
+        if (isNaN(iso.getTime())) throw new Error(`Invalid date: ${str}`);
+        return iso.toISOString().slice(0, 10);
+      } else {
+        // Could be MM/dd or dd/MM; try both preferring DD/MM when second > 12
+        if (mo > 12) {
+          const dd = mo, mm = d;
+          const iso = new Date(y, mm - 1, dd);
+          if (isNaN(iso.getTime())) throw new Error(`Invalid date: ${str}`);
+          return iso.toISOString().slice(0, 10);
+        }
+        // Default to DD/MM
+        const dd = d, mm = mo;
+        const iso = new Date(y, mm - 1, dd);
+        if (isNaN(iso.getTime())) throw new Error(`Invalid date: ${str}`);
+        return iso.toISOString().slice(0, 10);
+      }
+    }
+    const d = new Date(str);
+    if (isNaN(d.getTime())) throw new Error(`Invalid date: ${str}`);
+    return d.toISOString().slice(0, 10);
+  };
+
+  const handleImportCSV = async (file: File) => {
+    if (!selectedMachine) {
+      toast.error('Select a machine first');
+      return;
+    }
+    try {
+      setImporting(true);
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      if (!lines.length) throw new Error('File is empty');
+      const isHeader = /date|day|night/i.test(lines[0]) || /[a-zA-Z]/.test(lines[0]);
+      const dataLines = isHeader ? lines.slice(1) : lines;
+
+      let ok = 0, skip = 0, fail = 0;
+      const machineNumber = Number(selectedMachine.machineNo ?? (selectedMachine as any).machine_number ?? (selectedMachine as any).machineNo);
+      if (!Number.isFinite(machineNumber) || machineNumber <= 0) throw new Error('Invalid selected machine number');
+      const productionAt100 = getProductionAt100Value({ machine: selectedMachine });
+      const yarnType = selectedMachine.yarnType || 'Cotton';
+
+      for (const [idx, line] of dataLines.entries()) {
+        if (!line) continue;
+        const parts = line.split(',').map(s => s.trim());
+        if (parts.length < 3) { fail++; continue; }
+        let [dStr, dayStr, nightStr] = parts;
+        try {
+          const date = parseDateFlexible(dStr);
+          const day = parseFloat(dayStr) || 0;
+          const night = parseFloat(nightStr) || 0;
+          if (day <= 0 && night <= 0) { skip++; continue; }
+
+          const reqs: Promise<any>[] = [];
+          if (day > 0) {
+            reqs.push(asuUnit2Api.createProductionEntry({
+              ...(undefined as any),
+              machineNumber,
+              date,
+              shift: 'day',
+              actualProduction: day,
+              theoreticalProduction: productionAt100,
+              yarnType,
+              remarks: ''
+            } as any));
+          }
+          if (night > 0) {
+            reqs.push(asuUnit2Api.createProductionEntry({
+              ...(undefined as any),
+              machineNumber,
+              date,
+              shift: 'night',
+              actualProduction: night,
+              theoreticalProduction: productionAt100,
+              yarnType,
+              remarks: ''
+            } as any));
+          }
+          // Run sequentially to avoid flooding server
+          for (const r of reqs) {
+            try { await r; ok++; } catch (e: any) {
+              if (e?.response?.status === 409) { skip++; } else { fail++; }
+            }
+          }
+        } catch (e) {
+          console.warn(`Row ${idx + 1} parse error:`, e);
+          fail++;
+        }
+      }
+
+      toast.success(`Import finished: ${ok} created, ${skip} skipped, ${fail} failed`);
+      await loadMachines();
+      await loadProductionEntries();
+      await loadStats();
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to import CSV');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <>
       {stats && (
@@ -458,7 +605,13 @@ const DailyProductionUnit2: React.FC = () => {
       <div className="mb-6 overflow-hidden bg-white border border-gray-200 shadow-sm dark:bg-gray-800 dark:border-gray-700 rounded-lg">
         <div className="px-4 py-3 border-b border-gray-200 bg-green-50 dark:bg-green-900/20 dark:border-gray-700 flex justify-between items-center">
           <h2 className="text-base font-medium text-green-800 dark:text-green-200">Daily Production Entry (Unit 2)</h2>
-          <div className="text-xs text-green-600 dark:text-green-300">Includes mains readings & worker</div>
+          <div className="flex items-center gap-2 text-xs text-green-700 dark:text-green-300">
+            <span>Includes mains readings & worker</span>
+            <label className={`px-2 py-1 rounded cursor-pointer ${importing ? 'bg-gray-300' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
+              {importing ? 'Importing…' : 'Import CSV'}
+              <input type="file" accept=".csv" className="hidden" onChange={(e) => e.target.files?.[0] && handleImportCSV(e.target.files[0])} disabled={importing || !selectedMachine} />
+            </label>
+          </div>
         </div>
         <div className="p-5">
           <div className="max-w-4xl mx-auto">
@@ -500,7 +653,7 @@ const DailyProductionUnit2: React.FC = () => {
                       <Input id="date" type="date" value={formData.date} onChange={(e)=> setFormData({ ...formData, date: e.target.value })} className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" required />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                       <div>
                         <Label htmlFor="dayShift" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Day Shift (kg)</Label>
                         <Input id="dayShift" type="number" step="0.01" value={formData.dayShift} onChange={(e)=> setFormData({ ...formData, dayShift: parseFloat(e.target.value) || 0 })} className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
@@ -512,7 +665,7 @@ const DailyProductionUnit2: React.FC = () => {
                     </div>
 
                     {/* Unit 2 specific fields */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
                       <div>
                         <Label htmlFor="dayMains" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Day Mains Reading</Label>
                         <Input id="dayMains" type="number" step="0.01" value={formData.dayMains ?? ''} onChange={(e)=> setFormData({ ...formData, dayMains: e.target.value === '' ? undefined : parseFloat(e.target.value) })} className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" placeholder="Optional" />
@@ -522,8 +675,12 @@ const DailyProductionUnit2: React.FC = () => {
                         <Input id="nightMains" type="number" step="0.01" value={formData.nightMains ?? ''} onChange={(e)=> setFormData({ ...formData, nightMains: e.target.value === '' ? undefined : parseFloat(e.target.value) })} className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" placeholder="Optional" />
                       </div>
                       <div>
-                        <Label htmlFor="workerName" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Worker Name</Label>
-                        <Input id="workerName" type="text" value={formData.workerName || ''} onChange={(e)=> setFormData({ ...formData, workerName: e.target.value })} className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" placeholder="Optional" />
+                        <Label htmlFor="dayWorkerName" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Day Worker</Label>
+                        <Input id="dayWorkerName" type="text" value={formData.dayWorkerName || ''} onChange={(e)=> setFormData({ ...formData, dayWorkerName: e.target.value })} className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" placeholder="Optional" />
+                      </div>
+                      <div>
+                        <Label htmlFor="nightWorkerName" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Night Worker</Label>
+                        <Input id="nightWorkerName" type="text" value={formData.nightWorkerName || ''} onChange={(e)=> setFormData({ ...formData, nightWorkerName: e.target.value })} className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" placeholder="Optional" />
                       </div>
                     </div>
 
@@ -601,6 +758,10 @@ const DailyProductionUnit2: React.FC = () => {
                     <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400">Yarn Type</TableHead>
                     <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400">Day Shift</TableHead>
                     <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400">Night Shift</TableHead>
+                    <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400">Day Mains</TableHead>
+                    <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400">Night Mains</TableHead>
+                    <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400">Day Worker</TableHead>
+                    <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400">Night Worker</TableHead>
                     <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400">Total</TableHead>
                     <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400">Efficiency</TableHead>
                     <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-right text-gray-500 uppercase sm:px-6 dark:text-gray-400">Actions</TableHead>
@@ -613,68 +774,82 @@ const DailyProductionUnit2: React.FC = () => {
                         {editingEntry && editingEntry.id === entry.id ? (
                           <Input type="date" value={editingEntry.date} onChange={(e)=> setEditingEntry(prev => prev ? { ...prev, date: e.target.value } : prev)} className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
                         ) : (
-                          <span className="font-medium text-gray-900 dark:text-gray-100">{new Date(entry.date).toLocaleDateString()}</span>
+                          <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">{entry.date}</span>
                         )}
                       </TableCell>
                       <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
-                        <div className="flex items-center">
-                          {(() => {
-                            let displayYarnType = entry.yarnType || selectedMachine?.yarnType || 'Cotton';
-                            const historical = findHistoricalYarnType(entry.machineId, entry.date);
-                            if (!entry.yarnType && historical) displayYarnType = historical;
-                            const current = selectedMachine?.yarnType || 'Cotton';
-                            const isHistorical = displayYarnType !== current;
-                            return (
+                        {editingEntry && editingEntry.id === entry.id ? (
+                          <Input type="text" value={entry.yarnType} onChange={(e)=> setEditingEntry(prev => prev ? { ...prev, yarnType: e.target.value } : prev)} className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
+                        ) : (
+                          <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">{entry.yarnType}</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
+                        {editingEntry && editingEntry.id === entry.id ? (
+                          <Input type="number" value={editingEntry.dayShift} onChange={(e)=> setEditingEntry(prev => prev ? { ...prev, dayShift: parseFloat(e.target.value) || 0 } : prev)} className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
+                        ) : (
+                          <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">{entry.dayShift?.toFixed(2) || '0.00'}</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
+                        {editingEntry && editingEntry.id === entry.id ? (
+                          <Input type="number" value={editingEntry.nightShift} onChange={(e)=> setEditingEntry(prev => prev ? { ...prev, nightShift: parseFloat(e.target.value) || 0 } : prev)} className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
+                        ) : (
+                          <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">{entry.nightShift?.toFixed(2) || '0.00'}</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
+                        {editingEntry && editingEntry.id === entry.id ? (
+                          <Input type="number" value={entry.dayMains} onChange={(e)=> setEditingEntry(prev => prev ? { ...prev, dayMains: parseFloat(e.target.value) || 0 } : prev)} className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
+                        ) : (
+                          <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">{entry.dayMains !== undefined && entry.dayMains !== null ? entry.dayMains.toFixed(2) : '-'}</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
+                        {editingEntry && editingEntry.id === entry.id ? (
+                          <Input type="number" value={entry.nightMains} onChange={(e)=> setEditingEntry(prev => prev ? { ...prev, nightMains: parseFloat(e.target.value) || 0 } : prev)} className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
+                        ) : (
+                          <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">{entry.nightMains !== undefined && entry.nightMains !== null ? entry.nightMains.toFixed(2) : '-'}</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
+                        {editingEntry && editingEntry.id === entry.id ? (
+                          <Input type="text" value={entry.dayWorkerName} onChange={(e)=> setEditingEntry(prev => prev ? { ...prev, dayWorkerName: e.target.value } : prev)} className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
+                        ) : (
+                          <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">{entry.dayWorkerName || '-'}</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
+                        {editingEntry && editingEntry.id === entry.id ? (
+                          <Input type="text" value={entry.nightWorkerName} onChange={(e)=> setEditingEntry(prev => prev ? { ...prev, nightWorkerName: e.target.value } : prev)} className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
+                        ) : (
+                          <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">{entry.nightWorkerName || '-'}</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
+                        <div className="flex items-center justify-end gap-2">
+                          <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${getEfficiencyBadgeClass(entry.percentage)}`}>
+                            {entry.percentage.toFixed(1)}%
+                          </span>
+                          <div className="flex items-center gap-2">
+                            {editingEntry && editingEntry.id === entry.id ? (
                               <>
-                                <div className={`w-2 h-2 mr-2 rounded-full ${isHistorical ? 'bg-purple-500' : 'bg-blue-500'}`}></div>
-                                <span className={`font-medium ${isHistorical ? 'text-purple-600 dark:text-purple-400' : 'text-blue-600 dark:text-blue-400'}`}>{formatYarnType(displayYarnType)}</span>
-                                {isHistorical && <span className="ml-2 px-1.5 py-0.5 text-xs rounded-md bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">Historical</span>}
+                                <Button onClick={handleSaveEdit} className="px-3 py-1.5 text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700" disabled={loading}>
+                                  <Save className="w-4 h-4 mr-1" />
+                                  Save
+                                </Button>
+                                <Button onClick={() => setEditingEntry(null)} className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
+                                  <X className="w-4 h-4 mr-1" />
+                                  Cancel
+                                </Button>
                               </>
-                            );
-                          })()}
-                        </div>
-                      </TableCell>
-                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
-                        {editingEntry && editingEntry.id === entry.id ? (
-                          <Input type="number" step="0.01" value={editingEntry.dayShift} onChange={(e)=> setEditingEntry(prev => prev ? { ...prev, dayShift: parseFloat(e.target.value) || 0 } : prev)} className="w-24 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
-                        ) : (
-                          <span className="text-gray-700 dark:text-gray-300">{parseFloat(String(entry.dayShift || 0)).toFixed(2)} <span className="text-xs text-gray-500 dark:text-gray-400">kg</span></span>
-                        )}
-                      </TableCell>
-                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
-                        {editingEntry && editingEntry.id === entry.id ? (
-                          <Input type="number" step="0.01" value={editingEntry.nightShift} onChange={(e)=> setEditingEntry(prev => prev ? { ...prev, nightShift: parseFloat(e.target.value) || 0 } : prev)} className="w-24 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
-                        ) : (
-                          <span className="text-gray-700 dark:text-gray-300">{(Number.isNaN(Number(entry.nightShift)) ? 0 : Number(entry.nightShift)).toFixed(2)} <span className="text-xs text-gray-500 dark:text-gray-400">kg</span></span>
-                        )}
-                      </TableCell>
-                      <TableCell className="px-4 py-4 font-medium whitespace-nowrap sm:px-6">
-                        {editingEntry && editingEntry.id === entry.id
-                          ? <span className="text-blue-600 dark:text-blue-400">{calculateTotal(editingEntry.dayShift, editingEntry.nightShift).toFixed(2)} <span className="text-xs text-gray-500 dark:text-gray-400">kg</span></span>
-                          : <span className="text-blue-600 dark:text-blue-400">{calculateTotal(entry.dayShift, entry.nightShift).toFixed(2)} <span className="text-xs text-gray-500 dark:text-gray-400">kg</span></span>
-                        }
-                      </TableCell>
-                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
-                        {(() => {
-                          const total = editingEntry && editingEntry.id === entry.id ? calculateTotal(editingEntry.dayShift, editingEntry.nightShift) : calculateTotal(entry.dayShift, entry.nightShift);
-                          const productionAt100 = getProductionAt100Value(entry);
-                          const pct = calculatePercentage(total, productionAt100);
-                          return <Badge className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${getEfficiencyBadgeClass(pct)}`}>{pct.toFixed(1)}%</Badge>;
-                        })()}
-                      </TableCell>
-                      <TableCell className="px-4 py-4 text-right whitespace-nowrap sm:px-6">
-                        <div className="flex justify-end gap-2">
-                          {editingEntry?.id === entry.id ? (
-                            <>
-                              <Button size="sm" onClick={handleSaveEdit} disabled={loading} className="p-1 text-white bg-green-600 rounded-md hover:bg-green-700 focus:ring-green-500"><Save className="w-4 h-4" /></Button>
-                              <Button size="sm" onClick={() => setEditingEntry(null)} className="p-1 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 focus:ring-gray-400 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200"><X className="w-4 h-4" /></Button>
-                            </>
-                          ) : (
-                            <>
-                              <Button size="sm" onClick={() => handleEdit(entry)} className="p-1 text-blue-700 rounded-md bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-800/50 dark:text-blue-300"><Edit className="w-4 h-4" /></Button>
-                              <Button size="sm" onClick={() => handleDelete(entry.id)} className="p-1 text-white rounded-md bg-red-600 hover:bg-red-700 border border-red-700 dark:bg-red-900/70 dark:hover:bg-red-800 dark:text-red-200"><Trash2 className="w-4 h-4" /></Button>
-                            </>
-                          )}
+                            ) : (
+                              <Button onClick={() => handleEdit(entry)} className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
+                                <Edit className="w-4 h-4 mr-1" />
+                                Edit
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </TableCell>
                     </TableRow>

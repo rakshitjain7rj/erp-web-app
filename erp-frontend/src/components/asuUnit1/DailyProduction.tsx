@@ -36,7 +36,8 @@ const DailyProduction: React.FC = () => {
     // productionAt100 is not needed in the form as it comes from machine configuration
     productionAt100: 0 // Kept for backward compatibility only
   });
-  
+  const [importing, setImporting] = useState(false);
+
   // Define functions for data loading
   const loadMachines = useCallback(async () => {
     try {
@@ -161,7 +162,7 @@ const DailyProduction: React.FC = () => {
       
       const data = await asuUnit1Api.getProductionEntries({
         machineId: selectedMachine.id,
-        limit: 30
+        limit: 300
       });
       
       // Add debug logging to verify data integrity
@@ -733,6 +734,103 @@ const DailyProduction: React.FC = () => {
       .join(' ');
   };
 
+  // CSV import helpers (3 columns: date, day, night)
+  const parseDateFlexible = (s: string): string => {
+    const t = String(s || '').trim();
+    if (!t) throw new Error('Empty date');
+    if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t; // yyyy-mm-dd
+    const parts = t.includes('/') ? t.split('/') : t.split('-');
+    if (parts.length === 3) {
+      const [a, b, c] = parts.map(x => x.trim());
+      // yyyy/mm/dd
+      if (a.length === 4) {
+        const mm = b.padStart(2, '0');
+        const dd = c.padStart(2, '0');
+        return `${a}-${mm}-${dd}`;
+      }
+      // dd/mm/yyyy or mm/dd/yyyy -> try to infer
+      const n1 = parseInt(a, 10);
+      const n2 = parseInt(b, 10);
+      const yyyy = c.length === 2 ? `20${c}` : c.padStart(4, '0');
+      let day = n1, month = n2;
+      if (n1 <= 12 && n2 > 12) { day = n2; month = n1; } // mm/dd/yyyy
+      const mm2 = String(month).padStart(2, '0');
+      const dd2 = String(day).padStart(2, '0');
+      return `${yyyy}-${mm2}-${dd2}`;
+    }
+    const d = new Date(t);
+    if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+    throw new Error(`Invalid date: ${s}`);
+  };
+
+  const handleImportCSV = async (file: File) => {
+    try {
+      setImporting(true);
+      if (!selectedMachine) throw new Error('Please select a machine first');
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      if (!lines.length) throw new Error('File is empty');
+      const isHeader = /date|day|night/i.test(lines[0]) || /[a-zA-Z]/.test(lines[0]);
+      const dataLines = isHeader ? lines.slice(1) : lines;
+
+      const machineId = selectedMachine.id;
+      const yarnType = selectedMachine.yarnType || 'Cotton';
+
+      let ok = 0, skip = 0, fail = 0;
+      for (const [idx, line] of dataLines.entries()) {
+        if (!line) continue;
+        const parts = line.split(',').map(s => s.trim());
+        if (parts.length < 3) { fail++; continue; }
+        const [dStr, dayStr, nightStr] = parts;
+        try {
+          const date = parseDateFlexible(dStr);
+          const day = parseFloat(dayStr) || 0;
+          const night = parseFloat(nightStr) || 0;
+          if (day <= 0 && night <= 0) { skip++; continue; }
+
+          try {
+            await asuUnit1Api.createProductionEntry({
+              machineId,
+              date,
+              dayShift: day,
+              nightShift: night,
+              yarnType
+            });
+            ok++;
+          } catch (e: any) {
+            if (e?.response?.status === 409) { skip++; } else { fail++; }
+          }
+        } catch (e) {
+          console.warn(`Row ${idx + 1} parse error:`, e);
+          fail++;
+        }
+      }
+
+      toast.success(`Import finished: ${ok} created, ${skip} skipped, ${fail} failed`);
+      await loadMachines();
+      await loadProductionEntries();
+      await loadStats();
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to import CSV');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  // Helper function to format night shift values safely
+  const formatShiftValue = (val: any) => {
+    let n = 0;
+    if (val !== undefined && val !== null) {
+      if (typeof val === 'string') {
+        const parsed = parseFloat(val);
+        n = isNaN(parsed) ? 0 : parsed;
+      } else if (typeof val === 'number') {
+        n = isNaN(val) ? 0 : val;
+      }
+    }
+    return n.toFixed(2);
+  };
+
   return (
     <>
       {/* Stats Cards */}
@@ -808,7 +906,13 @@ const DailyProduction: React.FC = () => {
       <div className="mb-6 overflow-hidden bg-white border border-gray-200 shadow-sm dark:bg-gray-800 dark:border-gray-700 rounded-lg">
         <div className="px-4 py-3 border-b border-gray-200 bg-green-50 dark:bg-green-900/20 dark:border-gray-700 flex justify-between items-center">
           <h2 className="text-base font-medium text-green-800 dark:text-green-200">Daily Production Entry</h2>
-          <div className="text-xs text-green-600 dark:text-green-300">Record today's production</div>
+          <div className="flex items-center gap-2">
+            <div className="text-xs text-green-600 dark:text-green-300">Record today's production</div>
+            <label className={`px-2 py-1 rounded cursor-pointer ${importing ? 'bg-gray-300' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
+              {importing ? 'Importing…' : 'Import CSV'}
+              <input type="file" accept=".csv" className="hidden" onChange={(e) => e.target.files?.[0] && handleImportCSV(e.target.files[0])} disabled={importing || !selectedMachine} />
+            </label>
+          </div>
         </div>
         <div className="p-5">
           <div className="max-w-4xl mx-auto">
@@ -896,7 +1000,7 @@ const DailyProduction: React.FC = () => {
                               </svg>
                             </span>
                             <span className="font-medium text-gray-700 dark:text-gray-300">Prod @ 100%: <span className="font-bold text-purple-700 dark:text-purple-300">
-                              {selectedMachine.productionAt100 ? Number(selectedMachine.productionAt100).toFixed(2) : 'N/A'}
+                              {selectedMachine.productionAt100 ? Number(selectedMachine.productionAt100).toFixed(5) : 'N/A'}
                             </span></span>
                           </div>
                         </div>
@@ -1251,26 +1355,7 @@ const DailyProduction: React.FC = () => {
                           />
                         ) : (
                           <span className="text-gray-700 dark:text-gray-300">
-                            {(() => {
-                              // Robust night shift value processing
-                              let nightValue = 0;
-                              
-                              if (entry.nightShift !== undefined && entry.nightShift !== null) {
-                                if (typeof entry.nightShift === 'string') {
-                                  // Handle string values (including empty strings)
-                                  const parsed = parseFloat(entry.nightShift);
-                                  nightValue = isNaN(parsed) ? 0 : parsed;
-                                } else if (typeof entry.nightShift === 'number') {
-                                  // Handle number values (including NaN)
-                                  nightValue = isNaN(entry.nightShift) ? 0 : entry.nightShift;
-                                } else {
-                                  // Handle other types
-                                  nightValue = 0;
-                                }
-                              }
-                              
-                              return nightValue.toFixed(2);
-                            })()} <span className="text-xs text-gray-500 dark:text-gray-400">kg</span>
+                            {formatShiftValue(entry.nightShift)} <span className="text-xs text-gray-500 dark:text-gray-400">kg</span>
                           </span>
                         )}
                       </TableCell>
