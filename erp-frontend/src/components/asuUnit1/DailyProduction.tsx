@@ -7,7 +7,7 @@ import { Badge } from '../ui/badge';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Edit, Plus, Save, Trash2, X } from 'lucide-react';
-import { ASUMachine, ASUProductionEntry, ProductionStats, asuUnit1Api, CreateProductionEntryData, getProductionAt100 } from '../../api/asuUnit1Api';
+import { ASUMachine, ASUProductionEntry, ProductionStats, asuUnit1Api, CreateProductionEntryData } from '../../api/asuUnit1Api';
 
 interface EditingEntry {
   id: number;
@@ -831,6 +831,49 @@ const DailyProduction: React.FC = () => {
     return n.toFixed(2);
   };
 
+  // Handler for adding current yarn type to history
+  const handleAddCurrentYarn = () => {
+    // Add a new entry with today's date and current yarn type
+    if (!selectedMachine?.id || !selectedMachine?.yarnType) return;
+    
+    const today = new Date().toISOString().split('T')[0];
+    const machineId = selectedMachine.id;
+    const yarnType = selectedMachine.yarnType;
+    
+    // Create a new history entry
+    const machineHistory = machineYarnHistory[machineId] || [];
+    const newMachineHistory = [
+      ...machineHistory,
+      { date: today, yarnType }
+    ];
+    
+    const newHistory = { ...machineYarnHistory };
+    (newHistory as any)[machineId] = newMachineHistory;
+    
+    setMachineYarnHistory(newHistory);
+    saveMachineYarnHistory(newHistory);
+    toast.success(`Added yarn type "${yarnType}" for today's date`);
+  };
+
+  // Handler for removing yarn type history entry
+  const handleRemoveYarnHistory = (index: number) => {
+    // Remove this entry from history
+    if (!selectedMachine?.id) return;
+    
+    const machineId = selectedMachine.id;
+    const machineHistory = [...(machineYarnHistory[machineId] || [])];
+    
+    // Remove the entry at this index
+    machineHistory.splice(index, 1);
+    
+    const newHistory = { ...machineYarnHistory };
+    (newHistory as any)[machineId] = machineHistory;
+    
+    setMachineYarnHistory(newHistory);
+    saveMachineYarnHistory(newHistory);
+    toast.success("Removed yarn type history entry");
+  };
+
   return (
     <>
       {/* Stats Cards */}
@@ -1031,10 +1074,8 @@ const DailyProduction: React.FC = () => {
                                 { date: today, yarnType }
                               ];
                               
-                              const newHistory = {
-                                ...machineYarnHistory,
-                                [machineId]: newMachineHistory
-                              };
+                              const newHistory = { ...machineYarnHistory };
+                              (newHistory as any)[machineId] = newMachineHistory;
                               
                               setMachineYarnHistory(newHistory);
                               saveMachineYarnHistory(newHistory);
@@ -1079,10 +1120,8 @@ const DailyProduction: React.FC = () => {
                                             // Remove the entry at this index
                                             machineHistory.splice(index, 1);
                                             
-                                            const newHistory = {
-                                              ...machineYarnHistory,
-                                              [machineId]: machineHistory
-                                            };
+                                            const newHistory = { ...machineYarnHistory };
+                                            (newHistory as any)[machineId] = machineHistory;
                                             
                                             setMachineYarnHistory(newHistory);
                                             saveMachineYarnHistory(newHistory);
@@ -1164,7 +1203,7 @@ const DailyProduction: React.FC = () => {
                       </div>
                     </div>
                     
-                    {/* Production@100% field removed - Value comes from machine configuration */}
+                    {/* Production@100
 
                     <div className="lg:col-span-2">
                       <div className="p-4 mb-5 border border-green-100 rounded-lg bg-gradient-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20 dark:border-green-800/30">
@@ -1377,6 +1416,7 @@ const DailyProduction: React.FC = () => {
                               const percentage = calculatePercentage(total, productionAt100);
                               return (
                                 <Badge className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${getEfficiencyBadgeClass(percentage)}`}>
+
                                   {percentage.toFixed(1)}%
                                 </Badge>
                               );
