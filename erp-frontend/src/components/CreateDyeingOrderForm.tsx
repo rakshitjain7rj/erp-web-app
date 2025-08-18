@@ -6,6 +6,7 @@ import { getAllDyeingFirms, findOrCreateDyeingFirm, DyeingFirm } from "../api/dy
 import { CreateDyeingRecordRequest, DyeingRecord } from "../types/dyeing";
 import { Button } from "./ui/Button";
 import { X, ChevronDown, Check } from "lucide-react";
+import { syncDyeingFirms } from '../utils/dyeingFirmsSync';
 
 interface CreateDyeingOrderFormProps {
   isOpen: boolean;
@@ -170,6 +171,11 @@ const CreateDyeingOrderForm: React.FC<CreateDyeingOrderFormProps> = ({
           if (firmResult.created) {
             console.log(`✨ New dyeing firm created: "${firmResult.data.name}"`);
             toast.success(`Dyeing firm "${firmResult.data.name}" created and saved!`);
+            
+            // Notify other pages about the new firm
+            console.log('📡 Notifying other pages about new firm:', firmResult.data);
+            syncDyeingFirms.notifyFirmAdded(firmResult.data, 'dyeing-orders');
+            
             // Refresh the firms list to include the new firm
             console.log('🔄 Refreshing dyeing firms list after creation...');
             await fetchExistingDyeingFirms();

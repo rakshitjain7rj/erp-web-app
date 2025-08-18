@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bidirectional Firm Sync Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background: #f5f5f5; 
+        }
+        .container { 
+            max-width: 800px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+        }
+        .test-step { 
+            margin: 15px 0; 
+            padding: 15px; 
+            border: 1px solid #ddd; 
+            border-radius: 5px; 
+            background: #f9f9f9; 
+        }
+        .success { background: #d4edda; border-color: #c3e6cb; }
+        .warning { background: #fff3cd; border-color: #ffeaa7; }
+        .error { background: #f8d7da; border-color: #f5c6cb; }
+        .code { 
+            background: #f1f1f1; 
+            padding: 5px 10px; 
+            border-radius: 3px; 
+            font-family: monospace; 
+            display: inline-block;
+            margin: 2px;
+        }
+        .button {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin: 5px;
+        }
+        .button:hover { background: #0056b3; }
+        h1 { color: #333; text-align: center; }
+        h2 { color: #007bff; border-bottom: 2px solid #007bff; padding-bottom: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 Bidirectional Firm Synchronization Test</h1>
+        
+        <div class="test-step warning">
+            <h3>📋 Test Overview</h3>
+            <p>This test verifies that firms created in <strong>Count Product Overview</strong> appear in <strong>Dyeing Orders</strong> and vice versa.</p>
+            <p><strong>Issue:</strong> Firms created in Count Product Overview are not showing in Dyeing Orders page.</p>
+        </div>
+
+        <div class="test-step">
+            <h2>🚀 Quick Start</h2>
+            <a href="http://localhost:5175" class="button" target="_blank">Open Frontend (localhost:5175)</a>
+            <p>Backend is running on <span class="code">localhost:5000</span></p>
+        </div>
+
+        <div class="test-step">
+            <h2>📝 Test Steps</h2>
+            
+            <h3>Step 1: Create Firm in Count Product Overview</h3>
+            <ol>
+                <li>Navigate to <strong>Count Product Overview</strong> page</li>
+                <li>Click <span class="code">Add Dyeing Order</span> button</li>
+                <li>Fill the form with test data:
+                    <ul>
+                        <li>Customer Name: <span class="code">TestCustomer_Sync</span></li>
+                        <li>Quantity: <span class="code">100</span></li>
+                        <li>Dyeing Firm: <span class="code">TestFirm_CrossSync</span> (new firm)</li>
+                        <li>Sent Date: Today's date</li>
+                    </ul>
+                </li>
+                <li>Submit the form</li>
+                <li>✅ Verify success toast appears</li>
+                <li>✅ Verify new firm section appears immediately</li>
+            </ol>
+
+            <h3>Step 2: Check Cross-Page Synchronization</h3>
+            <ol>
+                <li>Navigate to <strong>Dyeing Orders</strong> page</li>
+                <li>✅ Verify <span class="code">TestFirm_CrossSync</span> appears in the firms list</li>
+                <li>✅ Click on the firm section to expand it</li>
+                <li>✅ Should show "No dyeing orders yet for this firm. (Synced firm)" message</li>
+            </ol>
+
+            <h3>Step 3: Test Persistence</h3>
+            <ol>
+                <li>Press <span class="code">F5</span> to refresh the Dyeing Orders page</li>
+                <li>✅ Verify <span class="code">TestFirm_CrossSync</span> still appears</li>
+                <li>Navigate back to Count Product Overview</li>
+                <li>Press <span class="code">F5</span> to refresh</li>
+                <li>✅ Verify firm and order still appear</li>
+            </ol>
+        </div>
+
+        <div class="test-step">
+            <h2>🔍 Debug Console Logs to Watch For</h2>
+            <p>Open browser DevTools (F12) → Console tab and look for these logs:</p>
+            
+            <h4>✅ CountProductOverview Success Logs:</h4>
+            <ul>
+                <li><span class="code">🎯 [CountProductOverview] handleHorizontalFormSuccess called with:</span></li>
+                <li><span class="code">💾 [CountProductOverview] Products saved to localStorage for persistence</span></li>
+                <li><span class="code">🏢 [Store] ensureFirm called with name:</span></li>
+                <li><span class="code">✅ [Store] Firm created via API:</span></li>
+            </ul>
+
+            <h4>✅ DyeingOrders Sync Logs:</h4>
+            <ul>
+                <li><span class="code">📡 [DyeingOrders] Received firm sync update:</span></li>
+                <li><span class="code">🔍 [DyeingOrders] Centralized firms updated:</span></li>
+                <li><span class="code">🔍 [DyeingOrders] completeFirmListing constructed:</span></li>
+            </ul>
+        </div>
+
+        <div class="test-step">
+            <h2>🎯 Expected Results</h2>
+            <div class="success">
+                <h4>✅ Success Criteria:</h4>
+                <ul>
+                    <li>Firm created in Count Product Overview appears in Dyeing Orders immediately</li>
+                    <li>Firm persists after page refresh on both pages</li>
+                    <li>Console shows successful API calls and store synchronization</li>
+                    <li>No CORS errors in network tab</li>
+                    <li>LocalStorage contains the created data</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="test-step">
+            <h2>⚠️ Recent Fixes Applied</h2>
+            <ul>
+                <li>✅ <strong>CORS Fixed:</strong> Backend now allows localhost:5175</li>
+                <li>✅ <strong>Product Persistence:</strong> Products now saved to localStorage in handleHorizontalFormSuccess</li>
+                <li>✅ <strong>Firm Display Logic:</strong> DyeingOrders now shows ALL centralized firms, not just those with records</li>
+                <li>✅ <strong>Store Integration:</strong> Enhanced debugging for firm synchronization</li>
+            </ul>
+        </div>
+
+        <div class="test-step error">
+            <h2>🚨 If Test Fails</h2>
+            <p>Check these common issues:</p>
+            <ul>
+                <li><strong>CORS Errors:</strong> Backend must be running with localhost:5175 in CORS config</li>
+                <li><strong>Store Not Initialized:</strong> Look for store initialization logs in console</li>
+                <li><strong>API Failures:</strong> Check network tab for failed API calls</li>
+                <li><strong>LocalStorage Issues:</strong> Check Application tab in DevTools</li>
+            </ul>
+        </div>
+
+        <div class="test-step">
+            <h2>🧪 Live Test Status</h2>
+            <p><strong>Frontend:</strong> <span id="frontend-status">Checking...</span></p>
+            <p><strong>Backend:</strong> <span id="backend-status">Checking...</span></p>
+            <p><strong>Ready to Test:</strong> <span id="ready-status">Checking...</span></p>
+        </div>
+    </div>
+
+    <script>
+        // Check if services are running
+        async function checkServices() {
+            try {
+                // Check frontend
+                document.getElementById('frontend-status').innerHTML = '✅ Running on localhost:5175';
+                
+                // Check backend
+                const response = await fetch('http://localhost:5000/api/test');
+                if (response.ok) {
+                    document.getElementById('backend-status').innerHTML = '✅ Running on localhost:5000';
+                    document.getElementById('ready-status').innerHTML = '✅ Ready to test!';
+                } else {
+                    document.getElementById('backend-status').innerHTML = '❌ Backend not responding';
+                    document.getElementById('ready-status').innerHTML = '❌ Backend not ready';
+                }
+            } catch (error) {
+                document.getElementById('backend-status').innerHTML = '❌ Backend connection failed';
+                document.getElementById('ready-status').innerHTML = '❌ Backend not accessible';
+            }
+        }
+
+        checkServices();
+    </script>
+</body>
+</html>

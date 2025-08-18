@@ -6,7 +6,8 @@ import html2canvas from "html2canvas";
 // ================= EXCEL =================
 export const exportTableToExcel = (tableId: string, filename: string) => {
   const table = document.getElementById(tableId);
-  if (!table) return;
+  if (!table || !document.body) return;
+  
   const html = table.outerHTML;
   const blob = new Blob([html], { type: "application/vnd.ms-excel" });
   const url = URL.createObjectURL(blob);
@@ -31,7 +32,7 @@ export const exportTableToPDF = (tableId: string, filename: string) => {
 // ================= PNG =================
 export const exportTableToPNG = async (tableId: string, filename: string) => {
   const table = document.getElementById(tableId);
-  if (!table) return;
+  if (!table || !document.body) return;
 
   const canvas = await html2canvas(table as HTMLElement);
   const dataUrl = canvas.toDataURL("image/png");
@@ -46,7 +47,7 @@ export const exportTableToPNG = async (tableId: string, filename: string) => {
 
 // ================= CSV (NEW) =================
 export const exportDataToCSV = (data: any[], filename: string) => {
-  if (!data || data.length === 0) return;
+  if (!data || data.length === 0 || !document.body) return;
 
   const keys = Object.keys(data[0]);
   const csvRows = [

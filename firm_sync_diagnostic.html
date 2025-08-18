@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firm Sync Diagnostic</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .panel { border: 1px solid #ddd; margin: 15px 0; padding: 20px; border-radius: 8px; background: #f9f9f9; }
+        .logs { background: #000; color: #0f0; max-height: 400px; overflow-y: auto; padding: 15px; font-family: 'Courier New', monospace; font-size: 12px; border-radius: 4px; }
+        button { margin: 5px; padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .firm-list { border: 1px solid #ccc; padding: 15px; margin: 15px 0; min-height: 100px; background: white; border-radius: 4px; }
+        .test-results { display: flex; gap: 20px; }
+        .test-column { flex: 1; }
+        .status { padding: 5px 10px; border-radius: 4px; font-weight: bold; }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .status.pending { background: #fff3cd; color: #856404; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Firm Synchronization Diagnostic Tool</h1>
+    
+    <div class="panel">
+        <h3>System Status</h3>
+        <div id="systemStatus">
+            <div>API Server: <span id="apiStatus" class="status pending">Testing...</span></div>
+            <div>BroadcastChannel: <span id="bcStatus" class="status pending">Testing...</span></div>
+            <div>LocalStorage: <span id="storageStatus" class="status pending">Testing...</span></div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h3>Test Actions</h3>
+        <button onclick="testAPI()">🌐 Test API</button>
+        <button onclick="testBroadcast()">📡 Test Broadcast</button>
+        <button onclick="testStorage()">💾 Test Storage</button>
+        <button onclick="createTestFirm()">🏭 Create Test Firm</button>
+        <button onclick="clearAll()">🗑️ Clear All Data</button>
+        <button onclick="clearLogs()">📄 Clear Logs</button>
+    </div>
+
+    <div class="test-results">
+        <div class="test-column">
+            <div class="panel">
+                <h3>Current Firms (API)</h3>
+                <div id="apiFirms" class="firm-list">Loading...</div>
+                <button onclick="refreshAPI()">🔄 Refresh API</button>
+            </div>
+        </div>
+        
+        <div class="test-column">
+            <div class="panel">
+                <h3>LocalStorage Firms</h3>
+                <div id="storageFirms" class="firm-list">Loading...</div>
+                <button onclick="refreshStorage()">🔄 Refresh Storage</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h3>Real-time Logs</h3>
+        <div id="logs" class="logs"></div>
+    </div>
+
+    <script>
+        let bc = null;
+        let logCount = 0;
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logs = document.getElementById('logs');
+            const color = type === 'error' ? '#ff6b6b' : type === 'success' ? '#51cf66' : '#74c0fc';
+            logs.innerHTML += `<div style="color: ${color}">[${timestamp}] ${message}</div>`;
+            logs.scrollTop = logs.scrollHeight;
+            console.log(message);
+            
+            // Keep only last 100 log entries
+            if (++logCount > 100) {
+                const lines = logs.querySelectorAll('div');
+                if (lines.length > 100) {
+                    lines[0].remove();
+                }
+            }
+        }
+        
+        function updateStatus(elementId, status, text) {
+            const el = document.getElementById(elementId);
+            el.className = `status ${status}`;
+            el.textContent = text;
+        }
+        
+        // Initialize BroadcastChannel
+        function initBroadcast() {
+            try {
+                bc = new BroadcastChannel('dyeing-sync');
+                bc.onmessage = (event) => {
+                    log(`📨 Received broadcast: ${JSON.stringify(event.data)}`, 'success');
+                    if (event.data.type === 'FIRMS_CHANGED') {
+                        refreshStorage();
+                    }
+                };
+                updateStatus('bcStatus', 'success', 'Connected');
+                log('✅ BroadcastChannel initialized', 'success');
+            } catch (e) {
+                updateStatus('bcStatus', 'error', 'Failed');
+                log(`❌ BroadcastChannel failed: ${e.message}`, 'error');
+            }
+        }
+        
+        // Test API connectivity
+        async function testAPI() {
+            try {
+                log('🌐 Testing API connection...');
+                const response = await fetch('http://localhost:5000/api/dyeing-firms', {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                updateStatus('apiStatus', 'success', 'Connected');
+                log(`✅ API test successful: ${data.count || data.data?.length || 0} firms`, 'success');
+                refreshAPI();
+                
+            } catch (e) {
+                updateStatus('apiStatus', 'error', 'Failed');
+                log(`❌ API test failed: ${e.message}`, 'error');
+            }
+        }
+        
+        // Test BroadcastChannel
+        function testBroadcast() {
+            if (bc) {
+                const testMessage = { type: 'TEST', timestamp: Date.now() };
+                bc.postMessage(testMessage);
+                log(`📡 Broadcast test sent: ${JSON.stringify(testMessage)}`, 'success');
+            } else {
+                log('❌ BroadcastChannel not available', 'error');
+            }
+        }
+        
+        // Test LocalStorage
+        function testStorage() {
+            try {
+                const testKey = 'diagnostic-test';
+                const testValue = 'test-' + Date.now();
+                localStorage.setItem(testKey, testValue);
+                const retrieved = localStorage.getItem(testKey);
+                localStorage.removeItem(testKey);
+                
+                if (retrieved === testValue) {
+                    updateStatus('storageStatus', 'success', 'Working');
+                    log('✅ LocalStorage test successful', 'success');
+                    refreshStorage();
+                } else {
+                    throw new Error('Value mismatch');
+                }
+            } catch (e) {
+                updateStatus('storageStatus', 'error', 'Failed');
+                log(`❌ LocalStorage test failed: ${e.message}`, 'error');
+            }
+        }
+        
+        // Create test firm
+        async function createTestFirm() {
+            try {
+                const firmName = `Test Firm ${Date.now()}`;
+                log(`🏭 Creating test firm: ${firmName}`);
+                
+                const response = await fetch('http://localhost:5000/api/dyeing-firms', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: firmName })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const newFirm = await response.json();
+                log(`✅ Firm created: ${JSON.stringify(newFirm)}`, 'success');
+                
+                // Broadcast the change
+                if (bc) {
+                    const message = { type: 'FIRMS_CHANGED', version: Date.now() };
+                    bc.postMessage(message);
+                    log(`📡 Broadcast sent: ${JSON.stringify(message)}`, 'success');
+                }
+                
+                // Update localStorage
+                const version = Date.now();
+                localStorage.setItem('dyeing_firms_version', version.toString());
+                
+                // Refresh displays
+                refreshAPI();
+                refreshStorage();
+                
+            } catch (e) {
+                log(`❌ Create firm failed: ${e.message}`, 'error');
+            }
+        }
+        
+        // Refresh API display
+        async function refreshAPI() {
+            try {
+                const response = await fetch('http://localhost:5000/api/dyeing-firms');
+                const data = await response.json();
+                const firms = data.data || data || [];
+                
+                const container = document.getElementById('apiFirms');
+                if (firms.length === 0) {
+                    container.innerHTML = '<em>No firms found</em>';
+                } else {
+                    container.innerHTML = firms.map(f => 
+                        `<div>🏭 ${f.name} (ID: ${f.id})</div>`
+                    ).join('');
+                }
+                
+                log(`🔄 API refresh: ${firms.length} firms loaded`);
+            } catch (e) {
+                document.getElementById('apiFirms').innerHTML = `<em>Error: ${e.message}</em>`;
+                log(`❌ API refresh failed: ${e.message}`, 'error');
+            }
+        }
+        
+        // Refresh storage display
+        function refreshStorage() {
+            try {
+                const version = localStorage.getItem('dyeing_firms_version') || '0';
+                const firmsData = localStorage.getItem('dyeing-firms-data');
+                
+                const container = document.getElementById('storageFirms');
+                
+                if (!firmsData) {
+                    container.innerHTML = `<em>No firms in storage</em><br><small>Version: ${version}</small>`;
+                } else {
+                    try {
+                        const firms = JSON.parse(firmsData);
+                        if (firms.length === 0) {
+                            container.innerHTML = `<em>No firms stored</em><br><small>Version: ${version}</small>`;
+                        } else {
+                            container.innerHTML = firms.map(f => 
+                                `<div>🏭 ${f.name} (ID: ${f.id})</div>`
+                            ).join('') + `<br><small>Version: ${version}</small>`;
+                        }
+                    } catch (parseError) {
+                        container.innerHTML = `<em>Invalid JSON data</em><br><small>Version: ${version}</small>`;
+                    }
+                }
+                
+                log(`🔄 Storage refresh: Version ${version}`);
+            } catch (e) {
+                document.getElementById('storageFirms').innerHTML = `<em>Error: ${e.message}</em>`;
+                log(`❌ Storage refresh failed: ${e.message}`, 'error');
+            }
+        }
+        
+        // Clear all data
+        function clearAll() {
+            localStorage.removeItem('dyeing_firms_version');
+            localStorage.removeItem('dyeing-firms-data');
+            localStorage.removeItem('dyeing_records_version');
+            localStorage.removeItem('dyeing-records-data');
+            
+            refreshAPI();
+            refreshStorage();
+            log('🗑️ All local data cleared', 'success');
+        }
+        
+        // Clear logs
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+            logCount = 0;
+        }
+        
+        // Initialize on page load
+        window.addEventListener('load', () => {
+            log('🚀 Diagnostic tool initialized');
+            initBroadcast();
+            testAPI();
+            testStorage();
+            refreshAPI();
+            refreshStorage();
+        });
+        
+        // Listen for storage events
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'dyeing_firms_version') {
+                log(`🔄 Storage event detected: ${e.key} changed to ${e.newValue}`, 'success');
+                refreshStorage();
+            }
+        });
+    </script>
+</body>
+</html>

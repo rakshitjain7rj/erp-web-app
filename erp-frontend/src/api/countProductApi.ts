@@ -44,6 +44,7 @@ export interface CountProduct {
   count: string;
   shade: string;
   quantity: number;
+  sentQuantity?: number;  // Separate field for sent to dye quantity
   completedDate: string;
   qualityGrade: 'A' | 'B' | 'C';
   remarks?: string;

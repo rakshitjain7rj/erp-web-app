@@ -2,9 +2,11 @@ import React, { useState, useRef, useEffect } from "react";
 import { format, addDays } from "date-fns";
 import { toast } from "sonner";
 import { createDyeingRecord, updateDyeingRecord } from "../api/dyeingApi";
+import { findOrCreateDyeingFirm } from "../api/dyeingFirmApi";
 import { CreateDyeingRecordRequest } from "../types/dyeing";
 import { Button } from "./ui/Button";
 import { X, ChevronDown, Check, Package, Calendar, Plus } from "lucide-react";
+import { dyeingDataStore } from '../stores/dyeingDataStore';
 
 // Simplified data structure for business-friendly form (matches CountProduct structure)
 interface SimplifiedDyeingOrderData {
@@ -39,7 +41,7 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
   onSuccess,
   orderToEdit,
   onCancel,
-  existingFirms = [], // Add existingFirms prop with default empty array
+  existingFirms = [],
 }) => {
   const today = format(new Date(), "yyyy-MM-dd");
   const defaultExpectedDate = format(addDays(new Date(), 7), "yyyy-MM-dd");
@@ -60,7 +62,7 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
     // Technical fields for API
     yarnType: "",
     shade: "",
-    count: "",
+    count: "", // Empty by default so users can type directly
     lot: "",
     expectedArrivalDate: defaultExpectedDate,
   });
@@ -75,8 +77,41 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
   const [selectedFirmIndex, setSelectedFirmIndex] = useState(-1);
   const firmDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Keep a local reactive copy of firms so we can update when new ones are broadcast
+  const [liveFirms, setLiveFirms] = useState<string[]>(existingFirms);
+
+  // Subscribe to firm updates from sync manager
+  useEffect(() => {
+    let unsubscribe: (() => void) | null = null;
+    
+    const setupSubscription = async () => {
+      try {
+        unsubscribe = await dyeingDataStore.subscribeFirms((firms) => {
+          const firmNames = firms.map(f => f.name);
+          setLiveFirms(firmNames);
+          console.log('📡 SimplifiedDyeingOrderForm received firm sync update:', firmNames);
+        });
+      } catch (error) {
+        console.error('❌ Error setting up firm subscription:', error);
+      }
+    };
+    
+    setupSubscription();
+    
+    return () => {
+      if (unsubscribe && typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, []);
+
+  // Update liveFirms when existingFirms prop changes
+  useEffect(() => {
+    setLiveFirms(existingFirms);
+  }, [existingFirms]);
+
   // Filter existing firms based on input (use dynamic firms from database)
-  const filteredFirms = existingFirms.filter(firm =>
+  const filteredFirms = liveFirms.filter(firm =>
     firm.toLowerCase().includes(firmFilter.toLowerCase())
   );
 
@@ -225,11 +260,31 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
     }
   };
 
-  const selectFirm = (firm: string) => {
+  const selectFirm = async (firm: string) => {
     setFormData(prev => ({ ...prev, dyeingFirm: firm }));
     setFirmFilter(firm);
     setShowFirmDropdown(false);
     setSelectedFirmIndex(-1);
+    
+    // Check if this is a new firm that needs to be created
+    const isNewFirm = !liveFirms.some(existing => 
+      existing.toLowerCase() === firm.toLowerCase()
+    );
+    
+    if (isNewFirm && firm.trim()) {
+      try {
+        console.log(`🏭 Creating new dyeing firm: ${firm}`);
+        const firmResult = await dyeingDataStore.ensureFirm(firm.trim());
+        
+        // Add to local state immediately
+        setLiveFirms(prev => [...prev, firmResult.name].sort());
+        
+        toast.success(`Firm "${firm}" created and synced to all pages!`);
+      } catch (error) {
+        console.warn("⚠️ Failed to create dyeing firm, but continuing with form:", error);
+        toast.warning(`Failed to save firm "${firm}" to database, but you can continue with the form`);
+      }
+    }
   };
 
   const validateForm = (): boolean => {
@@ -242,6 +297,10 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
 
     if (!formData.quantity || formData.quantity <= 0) {
       newErrors.quantity = "Quantity is required and must be greater than 0";
+    }
+
+    if (!formData.count?.trim()) {
+      newErrors.count = "Count is required";
     }
 
     if (!formData.sentToDye || formData.sentToDye <= 0) {
@@ -257,7 +316,7 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
     }
 
     // Technical fields validation - only validate if any are filled (not all required if user doesn't expand section)
-    const technicalFieldsFilled = formData.yarnType || formData.shade || formData.count || formData.lot;
+    const technicalFieldsFilled = formData.yarnType || formData.shade || formData.lot;
     
     if (technicalFieldsFilled) {
       // If user started filling technical fields, then all are required
@@ -267,10 +326,6 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
 
       if (!formData.shade?.trim()) {
         newErrors.shade = "Shade is required when technical details are provided";
-      }
-
-      if (!formData.count?.trim()) {
-        newErrors.count = "Count is required when technical details are provided";
       }
 
       if (!formData.lot?.trim()) {
@@ -360,6 +415,7 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
         trackingInfo.push(receivedInfo);
         console.log('📥 Adding received info to remarks:', receivedInfo);
         console.log('📥 Received value being saved:', formData.received);
+        console.log('📅 Received date being saved:', formData.receivedDate);
       }
       
       // Always add dispatch information when updating an existing record  
@@ -368,6 +424,7 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
         trackingInfo.push(dispatchInfo);
         console.log('📤 Adding dispatch info to remarks:', dispatchInfo);
         console.log('📤 Dispatch value being saved:', formData.dispatch);
+        console.log('📅 Dispatch date being saved:', formData.dispatchDate);
       }
       
       // Add middleman/party information if provided
@@ -399,7 +456,7 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
         sentDate: formData.sentDate,
         expectedArrivalDate: formData.expectedArrivalDate || formData.sentDate, // Use sent date as fallback
         remarks: enhancedRemarks,
-        partyName: formData.customerName, // Map customerName to partyName for API
+        partyName: formData.partyName || formData.customerName, // Preserve existing partyName if available, otherwise use customerName
         quantity: formData.sentToDye || formData.quantity, // Use sentToDye as the main quantity (what was actually sent)
         shade: formData.shade || "Natural", // Provide default if empty
         count: formData.count || "Standard", // Provide default if empty
@@ -409,10 +466,12 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
 
       console.log('📤 API Request Data:', dyeingRecordData);
       console.log('📋 Main Quantity (sentToDye) in API request:', dyeingRecordData.quantity);
-      console.log('� Form sentToDye value:', formData.sentToDye);
+      console.log('📋 Form sentToDye value:', formData.sentToDye);
       console.log('📋 Form received value:', formData.received);
       console.log('📋 Form dispatch value:', formData.dispatch);
-      console.log('�👤 PartyName (Customer) in API request:', dyeingRecordData.partyName);
+      console.log('👤 PartyName (Customer) in API request:', dyeingRecordData.partyName);
+      console.log('👤 FormData.partyName:', formData.partyName);
+      console.log('👤 FormData.customerName:', formData.customerName);
       console.log('🏭 DyeingFirm in API request:', dyeingRecordData.dyeingFirm);
       console.log('🧵 YarnType in API request:', dyeingRecordData.yarnType);
       console.log('🎨 Shade in API request:', dyeingRecordData.shade);
@@ -451,6 +510,7 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
       const successData = {
         action: shouldUpdate ? 'updated' : 'created',
         recordId: result?.id || formData.id,
+        dyeingFirm: dyeingRecordData.dyeingFirm, // CRITICAL: Include dyeing firm for sync
         timestamp: new Date().toISOString(),
         updatedFields: {
           quantity: dyeingRecordData.quantity,
@@ -518,7 +578,7 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
       
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* First Row - Required Fields */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Quantity */}
           <div className="space-y-1">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block">
@@ -565,6 +625,28 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
             />
             {errors.customerName && (
               <p className="text-xs text-red-500">{errors.customerName}</p>
+            )}
+          </div>
+
+          {/* Count */}
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block">
+              Count *
+            </label>
+            <input
+              type="text"
+              name="count"
+              value={formData.count}
+              onChange={handleInputChange}
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors ${
+                errors.count 
+                  ? 'border-red-500 focus:ring-red-500' 
+                  : 'border-gray-300 dark:border-gray-600'
+              }`}
+              placeholder="e.g. 20s, 30s, Standard"
+            />
+            {errors.count && (
+              <p className="text-xs text-red-500">{errors.count}</p>
             )}
           </div>
 
@@ -830,28 +912,6 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
                 />
                 {errors.shade && (
                   <p className="text-xs text-red-500">{errors.shade}</p>
-                )}
-              </div>
-
-              {/* Count */}
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block">
-                  Count *
-                </label>
-                <input
-                  type="text"
-                  name="count"
-                  value={formData.count}
-                  onChange={handleInputChange}
-                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors ${
-                    errors.count 
-                      ? 'border-red-500 focus:ring-red-500' 
-                      : 'border-gray-300 dark:border-gray-600'
-                  }`}
-                  placeholder="Enter count"
-                />
-                {errors.count && (
-                  <p className="text-xs text-red-500">{errors.count}</p>
                 )}
               </div>
 

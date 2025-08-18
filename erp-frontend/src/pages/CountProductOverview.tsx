@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "../components/ui/Button";
-import { ChevronDown, ChevronUp, Package, TrendingUp, Calendar, BarChart3, Plus, Check, X, RefreshCw } from "lucide-react";
+import { ChevronDown, ChevronUp, Package, TrendingUp, Calendar, BarChart3, Plus, Check, X, RefreshCw, Loader } from "lucide-react";
+import { FaCheck, FaTimes } from "react-icons/fa";
 import { toast } from "sonner";
 import { exportDataToCSV } from "../utils/exportUtils";
 import FloatingActionDropdown from "../components/FloatingActionDropdown";
 import CountProductFollowUpModal from "../components/CountProductFollowUpModal";
 import { HorizontalAddOrderForm } from "../components/HorizontalAddOrderForm";
+import SimplifiedDyeingOrderForm from "../components/SimplifiedDyeingOrderForm";
 import { 
   getAllCountProducts, 
   createCountProduct, 
@@ -14,154 +16,11 @@ import {
   CountProduct 
 } from "../api/countProductApi";
 import { getAllDyeingFirms, DyeingFirm } from "../api/dyeingFirmApi";
+import { deleteDyeingRecord, updateDyeingRecord } from "../api/dyeingApi";
+import { dyeingDataStore } from "../stores/dyeingDataStore";
+import { DyeingRecord } from "../types/dyeing";
 
-// Mock data for demonstration (fallback if API fails)
-const mockCountProducts: CountProduct[] = [
-  {
-    id: 1,
-    partyName: "ABC Textiles Ltd",
-    dyeingFirm: "Rainbow Dyers",
-    yarnType: "Cotton Combed",
-    count: "30s",
-    shade: "Navy Blue",
-    quantity: 150,
-    completedDate: "2025-01-15",
-    qualityGrade: "A",
-    remarks: "Excellent color fastness",
-    lotNumber: "RD-2025-001",
-    processedBy: "Team A",
-    customerName: "Fashion Forward Ltd",
-    sentToDye: true,
-    sentDate: "2025-01-10",
-    received: true,
-    receivedDate: "2025-01-14",
-    receivedQuantity: 148,
-    dispatch: true,
-    dispatchDate: "2025-01-16",
-    dispatchQuantity: 145,
-    middleman: "Global Yarn Traders"
-  },
-  {
-    id: 2,
-    partyName: "XYZ Fashion House",
-    dyeingFirm: "Rainbow Dyers", 
-    yarnType: "Cotton Carded",
-    count: "20s",
-    shade: "Crimson Red",
-    quantity: 200,
-    completedDate: "2025-01-14",
-    qualityGrade: "A",
-    remarks: "Perfect shade matching",
-    lotNumber: "RD-2025-002",
-    processedBy: "Team B",
-    customerName: "Metro Garments",
-    sentToDye: true,
-    sentDate: "2025-01-08",
-    received: true,
-    receivedDate: "2025-01-13",
-    receivedQuantity: 195,
-    dispatch: false,
-    dispatchDate: "",
-    dispatchQuantity: 0,
-    middleman: "Textile Hub Co"
-  },
-  {
-    id: 3,
-    partyName: "DEF Garments",
-    dyeingFirm: "ColorTech Solutions",
-    yarnType: "Polyester Blend",
-    count: "40s",
-    shade: "Forest Green",
-    quantity: 120,
-    completedDate: "2025-01-13",
-    qualityGrade: "B",
-    remarks: "Minor shade variation",
-    lotNumber: "CT-2025-001",
-    processedBy: "Team C",
-    customerName: "Premium Fabrics Inc",
-    sentToDye: true,
-    sentDate: "2025-01-05",
-    received: true,
-    receivedDate: "2025-01-12",
-    receivedQuantity: 118,
-    dispatch: true,
-    dispatchDate: "2025-01-15",
-    dispatchQuantity: 115,
-    middleman: "Quality Yarn Solutions"
-  },
-  {
-    id: 4,
-    partyName: "GHI Exports",
-    dyeingFirm: "ColorTech Solutions",
-    yarnType: "Cotton Combed",
-    count: "32s",
-    shade: "Sky Blue",
-    quantity: 180,
-    completedDate: "2025-01-12",
-    qualityGrade: "A",
-    remarks: "Outstanding quality",
-    lotNumber: "CT-2025-002",
-    processedBy: "Team A",
-    customerName: "Artisan Crafts",
-    sentToDye: true,
-    sentDate: "2025-01-06",
-    received: true,
-    receivedDate: "2025-01-11",
-    receivedQuantity: 175,
-    dispatch: false,
-    dispatchDate: "",
-    dispatchQuantity: 0,
-    middleman: "Direct Supply"
-  },
-  {
-    id: 5,
-    partyName: "JKL Industries",
-    dyeingFirm: "Premium Dye Works",
-    yarnType: "Viscose",
-    count: "24s",
-    shade: "Golden Yellow",
-    quantity: 160,
-    completedDate: "2025-01-11",
-    qualityGrade: "A",
-    remarks: "Vibrant color achieved",
-    lotNumber: "PDW-2025-001",
-    processedBy: "Team D",
-    customerName: "Luxury Textiles",
-    sentToDye: true,
-    sentDate: "2025-01-03",
-    received: true,
-    receivedDate: "2025-01-10",
-    receivedQuantity: 158,
-    dispatch: true,
-    dispatchDate: "2025-01-13",
-    dispatchQuantity: 155,
-    middleman: "Elite Brokers"
-  },
-  {
-    id: 6,
-    partyName: "MNO Fabrics",
-    dyeingFirm: "Premium Dye Works",
-    yarnType: "Cotton Combed",
-    count: "28s",
-    shade: "Deep Purple",
-    quantity: 140,
-    completedDate: "2025-01-10",
-    qualityGrade: "B",
-    remarks: "Good overall quality",
-    lotNumber: "PDW-2025-002",
-    processedBy: "Team B",
-    customerName: "Designer Collections",
-    sentToDye: true,
-    sentDate: "2025-01-04",
-    received: true,
-    receivedDate: "2025-01-09",
-    receivedQuantity: 138,
-    dispatch: true,
-    dispatchDate: "2025-01-12",
-    dispatchQuantity: 135,
-    middleman: "Fashion Bridge Ltd"
-  }
-];
+// REMOVED: mockCountProducts hard-coded demo data. We now rely ONLY on real API / synced creations
 
 const CountProductOverview: React.FC = () => {
   const [products, setProducts] = useState<CountProduct[]>([]);
@@ -178,9 +37,15 @@ const CountProductOverview: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState<CountProduct | null>(null);
   
-  // Centralized dyeing firms state
+  // Dyeing record edit modal state
+  const [isDyeingEditModalOpen, setIsDyeingEditModalOpen] = useState(false);
+  const [dyeingRecordToEdit, setDyeingRecordToEdit] = useState<any | null>(null); // Changed to any to accept formatted record
+  
+  // Centralized dyeing firms state and dyeing records
   const [centralizedDyeingFirms, setCentralizedDyeingFirms] = useState<DyeingFirm[]>([]);
+  const [dyeingRecords, setDyeingRecords] = useState<DyeingRecord[]>([]);
   const [isLoadingFirms, setIsLoadingFirms] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   
   const [editValues, setEditValues] = useState<{
     quantity: number;
@@ -189,155 +54,333 @@ const CountProductOverview: React.FC = () => {
     sentQuantity: number;
   }>({ quantity: 0, receivedQuantity: 0, dispatchQuantity: 0, sentQuantity: 0 });
 
-  // Fetch count products from API
+  // Parse tracking info from remarks (same logic as DyeingOrders)
+  const parseTrackingInfo = (remarks?: string) => {
+    console.log('📝 [CountProductOverview] Parsing remarks:', remarks);
+    if (!remarks) {
+      return {
+        received: undefined,
+        receivedDate: undefined,
+        dispatch: undefined,
+        dispatchDate: undefined,
+        partyNameMiddleman: "Direct Supply",
+        originalQuantity: undefined,
+        originalRemarks: ""
+      };
+    }
+
+    // Extract tracking data using same patterns as DyeingOrders
+    const received = remarks.match(/Received: ([\d.]+)kg/)?.[1];
+    const receivedDate = remarks.match(/Received: [\d.]+kg on ([\d-]+)/)?.[1];
+    const dispatched = remarks.match(/Dispatched: ([\d.]+)kg/)?.[1];
+    const dispatchDate = remarks.match(/Dispatched: [\d.]+kg on ([\d-]+)/)?.[1];
+    const middleman = remarks.match(/Middleman: ([^|]+)/)?.[1]?.trim();
+    const originalQty = remarks.match(/OriginalQty: ([\d.]+)kg/)?.[1];
+    
+    // Handle multiple entries by taking the LAST value
+    const allReceivedMatches = remarks.match(/Received: ([\d.]+)kg/g);
+    const allDispatchedMatches = remarks.match(/Dispatched: ([\d.]+)kg/g);
+    const allOriginalQtyMatches = remarks.match(/OriginalQty: ([\d.]+)kg/g);
+    
+    let finalReceived = received;
+    let finalDispatched = dispatched;
+    let finalOriginalQty = originalQty;
+    
+    // If there are multiple entries, take the last one
+    if (allReceivedMatches && allReceivedMatches.length > 1) {
+      const lastReceivedMatch = allReceivedMatches[allReceivedMatches.length - 1];
+      finalReceived = lastReceivedMatch.match(/Received: ([\d.]+)kg/)?.[1];
+    }
+    
+    if (allDispatchedMatches && allDispatchedMatches.length > 1) {
+      const lastDispatchedMatch = allDispatchedMatches[allDispatchedMatches.length - 1];
+      finalDispatched = lastDispatchedMatch.match(/Dispatched: ([\d.]+)kg/)?.[1];
+    }
+    
+    if (allOriginalQtyMatches && allOriginalQtyMatches.length > 1) {
+      const lastOriginalQtyMatch = allOriginalQtyMatches[allOriginalQtyMatches.length - 1];
+      finalOriginalQty = lastOriginalQtyMatch.match(/OriginalQty: ([\d.]+)kg/)?.[1];
+    }
+    
+    // Extract original remarks (everything before ANY tracking info)
+    const trackingPattern = / \| (Received:|Dispatched:|Middleman:|OriginalQty:)/;
+    const originalRemarks = remarks.split(trackingPattern)[0] || remarks;
+    
+    const trackingInfo = {
+      received: finalReceived !== undefined ? parseFloat(finalReceived) : undefined,
+      receivedDate: receivedDate || undefined,
+      dispatch: finalDispatched !== undefined ? parseFloat(finalDispatched) : undefined,
+      dispatchDate: dispatchDate || undefined,
+      partyNameMiddleman: middleman || "Direct Supply",
+      originalQuantity: finalOriginalQty !== undefined ? parseFloat(finalOriginalQty) : undefined,
+      originalRemarks
+    };
+    
+    console.log('🔍 [CountProductOverview] Parsed tracking info:', trackingInfo);
+    return trackingInfo;
+  };
+
+  // Map dyeing record to simplified display (same logic as DyeingOrders)
+  const mapToSimplifiedDisplay = (record: DyeingRecord) => {
+    console.log('� [CountProductOverview] Mapping record to simplified display:', record.id);
+    
+    const trackingInfo = parseTrackingInfo(record.remarks);
+    
+    const mappedRecord = {
+      id: record.id,
+      quantity: trackingInfo.originalQuantity || record.quantity,
+      customerName: record.partyName,
+      sentToDye: record.quantity, // This is what was actually sent
+      sentDate: record.sentDate,
+      received: trackingInfo.received,
+      receivedDate: trackingInfo.receivedDate,
+      dispatch: trackingInfo.dispatch,
+      dispatchDate: trackingInfo.dispatchDate,
+      partyNameMiddleman: trackingInfo.partyNameMiddleman,
+      dyeingFirm: record.dyeingFirm,
+      remarks: trackingInfo.originalRemarks || record.remarks
+    };
+    
+    console.log('✅ [CountProductOverview] Mapped record:', mappedRecord);
+    return mappedRecord;
+  };
+
+  const formatQty = (v: number | undefined | null) => 
+    (v === null || v === undefined || v === 0) ? '-' : `${v % 1 === 0 ? v : v.toFixed(1)} kg`;
+
+  // Fetch count products from API with AGGRESSIVE localStorage persistence
   const fetchCountProducts = async () => {
     try {
       setIsLoading(true);
-      console.log('🔄 Fetching count products from API...');
+      console.log('🔄 [AGGRESSIVE] Fetching count products with priority on localStorage...');
       
-      // First, check localStorage for recent changes
+      // ALWAYS load localStorage data first and keep it as backup
       const savedProducts = localStorage.getItem('countProducts');
       const savedTimestamp = localStorage.getItem('countProductsTimestamp');
-      const currentTime = new Date().getTime();
       
-      // If we have local data that's less than 5 minutes old, prefer it
-      if (savedProducts && savedTimestamp) {
-        const timeDiff = currentTime - parseInt(savedTimestamp);
-        const fiveMinutesInMs = 5 * 60 * 1000;
-        
-        if (timeDiff < fiveMinutesInMs) {
-          try {
-            const localData = JSON.parse(savedProducts);
-            console.log(`📋 Using recent localStorage data (${Math.round(timeDiff/1000)}s old) with ${localData.length} products`);
+      let localData: CountProduct[] = [];
+      let hasValidLocalData = false;
+      
+      if (savedProducts) {
+        try {
+          localData = JSON.parse(savedProducts);
+          hasValidLocalData = Array.isArray(localData) && localData.length > 0;
+          console.log(`📋 [AGGRESSIVE] Found ${localData.length} products in localStorage (valid: ${hasValidLocalData})`);
+          
+          // ALWAYS set localStorage data if we have it - API should not override this
+          if (hasValidLocalData) {
+            console.log('� [AGGRESSIVE] Setting products from localStorage immediately and treating as source of truth');
             setProducts(localData);
-            toast.success(`Loaded ${localData.length} count products from local cache`);
-            return;
-          } catch (parseError) {
-            console.warn('Failed to parse saved products, will fetch from API:', parseError);
           }
+          
+          // If localStorage data is very recent (< 1 minute), don't even call API
+          if (savedTimestamp) {
+            const currentTime = new Date().getTime();
+            const timeDiff = currentTime - parseInt(savedTimestamp);
+            const oneMinuteInMs = 1 * 60 * 1000;
+            
+            if (timeDiff < oneMinuteInMs && hasValidLocalData) {
+              console.log(`✅ [AGGRESSIVE] LocalStorage data is very fresh (${Math.round(timeDiff/1000)}s old), skipping API call entirely`);
+              return;
+            }
+          }
+        } catch (parseError) {
+          console.warn('⚠️ [AGGRESSIVE] Failed to parse localStorage data:', parseError);
         }
       }
       
-      let data: CountProduct[] = [];
+      // Only call API if localStorage data is older or empty
       try {
-        data = await getAllCountProducts();
-        console.log(`✅ Successfully fetched ${data.length} products from API`);
+        console.log('🌐 [AGGRESSIVE] Calling API for background sync only...');
+        const apiData = await getAllCountProducts();
+        console.log(`✅ [AGGRESSIVE] API returned ${apiData.length} products`);
         
-        // Save to localStorage as backup with timestamp
-        localStorage.setItem('countProducts', JSON.stringify(data));
-        localStorage.setItem('countProductsTimestamp', currentTime.toString());
-        console.log('💾 Saved products to localStorage backup with timestamp');
-      } catch (apiError) {
-        console.warn('⚠️ API failed, trying localStorage backup:', apiError);
-        
-        // Try to get from localStorage backup (even if old)
-        if (savedProducts) {
-          try {
-            data = JSON.parse(savedProducts);
-            console.log(`📋 Loaded ${data.length} products from localStorage backup (API failed)`);
-          } catch (parseError) {
-            console.error('Failed to parse saved products:', parseError);
-            data = [];
+        // CRITICAL: Only update state if API data is actually better than localStorage
+        if (Array.isArray(apiData) && apiData.length > 0) {
+          // If we have no localStorage data, use API data
+          if (!hasValidLocalData) {
+            console.log('📝 [AGGRESSIVE] No localStorage data, using API data');
+            setProducts(apiData);
+            localStorage.setItem('countProducts', JSON.stringify(apiData));
+            localStorage.setItem('countProductsTimestamp', new Date().getTime().toString());
+          } 
+          // If API has more data than localStorage, merge them
+          else if (apiData.length > localData.length) {
+            console.log('📝 [AGGRESSIVE] API has more data, merging with localStorage priority');
+            const mergedData = [...localData]; // Start with localStorage data
+            
+            // Add any API products that aren't in localStorage
+            apiData.forEach(apiProduct => {
+              const existsInLocal = localData.some(localProduct => localProduct.id === apiProduct.id);
+              if (!existsInLocal) {
+                console.log('📝 [AGGRESSIVE] Adding API product not in localStorage:', apiProduct.customerName);
+                mergedData.push(apiProduct);
+              }
+            });
+            
+            setProducts(mergedData);
+            localStorage.setItem('countProducts', JSON.stringify(mergedData));
+            localStorage.setItem('countProductsTimestamp', new Date().getTime().toString());
           }
+          // Otherwise, keep localStorage data as is
+          else {
+            console.log('� [AGGRESSIVE] LocalStorage data is equal/better, keeping it unchanged');
+          }
+        } 
+        // If API returns empty/invalid data, NEVER override localStorage
+        else {
+          console.log('🛡️ [AGGRESSIVE] API returned empty/invalid data, protecting localStorage data');
+          if (hasValidLocalData) {
+            console.log('💪 [AGGRESSIVE] Keeping localStorage data intact, API call was meaningless');
+            // Don't call setProducts again, localStorage data is already set
+          }
+        }
+      } catch (apiError) {
+        console.warn('⚠️ [AGGRESSIVE] API failed, this is fine - localStorage data is protected:', apiError);
+        // If API fails and we have localStorage data, make sure it's displayed
+        if (hasValidLocalData) {
+          console.log('�️ [AGGRESSIVE] API failed but localStorage data is safe and displayed');
+          // Don't override - localStorage data is already set above
+        } else {
+          console.log('📭 [AGGRESSIVE] API failed and no localStorage data available');
+          setProducts([]);
         }
       }
       
-      if (data.length > 0) {
-        console.log('✅ Setting products state with data:', data.length, 'products');
-        console.log('📊 Sample product for verification:', data[0]);
-        console.log('📊 Products have quantity field:', data.every(p => typeof p.quantity === 'number'));
-        setProducts(data);
-        toast.success(`Loaded ${data.length} count products`);
-      } else {
-        // Final fallback to demo data
-        console.log('🔄 No products available, falling back to mock data');
-        console.log('📊 Mock data length:', mockCountProducts.length);
-        setProducts(mockCountProducts);
-        localStorage.setItem('countProducts', JSON.stringify(mockCountProducts));
-        localStorage.setItem('countProductsTimestamp', new Date().getTime().toString());
-        toast.warning('Using demo data - no products found');
-      }
     } catch (error) {
-      console.error('❌ Critical error in fetchCountProducts:', error);
-      // Last resort fallback
-      setProducts(mockCountProducts);
-      localStorage.setItem('countProducts', JSON.stringify(mockCountProducts));
-      localStorage.setItem('countProductsTimestamp', new Date().getTime().toString());
-      toast.error('Failed to load products - using demo data');
+      console.error('❌ [AGGRESSIVE] Fatal error in fetchCountProducts:', error);
+      
+      // ULTIMATE FALLBACK: Always try localStorage one more time
+      const emergencyBackup = localStorage.getItem('countProducts');
+      if (emergencyBackup) {
+        try {
+          const emergencyData = JSON.parse(emergencyBackup);
+          if (Array.isArray(emergencyData) && emergencyData.length > 0) {
+            console.log('� [AGGRESSIVE] Emergency localStorage recovery successful');
+            setProducts(emergencyData);
+            return;
+          }
+        } catch (emergencyError) {
+          console.error('💥 [AGGRESSIVE] Emergency localStorage recovery failed:', emergencyError);
+        }
+      }
+      
+      // Only set empty if absolutely nothing worked
+      console.log('💔 [AGGRESSIVE] All recovery attempts failed');
+      setProducts([]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Fetch centralized dyeing firms from API
-  const fetchCentralizedDyeingFirms = async () => {
-    try {
-      setIsLoadingFirms(true);
-      console.log('🔄 Fetching centralized dyeing firms for Count Product Overview...');
-      
-      // Try to get from API first
-      let firms: DyeingFirm[] = [];
-      try {
-        firms = await getAllDyeingFirms();
-        console.log(`✅ Loaded ${firms.length} centralized dyeing firms from API:`, firms.map(f => f.name));
-        
-        // Save to localStorage as backup
-        localStorage.setItem('dyeingFirms', JSON.stringify(firms));
-      } catch (apiError) {
-        console.warn('⚠️ API failed, trying localStorage backup:', apiError);
-        
-        // Try to get from localStorage backup
-        const savedFirms = localStorage.getItem('dyeingFirms');
-        if (savedFirms) {
-          try {
-            firms = JSON.parse(savedFirms);
-            console.log(`📋 Loaded ${firms.length} firms from localStorage backup`);
-          } catch (parseError) {
-            console.error('Failed to parse saved firms:', parseError);
-            firms = [];
-          }
-        }
-        
-        // If no saved firms, extract from products as last resort
-        if (firms.length === 0) {
-          firms = Array.from(new Set(products.map((p) => p.dyeingFirm)))
-            .map((name, index) => ({
-              id: -(index + 1),
-              name,
-              isActive: true,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-            }));
-          console.log(`🔧 Created ${firms.length} fallback firms from products`);
-        }
-      }
-      
-      // Sort firms alphabetically for consistent display
-      const sortedFirms = firms.sort((a, b) => a.name.localeCompare(b.name));
-      
-      console.log('✅ Setting dyeing firms state with data:', sortedFirms.length, 'firms');
-      console.log('📊 Sample firm for verification:', sortedFirms[0]);
-      console.log('📊 Firms have isActive field:', sortedFirms.every(f => typeof f.isActive === 'boolean'));
-      setCentralizedDyeingFirms(sortedFirms);
-      console.log('📋 Final firms list:', sortedFirms.map(f => f.name));
-      
-    } catch (error) {
-      console.error('❌ Critical error in fetchCentralizedDyeingFirms:', error);
-      // Last resort fallback
-      setCentralizedDyeingFirms([
-        { id: 1, name: "Rainbow Dyers", isActive: true, createdAt: "", updatedAt: "" },
-        { id: 2, name: "ColorTech Solutions", isActive: true, createdAt: "", updatedAt: "" },
-        { id: 3, name: "Premium Dye Works", isActive: true, createdAt: "", updatedAt: "" }
-      ]);
-    } finally {
-      setIsLoadingFirms(false);
-    }
-  };
-
   // Load data on component mount
   useEffect(() => {
-    fetchCountProducts();
-    fetchCentralizedDyeingFirms();
+    console.log('🔧 [CountProductOverview] Component mounting, initializing store...');
+    
+    // IMMEDIATELY load localStorage data before any async operations
+    console.log('📋 [CountProductOverview] Loading localStorage data immediately...');
+    const savedProducts = localStorage.getItem('countProducts');
+    if (savedProducts) {
+      try {
+        const localData = JSON.parse(savedProducts);
+        if (Array.isArray(localData) && localData.length > 0) {
+          console.log(`✅ [CountProductOverview] Immediately loaded ${localData.length} products from localStorage`);
+          setProducts(localData);
+        }
+      } catch (parseError) {
+        console.warn('⚠️ [CountProductOverview] Failed to parse localStorage on mount:', parseError);
+      }
+    }
+    
+    let unmounted = false;
+    
+    const initializeStoreAndSubscribe = async () => {
+      try {
+        // Initialize store first
+        console.log('🔄 [CountProductOverview] Initializing store...');
+        await dyeingDataStore.init();
+        
+        if (unmounted) return;
+        
+        console.log('✅ [CountProductOverview] Store initialized, setting up subscriptions...');
+        
+        // Subscribe to store updates
+        const unsubscribeFirms = await dyeingDataStore.subscribeFirms((firms) => {
+          if (unmounted) return;
+          console.log('📡 [CountProductOverview] Received firm sync update:', {
+            count: firms.length,
+            firms: firms.map(f => f.name),
+            source: 'unified-store'
+          });
+          setCentralizedDyeingFirms(firms);
+        });
+
+        const unsubscribeRecords = await dyeingDataStore.subscribeRecords((records) => {
+          if (unmounted) return;
+          console.log('📡 [CountProductOverview] Received dyeing records update:', {
+            count: records.length,
+            source: 'unified-store'
+          });
+          setDyeingRecords(records);
+        });
+        
+        console.log('✅ [CountProductOverview] Subscriptions established');
+        
+        // Fetch count products (now this will sync with API and merge with already-loaded localStorage data)
+        fetchCountProducts();
+        
+        // Store cleanup functions
+        return () => {
+          unsubscribeFirms();
+          unsubscribeRecords();
+        };
+        
+      } catch (error) {
+        console.error('❌ [CountProductOverview] Store initialization failed:', error);
+      }
+    };
+    
+    let cleanupPromise = initializeStoreAndSubscribe();
+    
+    return () => {
+      unmounted = true;
+      cleanupPromise.then(cleanup => {
+        if (cleanup) cleanup();
+      }).catch(console.error);
+    };
+  }, []);
+
+  // Cross-page synchronization - listen for localStorage changes from DyeingOrders
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'countProducts' && e.newValue) {
+        try {
+          const updatedProducts = JSON.parse(e.newValue);
+          console.log('🔄 [CountProductOverview] Detected countProducts change from another page, syncing...', updatedProducts.length);
+          setProducts(updatedProducts);
+        } catch (error) {
+          console.error('❌ [CountProductOverview] Failed to parse countProducts from storage change:', error);
+        }
+      }
+    };
+
+    // Listen for storage changes from other tabs/pages
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also listen for custom events (for same-page updates)
+    const handleCustomSync = (e: CustomEvent) => {
+      if (e.detail && e.detail.countProducts) {
+        console.log('🔄 [CountProductOverview] Custom countProducts sync received:', e.detail.countProducts.length);
+        setProducts(e.detail.countProducts);
+      }
+    };
+
+    window.addEventListener('countProductsUpdated', handleCustomSync as EventListener);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('countProductsUpdated', handleCustomSync as EventListener);
+    };
   }, []);
 
   // Debug effect to track when products state changes
@@ -346,6 +389,26 @@ const CountProductOverview: React.FC = () => {
       count: products.length,
       sampleProducts: products.slice(0, 2).map(p => ({ id: p.id, customerName: p.customerName, quantity: p.quantity }))
     });
+    
+    // Debug: Check localStorage consistency when products change
+    if (products.length > 0) {
+      const savedProducts = localStorage.getItem('countProducts');
+      const savedTimestamp = localStorage.getItem('countProductsTimestamp');
+      if (savedProducts && savedTimestamp) {
+        try {
+          const localData = JSON.parse(savedProducts);
+          console.log('📋 LocalStorage consistency check:', {
+            stateCount: products.length,
+            localStorageCount: localData.length,
+            timestampAge: savedTimestamp ? Math.round((Date.now() - parseInt(savedTimestamp)) / 1000) : 'N/A'
+          });
+        } catch (e) {
+          console.warn('⚠️ Failed to check localStorage consistency:', e);
+        }
+      } else {
+        console.warn('🚨 Products in state but no localStorage backup found!');
+      }
+    }
   }, [products]);
 
   // Debug effect to track when firms state changes
@@ -353,8 +416,30 @@ const CountProductOverview: React.FC = () => {
     console.log('🏭 Firms state updated:', {
       count: centralizedDyeingFirms.length,
       activeCount: centralizedDyeingFirms.filter(f => f.isActive).length,
-      firms: centralizedDyeingFirms.map(f => ({ name: f.name, isActive: f.isActive }))
+      firms: centralizedDyeingFirms.map(f => ({ name: f.name, isActive: f.isActive })),
+      timestamp: new Date().toISOString()
     });
+    
+    // Debug: Check localStorage for cached firms
+    try {
+      const cached = localStorage.getItem('custom-dyeing-firms');
+      if (cached) {
+        console.log('💾 Cached firms in localStorage:', JSON.parse(cached));
+      }
+    } catch (e) {
+      console.warn('⚠️ Failed to read cached firms from localStorage:', e);
+    }
+    
+    // Debug: Check if firms disappear after refresh
+    if (centralizedDyeingFirms.length === 0) {
+      console.warn('🚨 NO FIRMS LOADED - This might be the refresh issue!');
+      console.log('🔄 Attempting manual store refresh...');
+      dyeingDataStore.forceRefresh().then(() => {
+        console.log('✅ Manual store refresh completed');
+      }).catch((err) => {
+        console.error('❌ Manual store refresh failed:', err);
+      });
+    }
   }, [centralizedDyeingFirms]);
 
   // Handle escape key to close modal
@@ -365,11 +450,14 @@ const CountProductOverview: React.FC = () => {
           setShowHorizontalForm(false);
         } else if (isEditModalOpen) {
           handleEditCancel();
+        } else if (isDyeingEditModalOpen) {
+          setIsDyeingEditModalOpen(false);
+          setDyeingRecordToEdit(null);
         }
       }
     };
 
-    if (showHorizontalForm || isEditModalOpen) {
+    if (showHorizontalForm || isEditModalOpen || isDyeingEditModalOpen) {
       document.addEventListener('keydown', handleEscape);
       // Prevent body scroll when modal is open
       document.body.style.overflow = 'hidden';
@@ -381,7 +469,7 @@ const CountProductOverview: React.FC = () => {
       document.removeEventListener('keydown', handleEscape);
       document.body.style.overflow = 'unset';
     };
-  }, [showHorizontalForm, isEditModalOpen]);
+  }, [showHorizontalForm, isEditModalOpen, isDyeingEditModalOpen]);
 
   // Filter products based on search and filters
   const filteredProducts = products.filter((product) => {
@@ -414,15 +502,30 @@ const CountProductOverview: React.FC = () => {
     return acc;
   }, {} as Record<string, CountProduct[]>);
 
-  // Create complete firm listing excluding firms with no products
+  // Group dyeing records by firm
+  const groupedDyeingRecords = dyeingRecords.reduce((acc, record) => {
+    if (!acc[record.dyeingFirm]) acc[record.dyeingFirm] = [];
+    acc[record.dyeingFirm].push(record);
+    return acc;
+  }, {} as Record<string, DyeingRecord[]>);
+
+  // Create complete firm listing - automatically remove firms with 0 products AND 0 dyeing records
   const completeFirmListing = centralizedDyeingFirms
     .map(firm => ({
       name: firm.name,
-      products: groupedByFirm[firm.name] || [], // Empty array if no products
+      products: groupedByFirm[firm.name] || [],
+      dyeingRecords: groupedDyeingRecords[firm.name] || [],
       id: firm.id
     }))
-    .filter(firm => firm.products.length > 0) // Only include firms with products
+    // AUTOMATICALLY remove firms with 0 products AND 0 dyeing records
+    .filter(firm => firm.products.length > 0 || firm.dyeingRecords.length > 0)
     .sort((a, b) => a.name.localeCompare(b.name));
+
+  // Debug logging
+  console.log('🔍 [CountProductOverview] Complete firm listing:', completeFirmListing);
+  console.log('🔍 [CountProductOverview] Firms with only dyeing records:', 
+    completeFirmListing.filter(f => f.products.length === 0 && f.dyeingRecords.length > 0)
+  );
 
   // Quality grade badge component
   const qualityBadge = (grade: string) => {
@@ -507,6 +610,11 @@ const CountProductOverview: React.FC = () => {
       localStorage.setItem('countProductsTimestamp', new Date().getTime().toString());
       console.log('💾 Delete: Updated products saved to localStorage with timestamp');
       
+      // Dispatch custom event for cross-page synchronization
+      window.dispatchEvent(new CustomEvent('countProductsUpdated', { 
+        detail: { countProducts: updatedProducts } 
+      }));
+      
       toast.success('Count product deleted successfully!');
     } catch (error) {
       console.error('❌ Failed to delete count product:', error);
@@ -526,6 +634,11 @@ const CountProductOverview: React.FC = () => {
         // Save to localStorage in demo mode
         localStorage.setItem('countProducts', JSON.stringify(updatedProducts));
         localStorage.setItem('countProductsTimestamp', new Date().getTime().toString());
+        
+        // Dispatch custom event for cross-page synchronization
+        window.dispatchEvent(new CustomEvent('countProductsUpdated', { 
+          detail: { countProducts: updatedProducts } 
+        }));
         
         toast.success('Count product deleted successfully! (Demo mode - database not connected)');
         console.log('✅ Demo mode delete completed successfully');
@@ -555,6 +668,11 @@ const CountProductOverview: React.FC = () => {
     localStorage.setItem('countProductsTimestamp', new Date().getTime().toString());
     console.log('💾 Edit modal: Updated products saved to localStorage with timestamp');
     
+    // Dispatch custom event for cross-page synchronization
+    window.dispatchEvent(new CustomEvent('countProductsUpdated', { 
+      detail: { countProducts: updatedProducts } 
+    }));
+    
     // Close the modal
     setIsEditModalOpen(false);
     setProductToEdit(null);
@@ -576,7 +694,7 @@ const CountProductOverview: React.FC = () => {
         quantity: product.quantity,
         receivedQuantity: product.receivedQuantity || 0,
         dispatchQuantity: product.dispatchQuantity || 0,
-        sentQuantity: product.quantity
+        sentQuantity: product.sentQuantity ?? product.quantity  // Use nullish coalescing for better null handling
       });
       toast.info("Edit mode activated. Update quantities and save changes.");
     }
@@ -585,48 +703,54 @@ const CountProductOverview: React.FC = () => {
   const handleSaveQuantities = async (productId: number) => {
     console.log('🔄 handleSaveQuantities called for product ID:', productId);
     console.log('📋 Current editValues:', editValues);
+    console.log('⚡ Current isSaving state:', isSaving);
+    console.log('🎯 Current editingProductId:', editingProductId);
+    
+    if (isSaving) {
+      console.log('⏳ Save already in progress, ignoring duplicate call');
+      return;
+    }
     
     try {
-      // Validate inputs - allow zero values for received/dispatch quantities
-      if (editValues.quantity <= 0 || editValues.sentQuantity <= 0) {
-        console.log('❌ Validation failed: quantity or sentQuantity <= 0');
-        toast.error("Quantity and sent quantity must be greater than 0.");
-        return;
+      setIsSaving(true);
+      
+      console.log('🔍 Detailed validation check:');
+      console.log('   - quantity:', editValues.quantity);
+      console.log('   - sentQuantity:', editValues.sentQuantity);
+      console.log('   - receivedQuantity:', editValues.receivedQuantity);
+      console.log('   - dispatchQuantity:', editValues.dispatchQuantity);
+      
+      // MINIMAL VALIDATION FOR TESTING
+      if (editValues.quantity <= 0) {
+        console.log('❌ Validation failed: quantity <= 0');
+        toast.error("Quantity must be greater than 0.");
+        throw new Error("Validation failed: quantity <= 0");
       }
 
-      if (editValues.dispatchQuantity < 0 || editValues.receivedQuantity < 0) {
-        console.log('❌ Validation failed: negative quantities');
-        toast.error("Received and dispatch quantities cannot be negative.");
-        return;
-      }
-
-      if (editValues.receivedQuantity > editValues.sentQuantity) {
-        console.log('❌ Validation failed: received > sent');
-        toast.error("Received quantity cannot exceed sent quantity.");
-        return;
-      }
-
-      if (editValues.dispatchQuantity > editValues.receivedQuantity) {
-        console.log('❌ Validation failed: dispatch > received');
-        toast.error("Dispatch quantity cannot exceed received quantity.");
-        return;
-      }
-
-      console.log('✅ All validations passed, proceeding with update');
+      console.log('✅ Basic validation passed, proceeding with update');
 
       // Update the product in database
       const updateData = {
-        quantity: editValues.sentQuantity,  // The sent quantity becomes the main quantity
-        receivedQuantity: editValues.receivedQuantity,
-        received: editValues.receivedQuantity > 0,
-        dispatchQuantity: editValues.dispatchQuantity,
-        dispatch: editValues.dispatchQuantity > 0,
-        dispatchDate: editValues.dispatchQuantity > 0 ? 
+        quantity: editValues.quantity,  // Keep main quantity separate
+        sentQuantity: editValues.sentQuantity,  // Sent to dye quantity
+        sentToDye: editValues.sentQuantity > 0,  // Boolean flag
+        receivedQuantity: editValues.receivedQuantity || 0,
+        received: (editValues.receivedQuantity || 0) > 0,
+        dispatchQuantity: editValues.dispatchQuantity || 0,
+        dispatch: (editValues.dispatchQuantity || 0) > 0,
+        dispatchDate: (editValues.dispatchQuantity || 0) > 0 ? 
           (products.find(p => p.id === productId)?.dispatchDate || new Date().toISOString().split('T')[0]) : ""
       };
 
-      console.log('🔄 Updating product with data:', updateData);
-      console.log('📋 Current editValues:', editValues);
+      console.log('🔄 Updating product with data:', {
+        ...updateData,
+        debug: {
+          originalQuantity: editValues.quantity,
+          sentToDyeQuantity: editValues.sentQuantity,
+          receivedQuantity: editValues.receivedQuantity,
+          dispatchQuantity: editValues.dispatchQuantity
+        }
+      });
 
       await updateCountProduct(productId, updateData);
       console.log('✅ Product updated successfully via API');
@@ -645,6 +769,30 @@ const CountProductOverview: React.FC = () => {
       localStorage.setItem('countProductsTimestamp', new Date().getTime().toString());
       console.log('💾 Updated products saved to localStorage with timestamp');
 
+      // ENHANCED cross-page synchronization - dispatch multiple events for robust sync
+      console.log('📡 Dispatching cross-page sync events...');
+      
+      // Primary sync event
+      window.dispatchEvent(new CustomEvent('countProductsUpdated', { 
+        detail: { 
+          countProducts: updatedProducts,
+          updatedProductId: productId,
+          updateData: updateData,
+          timestamp: Date.now()
+        } 
+      }));
+      
+      // Secondary storage event for additional sync
+      window.dispatchEvent(new CustomEvent('storage', {
+        detail: {
+          key: 'countProducts',
+          newValue: JSON.stringify(updatedProducts),
+          timestamp: Date.now()
+        }
+      }));
+      
+      console.log('📡 Cross-page sync events dispatched successfully');
+
       // Exit edit mode
       setEditingProductId(null);
       setEditValues({ quantity: 0, receivedQuantity: 0, dispatchQuantity: 0, sentQuantity: 0 });
@@ -656,7 +804,9 @@ const CountProductOverview: React.FC = () => {
       
       // Recreate updateData for demo mode
       const updateData = {
-        quantity: editValues.sentQuantity,  // The sent quantity becomes the main quantity
+        quantity: editValues.quantity,  // Keep main quantity separate
+        sentQuantity: editValues.sentQuantity,  // Sent to dye quantity  
+        sentToDye: editValues.sentQuantity > 0,  // Boolean flag
         receivedQuantity: editValues.receivedQuantity,
         received: editValues.receivedQuantity > 0,
         dispatchQuantity: editValues.dispatchQuantity,
@@ -677,11 +827,37 @@ const CountProductOverview: React.FC = () => {
             : product
         );
         setProducts(updatedProducts);
-
+        
         // Save to localStorage in demo mode
         localStorage.setItem('countProducts', JSON.stringify(updatedProducts));
         localStorage.setItem('countProductsTimestamp', new Date().getTime().toString());
         console.log('💾 Demo mode: Updated products saved to localStorage with timestamp');
+
+        // ENHANCED cross-page synchronization for demo mode
+        console.log('📡 [Demo Mode] Dispatching cross-page sync events...');
+        
+        // Primary sync event
+        window.dispatchEvent(new CustomEvent('countProductsUpdated', { 
+          detail: { 
+            countProducts: updatedProducts,
+            updatedProductId: productId,
+            updateData: updateData,
+            timestamp: Date.now(),
+            demoMode: true
+          } 
+        }));
+        
+        // Secondary storage event for additional sync
+        window.dispatchEvent(new CustomEvent('storage', {
+          detail: {
+            key: 'countProducts',
+            newValue: JSON.stringify(updatedProducts),
+            timestamp: Date.now(),
+            demoMode: true
+          }
+        }));
+        
+        console.log('📡 [Demo Mode] Cross-page sync events dispatched successfully');
 
         // Exit edit mode
         setEditingProductId(null);
@@ -692,12 +868,15 @@ const CountProductOverview: React.FC = () => {
       } else {
         toast.error(`Failed to save changes: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const handleCancelEdit = () => {
     setEditingProductId(null);
     setEditValues({ quantity: 0, receivedQuantity: 0, dispatchQuantity: 0, sentQuantity: 0 });
+    setIsSaving(false); // Reset isSaving state when canceling
     toast.info("Edit cancelled. Changes discarded.");
   };
 
@@ -706,82 +885,68 @@ const CountProductOverview: React.FC = () => {
     setEditValues(prev => ({ ...prev, [field]: numValue }));
   };
 
-  // Handle successful horizontal form submission
-  const handleHorizontalFormSuccess = async (newCountProduct: CountProduct) => {
-    console.log('🎯 Handling horizontal form success:', newCountProduct);
-    try {
-      // First, add to local state immediately for instant UI feedback
-      console.log('📝 Adding product to local state immediately');
-      setProducts(prevProducts => {
-        const updatedProducts = [...prevProducts, newCountProduct];
-        console.log(`✅ Local state updated, now has ${updatedProducts.length} products`);
-        
-        // Save to localStorage immediately for persistence across refreshes
-        localStorage.setItem('countProducts', JSON.stringify(updatedProducts));
-        localStorage.setItem('countProductsTimestamp', new Date().getTime().toString());
-        console.log('💾 Saved updated products to localStorage for persistence with timestamp');
-        
-        return updatedProducts;
-      });
+  // Handle successful horizontal form submission with AGGRESSIVE persistence
+  const handleHorizontalFormSuccess = async (created: CountProduct) => {
+    console.log('🎯 [AGGRESSIVE] handleHorizontalFormSuccess called with:', created);
+    
+    // Update local products state and save to localStorage for persistence
+    setProducts(prev => {
+      const exists = prev.some(p => p.id === created.id);
+      let updatedProducts;
       
-      // Show success message immediately
-      toast.success("Dyeing order added successfully!");
+      if (exists) {
+        console.log('🔄 [AGGRESSIVE] Updating existing product');
+        updatedProducts = prev.map(p => p.id === created.id ? created : p);
+      } else {
+        console.log('🆕 [AGGRESSIVE] Adding new product to list');
+        updatedProducts = [created, ...prev];
+      }
       
-      // Close horizontal form
-      setShowHorizontalForm(false);
+      // IMMEDIATE localStorage save with fresh timestamp
+      const currentTimestamp = new Date().getTime().toString();
+      localStorage.setItem('countProducts', JSON.stringify(updatedProducts));
+      localStorage.setItem('countProductsTimestamp', currentTimestamp);
+      console.log(`💾 [AGGRESSIVE] IMMEDIATE save to localStorage: ${updatedProducts.length} products with timestamp ${currentTimestamp}`);
       
-      // Expand the firm section to show the new order
-      setExpandedFirm(newCountProduct.dyeingFirm);
-      
-      // Ensure the new firm is added to centralized state immediately
-      setCentralizedDyeingFirms(prevFirms => {
-        const firmExists = prevFirms.some(f => f.name.toLowerCase() === newCountProduct.dyeingFirm.toLowerCase());
-        if (!firmExists) {
-          const newFirm: DyeingFirm = {
-            id: Date.now(),
-            name: newCountProduct.dyeingFirm,
-            isActive: true,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          };
-          console.log('📋 Adding new firm to centralized state:', newFirm);
-          const updatedFirms = [...prevFirms, newFirm].sort((a, b) => a.name.localeCompare(b.name));
-          
-          // Save to localStorage immediately for persistence across refreshes
-          localStorage.setItem('dyeingFirms', JSON.stringify(updatedFirms));
-          console.log('💾 Saved updated firms to localStorage for persistence');
-          
-          return updatedFirms;
-        } else {
-          // Even if firm exists, update localStorage to ensure persistence
-          const sortedFirms = [...prevFirms].sort((a, b) => a.name.localeCompare(b.name));
-          localStorage.setItem('dyeingFirms', JSON.stringify(sortedFirms));
+      // Double-check the save was successful
+      const verifyData = localStorage.getItem('countProducts');
+      if (verifyData) {
+        try {
+          const parsed = JSON.parse(verifyData);
+          console.log(`✅ [AGGRESSIVE] Verified localStorage save: ${parsed.length} products stored successfully`);
+        } catch (e) {
+          console.error('❌ [AGGRESSIVE] localStorage save verification failed:', e);
         }
-        return prevFirms;
-      });
-      
-      // Force refresh centralized dyeing firms from API to sync with backend
-      console.log('🔄 Attempting to sync with backend...');
-      try {
-        await fetchCentralizedDyeingFirms();
-        console.log('✅ Backend firms sync completed successfully');
-      } catch (syncError) {
-        console.warn('⚠️ Backend firms sync failed, but localStorage persistence is active:', syncError);
       }
       
-      // Try to refresh products from server (but don't overwrite if it fails)
-      console.log('🔄 Attempting to refresh products from server...');
+      return updatedProducts;
+    });
+
+    // Ensure firm exists in the store and sync across pages
+    if (created.dyeingFirm) {
+      console.log('🏢 [CountProductOverview] Ensuring firm exists in store:', created.dyeingFirm);
       try {
-        await fetchCountProducts();
-        console.log('✅ Server products refreshed successfully');
-      } catch (refreshError) {
-        console.warn('⚠️ Server products refresh failed, keeping local data:', refreshError);
+        const ensuredFirm = await dyeingDataStore.ensureFirm(created.dyeingFirm);
+        console.log('✅ [CountProductOverview] Firm ensured in store:', ensuredFirm);
+        
+        // Force refresh of firms to ensure immediate sync across all pages
+        await dyeingDataStore.loadFirms(true);
+        console.log('🔄 [CountProductOverview] Forced refresh of firms after creation - store subscription will update UI');
+      } catch (error) {
+        console.warn('⚠️ [CountProductOverview] Failed to ensure firm in store:', error);
       }
-      
-    } catch (error) {
-      console.error('❌ Error in success handler:', error);
-      toast.error('There was an issue processing the success. Please refresh the page.');
     }
+
+    // Dispatch custom event for cross-page synchronization
+    setProducts(currentProducts => {
+      window.dispatchEvent(new CustomEvent('countProductsUpdated', { 
+        detail: { countProducts: currentProducts } 
+      }));
+      return currentProducts;
+    });
+
+    setShowHorizontalForm(false);
+    toast.success('Order added and synced to all pages!');
   };
 
   // Export handlers
@@ -832,12 +997,238 @@ const CountProductOverview: React.FC = () => {
       localStorage.setItem('countProducts', JSON.stringify(data));
       localStorage.setItem('countProductsTimestamp', new Date().getTime().toString());
       
-      toast.success(`Refreshed from server: ${data.length} products loaded`);
+      // Also refresh firms and dyeing records from the store
+      console.log('🔄 Force refreshing firms and dyeing records from store...');
+      await dyeingDataStore.loadFirms(true);
+      await dyeingDataStore.loadRecords(true);
+      console.log('✅ Store data refreshed');
+      
+      toast.success(`Refreshed from server: ${data.length} products loaded, firms synced`);
     } catch (error) {
       console.error('❌ Force refresh failed:', error);
       toast.error('Failed to refresh from server. Check your connection.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Cross-page handlers for DyeingRecord items (created in DyeingOrders page)
+  const handleDyeingRecordEdit = (recordId: number) => {
+    console.log('🖊️ [CountProductOverview] handleDyeingRecordEdit called for record:', recordId);
+    console.log('🔍 Available dyeingRecords:', dyeingRecords);
+    
+    const record = dyeingRecords.find(r => r.id === recordId);
+    if (record) {
+      // Convert DyeingRecord to SimplifiedDyeingOrderData format
+      const trackingInfo = parseTrackingInfo(record.remarks || '');
+      
+      // Format dates properly for HTML date inputs (YYYY-MM-DD format)
+      const formatDateForInput = (dateValue: any) => {
+        if (!dateValue) return '';
+        
+        try {
+          const date = new Date(dateValue);
+          if (isNaN(date.getTime())) return '';
+          
+          // Return in YYYY-MM-DD format required by HTML date inputs
+          return date.toISOString().split('T')[0];
+        } catch (error) {
+          console.warn('Date formatting error:', error);
+          return '';
+        }
+      };
+
+      const formattedRecord = {
+        id: record.id,
+        quantity: trackingInfo.originalQuantity || record.quantity,
+        customerName: record.partyName,
+        sentToDye: record.quantity,
+        sentDate: formatDateForInput(record.sentDate),
+        received: trackingInfo.received || 0,
+        receivedDate: trackingInfo.receivedDate || '',
+        dispatch: trackingInfo.dispatch || 0,
+        dispatchDate: trackingInfo.dispatchDate || '',
+        dyeingFirm: record.dyeingFirm,
+        partyName: record.partyName,
+        remarks: trackingInfo.originalRemarks || record.remarks || '',
+        // Technical fields required by the form
+        yarnType: record.yarnType,
+        shade: record.shade,
+        count: record.count,
+        lot: record.lot,
+        expectedArrivalDate: formatDateForInput(record.expectedArrivalDate),
+      };
+      
+      console.log('🔄 Converted record for editing:', formattedRecord);
+      setDyeingRecordToEdit(formattedRecord);
+      setIsDyeingEditModalOpen(true);
+      toast.info(`Opening edit form for dyeing record: ${record.partyName} - ${record.dyeingFirm}`);
+    } else {
+      toast.error('Dyeing record not found for editing');
+    }
+  };
+
+  const handleDyeingRecordDelete = async (recordId: number) => {
+    console.log('🗑️ [CountProductOverview] handleDyeingRecordDelete called for record:', recordId);
+    console.log('🔍 Available dyeingRecords:', dyeingRecords);
+    alert(`✅ DYEING RECORD DELETE WORKS! Record ID: ${recordId}`);
+    
+    const recordToDelete = dyeingRecords.find(r => r.id === recordId);
+    if (!recordToDelete) {
+      console.error('❌ Dyeing record not found for deletion');
+      toast.error('Dyeing record not found. Please try again.');
+      return;
+    }
+    
+    const confirmMessage = `Are you sure you want to delete this dyeing record?\n\nCustomer: ${recordToDelete.partyName}\nDyeing Firm: ${recordToDelete.dyeingFirm}\nQuantity: ${recordToDelete.quantity} kg\n\nThis action cannot be undone.`;
+    
+    if (!confirm(confirmMessage)) {
+      console.log('❌ Delete cancelled by user');
+      return;
+    }
+
+    try {
+      console.log('✅ Delete confirmed by user, proceeding...', { recordToDelete });
+      
+      // Use the API to delete the record
+      await deleteDyeingRecord(recordId);
+      
+      // Refresh data from store to update UI
+      await dyeingDataStore.loadRecords(true);
+      
+      // Trigger force refresh of UI
+      window.location.reload();
+      
+      toast.success(`Dyeing record deleted successfully: ${recordToDelete.partyName}`);
+      
+    } catch (error) {
+      console.error('❌ Error deleting dyeing record:', error);
+      toast.error('Failed to delete dyeing record. Please try again.');
+    }
+  };
+
+  const handleDyeingRecordFollowUp = (recordId: number) => {
+    console.log('📋 [CountProductOverview] handleDyeingRecordFollowUp called for record:', recordId);
+    alert(`✅ DYEING RECORD FOLLOW-UP WORKS! Record ID: ${recordId}`);
+    const record = dyeingRecords.find(r => r.id === recordId);
+    if (record) {
+      toast.info(`Follow Up Dyeing Record: ${record.partyName} - ${record.dyeingFirm} (Feature pending)`);
+    }
+  };
+
+  const handleDyeingRecordUpdateQuantities = (recordId: number) => {
+    console.log('📊 [CountProductOverview] handleDyeingRecordUpdateQuantities called for record:', recordId);
+    const record = dyeingRecords.find(r => r.id === recordId);
+    if (record) {
+      // Parse tracking info to get correct current values
+      const trackingInfo = parseTrackingInfo(record.remarks || '');
+      
+      // Set editing mode for this dyeing record (using negative ID to distinguish from count products)
+      setEditingProductId(-recordId); // Use negative ID for dyeing records
+      setEditValues({
+        quantity: trackingInfo.originalQuantity || record.quantity || 0,
+        receivedQuantity: trackingInfo.received || 0,
+        dispatchQuantity: trackingInfo.dispatch || 0,
+        sentQuantity: record.quantity || 0, // Sent quantity is the main quantity field
+      });
+      toast.info(`Update Quantities for Dyeing Record: ${record.partyName} - ${record.dyeingFirm}`);
+    }
+  };
+
+  // Save dyeing record changes
+  const handleSaveDyeingRecord = async (recordId: number) => {
+    console.log('💾 [CountProductOverview] handleSaveDyeingRecord called for record:', recordId);
+    console.log('📋 Current editValues:', editValues);
+    
+    try {
+      setIsSaving(true);
+      
+      // Validate quantities
+      if (editValues.quantity <= 0) {
+        toast.error('Quantity must be greater than 0');
+        return;
+      }
+      
+      // Find the record to update
+      const recordToUpdate = dyeingRecords.find(r => r.id === recordId);
+      if (!recordToUpdate) {
+        toast.error('Dyeing record not found');
+        return;
+      }
+      
+      // Parse existing tracking info to preserve dates and middleman info
+      const existingTrackingInfo = parseTrackingInfo(recordToUpdate.remarks || '');
+      
+      // Build enhanced remarks preserving existing dates and middleman info
+      const trackingInfo = [];
+      
+      // Add original quantity info if it's different from main quantity
+      if (editValues.quantity && editValues.quantity !== editValues.sentQuantity) {
+        trackingInfo.push(`OriginalQty: ${editValues.quantity}kg`);
+      }
+      
+      // Preserve received info with existing date
+      if (editValues.receivedQuantity >= 0) {
+        const receivedInfo = `Received: ${editValues.receivedQuantity}kg${existingTrackingInfo.receivedDate ? ` on ${existingTrackingInfo.receivedDate}` : ''}`;
+        trackingInfo.push(receivedInfo);
+      }
+      
+      // Preserve dispatch info with existing date
+      if (editValues.dispatchQuantity >= 0) {
+        const dispatchInfo = `Dispatched: ${editValues.dispatchQuantity}kg${existingTrackingInfo.dispatchDate ? ` on ${existingTrackingInfo.dispatchDate}` : ''}`;
+        trackingInfo.push(dispatchInfo);
+      }
+      
+      // Preserve middleman/party information
+      if (existingTrackingInfo.partyNameMiddleman && existingTrackingInfo.partyNameMiddleman !== "Direct Supply") {
+        trackingInfo.push(`Middleman: ${existingTrackingInfo.partyNameMiddleman}`);
+      }
+      
+      // Combine clean original remarks with preserved tracking info
+      const cleanRemarks = existingTrackingInfo.originalRemarks || '';
+      const enhancedRemarks = [cleanRemarks, ...trackingInfo].filter(Boolean).join(' | ');
+      
+      // Prepare updated data for API (using CreateDyeingRecordRequest format)
+      const apiUpdateData = {
+        yarnType: recordToUpdate.yarnType,
+        sentDate: recordToUpdate.sentDate,
+        expectedArrivalDate: recordToUpdate.expectedArrivalDate,
+        partyName: recordToUpdate.partyName, // Preserve original party name
+        dyeingFirm: recordToUpdate.dyeingFirm,
+        quantity: editValues.quantity,
+        shade: recordToUpdate.shade,
+        count: recordToUpdate.count,
+        lot: recordToUpdate.lot,
+        isReprocessing: recordToUpdate.isReprocessing || false,
+        // Use enhanced remarks that preserve all tracking info
+        remarks: enhancedRemarks
+      };
+      
+      console.log('📤 Updating dyeing record via API with data:', apiUpdateData);
+      console.log('🔍 Original remarks:', recordToUpdate.remarks);
+      console.log('🔍 Existing tracking info parsed:', existingTrackingInfo);
+      console.log('🔍 Enhanced remarks being saved:', enhancedRemarks);
+      console.log('🔍 Preserved receivedDate:', existingTrackingInfo.receivedDate);
+      console.log('🔍 Preserved dispatchDate:', existingTrackingInfo.dispatchDate);
+      console.log('🔍 Preserved partyNameMiddleman:', existingTrackingInfo.partyNameMiddleman);
+      
+      // Call API to update the record
+      await updateDyeingRecord(recordId, apiUpdateData);
+      
+      // Refresh data from store to get updated information
+      await dyeingDataStore.loadRecords(true);
+      
+      // Clear editing state
+      setEditingProductId(null);
+      setEditValues({ quantity: 0, receivedQuantity: 0, dispatchQuantity: 0, sentQuantity: 0 });
+      
+      toast.success(`Dyeing record updated successfully: ${recordToUpdate.partyName} - ${recordToUpdate.dyeingFirm}`);
+      
+    } catch (error) {
+      console.error('❌ Error updating dyeing record:', error);
+      toast.error('Failed to update dyeing record. Please try again.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -852,6 +1243,12 @@ const CountProductOverview: React.FC = () => {
   console.log('  - Total Active Firms:', totalFirms);
   console.log('  - Centralized Firms:', centralizedDyeingFirms.length);
   console.log('  - Products data:', products.slice(0, 2)); // Show first 2 products for debugging
+
+  useEffect(() => {
+    if (firmFilter && !centralizedDyeingFirms.find(f => f.name === firmFilter)) {
+      setFirmFilter("");
+    }
+  }, [firmFilter, centralizedDyeingFirms]);
 
   return (
     <div className="min-h-screen p-6 bg-gray-50 dark:bg-gray-900">
@@ -881,6 +1278,23 @@ const CountProductOverview: React.FC = () => {
               </div>
             </div>
             <div className="flex gap-3">
+              <Button 
+                onClick={() => {
+                  console.log('🔄 Manual refresh requested by user');
+                  dyeingDataStore.forceRefresh().then(() => {
+                    console.log('✅ Manual refresh completed');
+                    toast.success('Data refreshed successfully');
+                  }).catch((err) => {
+                    console.error('❌ Manual refresh failed:', err);
+                    toast.error('Failed to refresh data');
+                  });
+                }}
+                variant="outline"
+                className="flex items-center space-x-2"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>Refresh Firms</span>
+              </Button>
               <Button 
                 onClick={() => setShowHorizontalForm(!showHorizontalForm)}
                 className={`flex items-center space-x-2 transition-all ${
@@ -1009,6 +1423,7 @@ const CountProductOverview: React.FC = () => {
                   <h2 className="text-lg font-semibold text-blue-800 dark:text-blue-300">{firmInfo.name}</h2>
                   <p className="text-sm text-blue-600 dark:text-blue-400">
                     {firmInfo.products.length} products • {firmInfo.products.reduce((sum, p) => sum + p.quantity, 0)} kg total
+                    {firmInfo.dyeingRecords.length > 0 && ` • ${firmInfo.dyeingRecords.length} dyeing orders`}
                   </p>
                 </div>
               </div>
@@ -1023,154 +1438,347 @@ const CountProductOverview: React.FC = () => {
               </div>
             </div>
 
-            {/* Products Table - Expandable */}
+            {/* Combined Products Table - Count Products + Dyeing Records with Color Coding */}
             {expandedFirm === firmInfo.name && (
               <div className="overflow-x-auto" id="count-product-table">
-                {firmInfo.products.length > 0 ? (
+                {(firmInfo.products.length > 0 || firmInfo.dyeingRecords.length > 0) ? (
                   <table className="min-w-full text-sm">
                     <thead className="bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600">
                       <tr>
-                        <th className="px-4 py-3 text-left font-semibold">Quantity</th>
-                        <th className="px-4 py-3 text-left font-semibold">Customer Name</th>
-                        <th className="px-4 py-3 text-left font-semibold">Sent to Dye</th>
-                        <th className="px-4 py-3 text-left font-semibold">Sent Date</th>
-                        <th className="px-4 py-3 text-left font-semibold">Received</th>
-                        <th className="px-4 py-3 text-left font-semibold">Received Date</th>
-                        <th className="px-4 py-3 text-left font-semibold">Dispatch</th>
-                        <th className="px-4 py-3 text-left font-semibold">Dispatch Date</th>
-                        <th className="px-4 py-3 text-left font-semibold">Party Name / Middleman</th>
-                        <th className="px-4 py-3 text-left font-semibold w-16">Actions</th>
+                        <th className="px-3 py-3 text-left font-semibold">Quantity</th>
+                        <th className="px-3 py-3 text-left font-semibold">Customer Name</th>
+                        <th className="px-3 py-3 text-left font-semibold">Count</th>
+                        <th className="px-3 py-3 text-left font-semibold">Sent to Dye</th>
+                        <th className="px-3 py-3 text-left font-semibold">Sent Date</th>
+                        <th className="px-3 py-3 text-left font-semibold">Received</th>
+                        <th className="px-3 py-3 text-left font-semibold">Received Date</th>
+                        <th className="px-3 py-3 text-left font-semibold">Dispatch</th>
+                        <th className="px-3 py-3 text-left font-semibold">Dispatch Date</th>
+                        <th className="px-3 py-3 text-left font-semibold">Party Name / Middleman</th>
+                        <th className="px-3 py-3 text-left font-semibold w-16">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="text-gray-900 dark:text-white divide-y divide-gray-200 dark:divide-gray-700">
-                      {firmInfo.products.map((product) => (
-                      <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                        <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                          {editingProductId === product.id ? (
-                            <div className="flex items-center space-x-2">
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={editValues.quantity}
-                                onChange={(e) => handleEditValueChange('quantity', e.target.value)}
-                                className="w-20 px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                autoFocus
+                      {/* Count Products - Green Background/Text */}
+                      {firmInfo.products.map((product) => {
+                        const isCountProduct = true;
+                        return (
+                          <tr key={`count-${product.id}`} 
+                              className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${isCountProduct ? 'bg-green-50 dark:bg-green-900/20' : ''}`}>
+                            <td className={`px-3 py-3 font-medium ${isCountProduct ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'}`}>
+                              {editingProductId === product.id ? (
+                                <div className="flex items-center space-x-2">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={editValues.quantity}
+                                    onChange={(e) => handleEditValueChange('quantity', e.target.value)}
+                                    className="w-20 px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    autoFocus
+                                  />
+                                  <span className="text-sm text-gray-500">kg</span>
+                                </div>
+                              ) : (
+                                <>
+                                  {formatQuantity(product.quantity)}
+                                  {isCountProduct && <span className="ml-1 text-xs">(CP)</span>}
+                                </>
+                              )}
+                            </td>
+                            <td className="px-3 py-3 font-medium">{product.customerName}</td>
+                            <td className="px-3 py-3 text-sm font-medium">{product.count || '-'}</td>
+                            <td className="px-3 py-3">
+                              {editingProductId === product.id ? (
+                                <div className="flex items-center space-x-2">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={editValues.sentQuantity}
+                                    onChange={(e) => handleEditValueChange('sentQuantity', e.target.value)}
+                                    className="w-20 px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                  />
+                                  <span className="text-sm text-gray-500">kg</span>
+                                </div>
+                              ) : (
+                                formatQuantity(product.sentQuantity ?? product.quantity)
+                              )}
+                            </td>
+                            <td className="px-3 py-3 text-sm">
+                              {product.sentDate ? new Date(product.sentDate).toLocaleDateString() : '-'}
+                            </td>
+                            <td className="px-3 py-3">
+                              {editingProductId === product.id ? (
+                                <div className="flex items-center space-x-2">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={editValues.receivedQuantity}
+                                    onChange={(e) => handleEditValueChange('receivedQuantity', e.target.value)}
+                                    className="w-20 px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                  />
+                                  <span className="text-sm text-gray-500">kg</span>
+                                </div>
+                              ) : (
+                                formatQuantity(product.receivedQuantity)
+                              )}
+                            </td>
+                            <td className="px-3 py-3 text-sm">
+                              {product.receivedDate ? new Date(product.receivedDate).toLocaleDateString() : '-'}
+                            </td>
+                            <td className="px-3 py-3">
+                              {editingProductId === product.id ? (
+                                <div className="flex items-center space-x-2">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={editValues.dispatchQuantity}
+                                    onChange={(e) => handleEditValueChange('dispatchQuantity', e.target.value)}
+                                    className="w-20 px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                  />
+                                  <span className="text-sm text-gray-500">kg</span>
+                                </div>
+                              ) : (
+                                formatQuantity(product.dispatchQuantity)
+                              )}
+                            </td>
+                            <td className="px-3 py-3 text-sm">
+                              {product.dispatchDate ? new Date(product.dispatchDate).toLocaleDateString() : '-'}
+                            </td>
+                            <td className="px-3 py-3">
+                              <div className="space-y-1">
+                                <div className="font-medium">{product.partyName}</div>
+                                <div className="text-xs text-gray-600 dark:text-gray-400">{product.middleman}</div>
+                              </div>
+                            </td>
+                            <td className="px-3 py-3 text-center">
+                              {editingProductId === product.id ? (
+                                <div className="flex items-center justify-center space-x-2">
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      console.log('🖱️ Save button clicked!', { 
+                                        productId: product.id, 
+                                        isSaving,
+                                        editingProductId,
+                                        editValues,
+                                        disabled: isSaving
+                                      });
+                                      handleSaveQuantities(product.id);
+                                    }}
+                                    disabled={isSaving}
+                                    className={`p-1.5 ${
+                                      isSaving 
+                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                                        : 'bg-green-100 hover:bg-green-200 text-green-700'
+                                    } rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500`}
+                                    title={isSaving ? "Saving..." : "Save Changes"}
+                                    type="button"
+                                  >
+                                    {isSaving ? (
+                                      <Loader className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                      <Check className="w-4 h-4" />
+                                    )}
+                                  </button>
+                                  <button
+                                    onClick={handleCancelEdit}
+                                    className="p-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-red-500"
+                                    title="Cancel Changes"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                  {/* Debug reset button */}
+                                  <button
+                                    onClick={() => {
+                                      console.log('🔄 Debug reset clicked');
+                                      setIsSaving(false);
+                                      toast.info("Debug: isSaving reset to false");
+                                    }}
+                                    className="p-1.5 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                                    title="Debug: Reset isSaving state"
+                                  >
+                                    <RefreshCw className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <FloatingActionDropdown
+                                  onEdit={() => {
+                                    console.log('🖊️ [CountProductOverview] Edit CountProduct clicked for product:', product.id);
+                                    setProductToEdit(product);
+                                    setIsEditModalOpen(true);
+                                    toast.info("Opening edit form for the selected product.");
+                                  }}
+                                  onDelete={() => {
+                                    console.log('🗑️ [CountProductOverview] Delete CountProduct clicked for product:', product.id);
+                                    handleDelete(product.id);
+                                  }}
+                                  onFollowUp={() => {
+                                    console.log('📋 [CountProductOverview] Follow-up CountProduct clicked for product:', product.id);
+                                    setSelectedProduct(product);
+                                    setIsFollowUpModalOpen(true);
+                                  }}
+                                  onUpdateQuantities={() => {
+                                    console.log('📊 [CountProductOverview] Update Quantities CountProduct clicked for product:', product.id);
+                                    handleUpdateQuantities(product.id);
+                                  }}
+                                />
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      
+                      {/* Dyeing Records - Blue Text (no background) */}
+                      {firmInfo.dyeingRecords.map(record => {
+                        const simplifiedRecord = mapToSimplifiedDisplay(record);
+                        const isCountProduct = false;
+                        const isEditing = editingProductId === -record.id; // Negative ID for dyeing records
+                        
+                        return (
+                          <tr key={`dyeing-${record.id}`} 
+                              className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${isCountProduct ? 'bg-green-50 dark:bg-green-900/20' : ''}`}>
+                            <td className={`px-4 py-3 font-medium ${isCountProduct ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'}`}>
+                              {isEditing ? (
+                                <input
+                                  type="number"
+                                  value={editValues.quantity}
+                                  onChange={(e) => setEditValues(prev => ({ ...prev, quantity: parseFloat(e.target.value) || 0 }))}
+                                  className="w-20 px-2 py-1 border rounded text-center"
+                                  min="0"
+                                  step="0.01"
+                                />
+                              ) : (
+                                formatQty(simplifiedRecord.quantity)
+                              )}
+                            </td>
+                            <td className="px-3 py-3 font-medium">
+                              {simplifiedRecord.customerName || '-'}
+                            </td>
+                            <td className="px-3 py-3 text-sm font-medium">{record.count || '-'}</td>
+                            <td className="px-3 py-3">
+                              {isEditing ? (
+                                <input
+                                  type="number"
+                                  value={editValues.sentQuantity}
+                                  onChange={(e) => setEditValues(prev => ({ ...prev, sentQuantity: parseFloat(e.target.value) || 0 }))}
+                                  className="w-20 px-2 py-1 border rounded text-center"
+                                  min="0"
+                                  step="0.01"
+                                />
+                              ) : (
+                                formatQty(simplifiedRecord.sentToDye)
+                              )}
+                            </td>
+                            <td className="px-3 py-3 text-sm">
+                              {simplifiedRecord.sentDate ? new Date(simplifiedRecord.sentDate).toLocaleDateString() : '-'}
+                            </td>
+                            <td className="px-3 py-3">
+                              {isEditing ? (
+                                <input
+                                  type="number"
+                                  value={editValues.receivedQuantity}
+                                  onChange={(e) => setEditValues(prev => ({ ...prev, receivedQuantity: parseFloat(e.target.value) || 0 }))}
+                                  className="w-20 px-2 py-1 border rounded text-center"
+                                  min="0"
+                                  step="0.01"
+                                />
+                              ) : (
+                                formatQty(simplifiedRecord.received)
+                              )}
+                            </td>
+                            <td className="px-3 py-3 text-sm">
+                              {simplifiedRecord.receivedDate ? new Date(simplifiedRecord.receivedDate).toLocaleDateString() : '-'}
+                            </td>
+                            <td className="px-3 py-3">
+                              {isEditing ? (
+                                <input
+                                  type="number"
+                                  value={editValues.dispatchQuantity}
+                                  onChange={(e) => setEditValues(prev => ({ ...prev, dispatchQuantity: parseFloat(e.target.value) || 0 }))}
+                                  className="w-20 px-2 py-1 border rounded text-center"
+                                  min="0"
+                                  step="0.01"
+                                />
+                              ) : (
+                                formatQty(simplifiedRecord.dispatch)
+                              )}
+                            </td>
+                            <td className="px-3 py-3 text-sm">
+                              {simplifiedRecord.dispatchDate ? new Date(simplifiedRecord.dispatchDate).toLocaleDateString() : '-'}
+                            </td>
+                            <td className="px-3 py-3">
+                              <div className="space-y-1">
+                                <div className="font-medium">{simplifiedRecord.partyNameMiddleman || '-'}</div>
+                                <div className="text-xs text-gray-600 dark:text-gray-400">
+                                  {simplifiedRecord.dyeingFirm}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              {isEditing ? (
+                                <div className="flex gap-2 justify-center">
+                                  <button
+                                    onClick={() => handleSaveDyeingRecord(record.id)}
+                                    className="p-1 text-green-600 hover:text-green-800 transition-colors"
+                                    title="Save changes"
+                                  >
+                                    <FaCheck className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setEditingProductId(null);
+                                      setEditValues({ quantity: 0, receivedQuantity: 0, dispatchQuantity: 0, sentQuantity: 0 });
+                                    }}
+                                    className="p-1 text-red-600 hover:text-red-800 transition-colors"
+                                    title="Cancel editing"
+                                  >
+                                    <FaTimes className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <FloatingActionDropdown
+                                onEdit={() => {
+                                  console.log('🖊️ [DYEING RECORD ACTION] Edit clicked!');
+                                  console.log('🔍 Record object:', record);
+                                  console.log('🔍 Record ID:', record.id);
+                                  handleDyeingRecordEdit(record.id);
+                                }}
+                                onDelete={() => {
+                                  console.log('� [DYEING RECORD ACTION] Delete clicked!');
+                                  console.log('🔍 Record object:', record);
+                                  console.log('🔍 Record ID:', record.id);
+                                  alert(`Delete DyeingRecord ID: ${record.id}`);
+                                  handleDyeingRecordDelete(record.id);
+                                }}
+                                onFollowUp={() => {
+                                  console.log('� [DYEING RECORD ACTION] Follow-up clicked!');
+                                  console.log('🔍 Record object:', record);
+                                  console.log('🔍 Record ID:', record.id);
+                                  alert(`Follow-up DyeingRecord ID: ${record.id}`);
+                                  handleDyeingRecordFollowUp(record.id);
+                                }}
+                                onUpdateQuantities={() => {
+                                  console.log('📊 [DYEING RECORD ACTION] Update quantities clicked!');
+                                  console.log('🔍 Record object:', record);
+                                  console.log('🔍 Record ID:', record.id);
+                                  handleDyeingRecordUpdateQuantities(record.id);
+                                }}
                               />
-                              <span className="text-sm text-gray-500">kg</span>
-                            </div>
-                          ) : (
-                            formatQuantity(product.quantity)
-                          )}
-                        </td>
-                        <td className="px-4 py-3 font-medium">{product.customerName}</td>
-                        <td className="px-4 py-3">
-                          {editingProductId === product.id ? (
-                            <div className="flex items-center space-x-2">
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={editValues.sentQuantity}
-                                onChange={(e) => handleEditValueChange('sentQuantity', e.target.value)}
-                                className="w-20 px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                              />
-                              <span className="text-sm text-gray-500">kg</span>
-                            </div>
-                          ) : (
-                            formatQuantity(product.quantity)
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          {product.sentDate ? new Date(product.sentDate).toLocaleDateString() : '-'}
-                        </td>
-                        <td className="px-4 py-3">
-                          {editingProductId === product.id ? (
-                            <div className="flex items-center space-x-2">
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={editValues.receivedQuantity}
-                                onChange={(e) => handleEditValueChange('receivedQuantity', e.target.value)}
-                                className="w-20 px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                              />
-                              <span className="text-sm text-gray-500">kg</span>
-                            </div>
-                          ) : (
-                            formatQuantity(product.receivedQuantity)
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          {product.receivedDate ? new Date(product.receivedDate).toLocaleDateString() : '-'}
-                        </td>
-                        <td className="px-4 py-3">
-                          {editingProductId === product.id ? (
-                            <div className="flex items-center space-x-2">
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={editValues.dispatchQuantity}
-                                onChange={(e) => handleEditValueChange('dispatchQuantity', e.target.value)}
-                                className="w-20 px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                              />
-                              <span className="text-sm text-gray-500">kg</span>
-                            </div>
-                          ) : (
-                            formatQuantity(product.dispatchQuantity)
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          {product.dispatchDate ? new Date(product.dispatchDate).toLocaleDateString() : '-'}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="space-y-1">
-                            <div className="font-medium text-gray-900 dark:text-white">{product.partyName}</div>
-                            <div className="text-xs text-gray-600 dark:text-gray-400">{product.middleman}</div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          {editingProductId === product.id ? (
-                            <div className="flex items-center justify-center space-x-2">
-                              <button
-                                onClick={() => handleSaveQuantities(product.id)}
-                                className="p-1.5 bg-green-100 hover:bg-green-200 text-green-700 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500"
-                                title="Save Changes"
-                              >
-                                <Check className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={handleCancelEdit}
-                                className="p-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-red-500"
-                                title="Cancel Changes"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                          ) : (
-                            <FloatingActionDropdown
-                              onEdit={() => handleEdit(product.id)}
-                              onDelete={() => handleDelete(product.id)}
-                              onFollowUp={() => handleFollowUp(product.id)}
-                              onUpdateQuantities={() => handleUpdateQuantities(product.id)}
-                            />
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 ) : (
-                  <div className="p-8 text-center">
-                    <Package className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                    <h3 className="text-lg font-medium text-gray-600 dark:text-gray-400 mb-2">No products yet</h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-500">
-                      This dyeing firm exists but has no products assigned yet.
-                    </p>
-                    <p className="text-xs text-gray-400 dark:text-gray-600 mt-2">
-                      Use the horizontal form above to add products to this firm.
-                    </p>
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    No products or dyeing orders for this firm yet.
                   </div>
                 )}
               </div>
@@ -1180,11 +1788,11 @@ const CountProductOverview: React.FC = () => {
       </div>
 
       {/* Empty State */}
-      {filteredProducts.length === 0 && (
+      {completeFirmListing.length === 0 && !isLoading && (
         <div className="text-center py-12">
           <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No products found</h3>
-          <p className="text-gray-600 dark:text-gray-400">Try adjusting your search criteria or filters.</p>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No orders found</h3>
+          <p className="text-gray-600 dark:text-gray-400">Create your first count product or dyeing order to get started.</p>
         </div>
       )}
 
@@ -1216,6 +1824,53 @@ const CountProductOverview: React.FC = () => {
                 productToEdit={productToEdit}
                 onSuccess={handleEditSuccess}
                 onCancel={handleEditCancel}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dyeing Record Edit Modal */}
+      {isDyeingEditModalOpen && dyeingRecordToEdit && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setIsDyeingEditModalOpen(false);
+              setDyeingRecordToEdit(null);
+            }
+          }}
+        >
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
+            <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+                Edit Dyeing Record: {dyeingRecordToEdit.partyName}
+              </h2>
+              <button
+                onClick={() => {
+                  setIsDyeingEditModalOpen(false);
+                  setDyeingRecordToEdit(null);
+                }}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+              <SimplifiedDyeingOrderForm
+                onCancel={() => {
+                  setIsDyeingEditModalOpen(false);
+                  setDyeingRecordToEdit(null);
+                }}
+                onSuccess={async () => {
+                  // Refresh dyeing records
+                  console.log('🔄 Dyeing record updated, refreshing data...');
+                  await dyeingDataStore.loadRecords(true);
+                  setIsDyeingEditModalOpen(false);
+                  setDyeingRecordToEdit(null);
+                  toast.success('Dyeing record updated successfully!');
+                }}
+                orderToEdit={dyeingRecordToEdit}
               />
             </div>
           </div>

@@ -8,6 +8,7 @@ import {
   createDyeingRecord,
   updateDyeingRecord,
 } from "../api/dyeingApi";
+import { CountProduct, getAllCountProducts, deleteCountProduct } from "../api/countProductApi";
 import { DyeingRecord, SimplifiedDyeingDisplayRecord } from "../types/dyeing";
 import SimplifiedDyeingOrderForm from "../components/SimplifiedDyeingOrderForm";
 import { Button } from "../components/ui/Button";
@@ -16,12 +17,13 @@ import { toast } from "sonner";
 import FollowUpModal from "../components/FollowUpModal";
 import { exportDataToCSV } from "../utils/exportUtils";
 import FloatingActionDropdown from "../components/FloatingActionDropdown";
-import { getAllDyeingFirms, DyeingFirm } from "../api/dyeingFirmApi";
+import { DyeingFirm } from "../api/dyeingFirmApi";
+import { dyeingDataStore } from "../stores/dyeingDataStore";
 
 const DyeingOrders: React.FC = () => {
   const [records, setRecords] = useState<DyeingRecord[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [orderToEdit, setOrderToEdit] = useState<any | null>(null); // Updated to handle simplified data
+  const [orderToEdit, setOrderToEdit] = useState<any | null>(null);
   const [expandedFirm, setExpandedFirm] = useState<string | null>(null);
   const [isFollowUpModalOpen, setIsFollowUpModalOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<DyeingRecord | null>(null);
@@ -33,7 +35,6 @@ const DyeingOrders: React.FC = () => {
   const [firmFilter, setFirmFilter] = useState<string>("");
   const [partyFilter, setPartyFilter] = useState<string>("");
 
-  // Update quantities functionality
   const [editingRecordId, setEditingRecordId] = useState<number | null>(null);
   const [editValues, setEditValues] = useState<{
     quantity: number;
@@ -42,14 +43,78 @@ const DyeingOrders: React.FC = () => {
     sentQuantity: number;
   }>({ quantity: 0, receivedQuantity: 0, dispatchQuantity: 0, sentQuantity: 0 });
 
-  // Centralized dyeing firms state
   const [centralizedDyeingFirms, setCentralizedDyeingFirms] = useState<DyeingFirm[]>([]);
-  const [isLoadingFirms, setIsLoadingFirms] = useState(true);
-  const [isSaving, setIsSaving] = useState(false); // Add saving state
+  const [dyeingRecords, setDyeingRecords] = useState<DyeingRecord[]>([]);
+  const [countProducts, setCountProducts] = useState<CountProduct[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    fetchRecords();
-    fetchCentralizedDyeingFirms();
+    console.log('🔧 [DyeingOrders] Component mounting, initializing store...');
+    
+    let unmounted = false;
+    
+    const initializeStoreAndSubscribe = async () => {
+      try {
+        // Initialize store first
+        console.log('🔄 [DyeingOrders] Initializing store...');
+        await dyeingDataStore.init();
+        
+        if (unmounted) return;
+        
+        console.log('✅ [DyeingOrders] Store initialized, setting up subscriptions...');
+        
+        // Subscribe to store updates
+        const unsubscribeFirms = await dyeingDataStore.subscribeFirms((firms) => {
+          if (unmounted) return;
+          console.log('📡 [DyeingOrders] Received firm sync update:', {
+            count: firms.length,
+            firms: firms.map(f => f.name),
+            source: 'unified-store'
+          });
+          setCentralizedDyeingFirms(firms);
+          
+          // Debug: Log firm update details
+          console.log('🔍 [DyeingOrders] Centralized firms updated:', {
+            totalFirms: firms.length,
+            firmNames: firms.map(f => ({ name: f.name, isActive: f.isActive })),
+            timestamp: new Date().toISOString()
+          });
+        });
+        
+        const unsubscribeRecords = await dyeingDataStore.subscribeRecords((records) => {
+          if (unmounted) return;
+          console.log('📡 [DyeingOrders] Received records sync update:', {
+            count: records.length,
+            source: 'unified-store'
+          });
+          setRecords(records);
+          setDyeingRecords(records);
+        });
+        
+        console.log('✅ [DyeingOrders] Subscriptions established');
+        
+        // Fetch count products to show cross-page data
+        fetchCountProducts();
+        
+        // Store cleanup functions
+        return () => {
+          unsubscribeFirms();
+          unsubscribeRecords();
+        };
+        
+      } catch (error) {
+        console.error('❌ [DyeingOrders] Store initialization failed:', error);
+      }
+    };
+    
+    let cleanupPromise = initializeStoreAndSubscribe();
+    
+    return () => {
+      unmounted = true;
+      cleanupPromise.then(cleanup => {
+        if (cleanup) cleanup();
+      }).catch(console.error);
+    };
   }, []);
 
   // ================= TRACKING INFO PARSER (SHARED) =================
@@ -62,6 +127,7 @@ const DyeingOrders: React.FC = () => {
         dispatch: undefined,
         dispatchDate: undefined,
         partyNameMiddleman: "Direct Supply",
+        originalQuantity: undefined,
         originalRemarks: ""
       };
     }
@@ -119,145 +185,6 @@ const DyeingOrders: React.FC = () => {
     return trackingInfo;
   };
 
-  const fetchRecords = async () => {
-    try {
-      setIsRefreshing(true);
-      console.log('🔄 Fetching dyeing records...');
-      
-      const currentTime = new Date().getTime();
-      
-      // First, check localStorage for recent changes (DISABLED FOR TESTING)
-      // const savedRecords = localStorage.getItem('dyeingRecords');
-      // const savedTimestamp = localStorage.getItem('dyeingRecordsTimestamp');
-      
-      // if (savedRecords && savedTimestamp) {
-      //   const timeDiff = currentTime - parseInt(savedTimestamp);
-      //   // Use cached data if it's less than 10 seconds old
-      //   if (timeDiff < 10000) {
-      //     const localData = JSON.parse(savedRecords);
-      //     if (Array.isArray(localData) && localData.length > 0) {
-      //       console.log(`📋 Using recent localStorage data (${Math.round(timeDiff/1000)}s old) with ${localData.length} records`);
-      //       setRecords(localData);
-      //       setRefreshKey(currentTime % 1000);
-      //       setIsRefreshing(false);
-      //       return;
-      //     }
-      //   }
-      // }
-      
-      console.log('🚫 BYPASSING CACHE - Always fetching fresh data for testing');
-      
-      // Add multiple cache-busting parameters to ensure fresh data
-      const timestamp = Date.now();
-      const randomId = Math.random().toString(36).substring(7);
-      console.log('⏰ Cache bust timestamp:', timestamp, 'Random ID:', randomId);
-      
-      // Clear any local state before fetching
-      setRecords([]);
-      
-      try {
-        // Fetch fresh data from server
-        const data = await getAllDyeingRecords();
-        console.log('📊 Fetched records count:', data.length);
-        console.log('📋 First record sample for verification:', data[0]);
-        console.log('🔍 All record IDs:', data.map(r => r.id));
-        console.log('🏭 All dyeing firms in fetched data:', [...new Set(data.map(r => r.dyeingFirm))]);
-        console.log('👥 All party names in fetched data:', [...new Set(data.map(r => r.partyName))]);
-        
-        // CRITICAL DEBUG: Check the remarks of all records to see if updates are being saved
-        console.log('🔍 CRITICAL: Checking all record remarks for tracking info...');
-        data.forEach((record, index) => {
-          if (record.remarks && (record.remarks.includes('Received:') || record.remarks.includes('Dispatched:'))) {
-            console.log(`  Record ${index + 1} (ID: ${record.id}):`, record.remarks);
-          }
-        });
-        
-        // Validate data integrity
-        if (!Array.isArray(data)) {
-          throw new Error('Invalid data format received from server');
-        }
-        
-        // Save to localStorage as backup with timestamp
-        localStorage.setItem('dyeingRecords', JSON.stringify(data));
-        localStorage.setItem('dyeingRecordsTimestamp', currentTime.toString());
-        console.log('💾 Saved records to localStorage backup with timestamp');
-        
-        // Set the records with a small delay to ensure proper state update
-        await new Promise(resolve => setTimeout(resolve, 50));
-        setRecords(data);
-        
-        // Force refresh key update
-        const newRefreshKey = timestamp % 1000;
-        setRefreshKey(newRefreshKey);
-        console.log('✅ Records state updated with refresh key:', newRefreshKey);
-        
-        // Log final state for verification
-        setTimeout(() => {
-          console.log('🔍 Final verification - Records in state:', data.length);
-        }, 100);
-        
-      } catch (apiError) {
-        console.warn('⚠️ API failed, trying localStorage backup:', apiError);
-        
-        // Try to get from localStorage backup (even if old)
-        const savedRecords = localStorage.getItem('dyeingRecords');
-        if (savedRecords) {
-          const data = JSON.parse(savedRecords);
-          if (Array.isArray(data) && data.length > 0) {
-            console.log(`📋 Loaded ${data.length} records from localStorage backup (API failed)`);
-            setRecords(data);
-            setRefreshKey(currentTime % 1000);
-          } else {
-            throw apiError; // Re-throw if localStorage is also invalid
-          }
-        } else {
-          throw apiError; // Re-throw if no localStorage backup
-        }
-      }
-      
-    } catch (error) {
-      console.error("❌ Failed to fetch dyeing records:", error);
-      toast.error("Failed to load dyeing records. Please try again.");
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
-  // Fetch centralized dyeing firms from API
-  const fetchCentralizedDyeingFirms = async () => {
-    try {
-      setIsLoadingFirms(true);
-      console.log('🔄 Fetching centralized dyeing firms for Dyeing Orders...');
-      
-      // Try to fetch from API, but don't let it fail the whole process
-      try {
-        const firms = await getAllDyeingFirms();
-        setCentralizedDyeingFirms(firms);
-        console.log(`✅ Loaded ${firms.length} centralized dyeing firms:`, firms.map(f => f.name));
-      } catch (apiError) {
-        console.warn('⚠️ API failed to fetch centralized dyeing firms, using fallback:', apiError);
-        throw apiError; // Re-throw to trigger fallback
-      }
-    } catch (error) {
-      console.error('❌ Failed to fetch centralized dyeing firms:', error);
-      // Fallback to extracting from existing records if API fails
-      const fallbackFirms = Array.from(new Set(records.map((r) => r.dyeingFirm)))
-        .filter(Boolean) // Remove empty/null values
-        .map((name, index) => ({
-          id: -(index + 1),
-          name,
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        }));
-      setCentralizedDyeingFirms(fallbackFirms);
-      console.log(`📋 Using fallback firms from records:`, fallbackFirms.map(f => f.name));
-      // Don't throw error, just continue with fallback
-    } finally {
-      setIsLoadingFirms(false);
-    }
-  };
-
   // ================= MAPPING FUNCTION =================
   const mapToSimplifiedDisplay = (record: DyeingRecord): SimplifiedDyeingDisplayRecord => {
     console.log('🔄 Mapping record to simplified display:', record.id);
@@ -269,11 +196,12 @@ const DyeingOrders: React.FC = () => {
       id: record.id,
       quantity: trackingInfo.originalQuantity || record.quantity, // Use original quantity if available, otherwise use record quantity
       customerName: record.partyName,
-      sentToDye: record.quantity, // This is what was actually sent (stored as main quantity in DB)
+      count: record.count || "Standard", // Add count field from dyeing record
+      sentToDye: record.quantity || 0, // This is what was actually sent (stored as main quantity in DB)
       sentDate: record.sentDate,
-      received: trackingInfo.received,
+      received: trackingInfo.received || 0,
       receivedDate: trackingInfo.receivedDate,
-      dispatch: trackingInfo.dispatch,
+      dispatch: trackingInfo.dispatch || 0,
       dispatchDate: trackingInfo.dispatchDate,
       partyNameMiddleman: trackingInfo.partyNameMiddleman,
       dyeingFirm: record.dyeingFirm,
@@ -288,6 +216,146 @@ const DyeingOrders: React.FC = () => {
     console.log('✅ Original record remarks:', record.remarks);
     return mappedRecord;
   };
+
+  // ================= COUNT PRODUCT MAPPING FUNCTION =================
+  const mapCountProductToSimplifiedDisplay = (countProduct: CountProduct): SimplifiedDyeingDisplayRecord => {
+    console.log('🔄 [DyeingOrders] Mapping count product to simplified display:', {
+      id: countProduct.id,
+      quantity: countProduct.quantity,
+      sentQuantity: countProduct.sentQuantity,
+      receivedQuantity: countProduct.receivedQuantity,
+      dispatchQuantity: countProduct.dispatchQuantity,
+      received: countProduct.received,
+      dispatch: countProduct.dispatch
+    });
+    
+    const mappedRecord = {
+      id: countProduct.id,
+      quantity: countProduct.quantity,
+      customerName: countProduct.customerName,
+      count: countProduct.count || "Standard", // Add count field from count product
+      sentToDye: countProduct.sentToDye ? (countProduct.sentQuantity ?? countProduct.quantity) : 0,
+      sentDate: countProduct.sentDate,
+      received: countProduct.received ? countProduct.receivedQuantity : undefined,
+      receivedDate: countProduct.receivedDate || undefined,
+      dispatch: countProduct.dispatch ? countProduct.dispatchQuantity : undefined,
+      dispatchDate: countProduct.dispatchDate || undefined,
+      partyNameMiddleman: countProduct.middleman || countProduct.partyName,
+      dyeingFirm: countProduct.dyeingFirm,
+      remarks: countProduct.remarks || ''
+    };
+    
+    console.log('✅ [DyeingOrders] Mapped count product result:', {
+      sentToDye: mappedRecord.sentToDye,
+      received: mappedRecord.received,
+      dispatch: mappedRecord.dispatch,
+      originalQuantity: countProduct.quantity,
+      originalSentQuantity: countProduct.sentQuantity,
+      originalReceived: countProduct.receivedQuantity,
+      originalDispatch: countProduct.dispatchQuantity
+    });
+    return mappedRecord;
+  };
+
+  // ================= FETCH COUNT PRODUCTS =================
+  const fetchCountProducts = async () => {
+    try {
+      console.log('🔄 [DyeingOrders] Fetching count products...');
+
+      // Try cached data first for instant display
+      const cached = localStorage.getItem('countProducts');
+      const ts = localStorage.getItem('countProductsTimestamp');
+      const now = Date.now();
+      if (cached && ts && now - parseInt(ts) < 5 * 60 * 1000) { // 5 min freshness
+        try {
+          const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed)) {
+              console.log('⚡ [DyeingOrders] Using cached count products:', parsed.length);
+              setCountProducts(parsed);
+            }
+        } catch (e) {
+          console.warn('⚠️ [DyeingOrders] Failed to parse cached count products');
+        }
+      }
+
+      // Always attempt fresh fetch
+      const products = await getAllCountProducts();
+      console.log('✅ [DyeingOrders] Count products fetched (fresh):', products.length);
+      setCountProducts(products);
+      localStorage.setItem('countProducts', JSON.stringify(products));
+      localStorage.setItem('countProductsTimestamp', now.toString());
+    } catch (error) {
+      console.error('❌ [DyeingOrders] Failed to fetch count products (will fallback to cache if present):', error);
+      const cached = localStorage.getItem('countProducts');
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed)) {
+            console.log('🛟 [DyeingOrders] Using fallback cached count products:', parsed.length);
+            setCountProducts(parsed);
+            return;
+          }
+        } catch {}
+      }
+      setCountProducts([]);
+    }
+  };
+
+  // Refetch count products when centralized firm list grows (new firm added elsewhere)
+  useEffect(() => {
+    fetchCountProducts();
+  }, [centralizedDyeingFirms.length]);
+
+  // Cross-page synchronization - listen for localStorage changes from CountProductOverview
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'countProducts' && e.newValue) {
+        try {
+          const updatedProducts = JSON.parse(e.newValue);
+          console.log('🔄 [DyeingOrders] Detected countProducts change from storage event, syncing...', {
+            count: updatedProducts.length,
+            source: 'storage-event'
+          });
+          
+          setCountProducts(updatedProducts);
+          setRefreshKey(prev => prev + 1);
+          
+          console.log('✅ [DyeingOrders] Storage sync completed');
+          
+        } catch (error) {
+          console.error('❌ [DyeingOrders] Failed to parse countProducts from storage change:', error);
+        }
+      }
+    };
+
+    // Listen for storage changes from other tabs/pages
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also listen for custom events (for same-page updates)
+    const handleCustomSync = (e: CustomEvent) => {
+      if (e.detail && e.detail.countProducts) {
+        console.log('🔄 [DyeingOrders] Custom countProducts sync received:', {
+          count: e.detail.countProducts.length,
+          updatedProductId: e.detail.updatedProductId,
+          updateData: e.detail.updateData,
+          timestamp: e.detail.timestamp,
+          demoMode: e.detail.demoMode
+        });
+        
+        setCountProducts(e.detail.countProducts);
+        setRefreshKey(prev => prev + 1);
+        
+        console.log('✅ [DyeingOrders] Custom sync completed');
+      }
+    };
+
+    window.addEventListener('countProductsUpdated', handleCustomSync as EventListener);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('countProductsUpdated', handleCustomSync as EventListener);
+    };
+  }, []);
 
   const filteredRecords = records.filter((r) => {
     const query = searchQuery.toLowerCase();
@@ -316,6 +384,50 @@ const DyeingOrders: React.FC = () => {
     acc[record.dyeingFirm].push(record);
     return acc;
   }, {} as Record<string, DyeingRecord[]>);
+
+  // Group count products by firm for cross-page display
+  const groupedCountProductsByFirm = countProducts.reduce((acc, product) => {
+    if (!acc[product.dyeingFirm]) acc[product.dyeingFirm] = [];
+    acc[product.dyeingFirm].push(product);
+    return acc;
+  }, {} as Record<string, CountProduct[]>);
+
+  // Automatically remove firms with 0 products to match CountProductOverview behavior
+  const completeFirmListing = centralizedDyeingFirms
+    .map(firm => {
+      const dyeingRecords = groupedByFirm[firm.name] || [];
+      const countProductsForFirm = groupedCountProductsByFirm[firm.name] || [];
+      
+      // Combine both dyeing records and count products for display
+      const hasData = dyeingRecords.length > 0 || countProductsForFirm.length > 0;
+      
+      return {
+        name: firm.name,
+        records: dyeingRecords,
+        countProducts: countProductsForFirm,
+        hasData,
+        id: firm.id
+      };
+    })
+    // AUTOMATICALLY remove firms with 0 products (same as CountProductOverview)
+    .filter(firm => firm.countProducts.length > 0 || firm.records.length > 0)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  // Debug: Log firm listing construction
+  console.log('🔍 [DyeingOrders] completeFirmListing constructed:', {
+    centralizedFirmsCount: centralizedDyeingFirms.length,
+    centralizedFirmNames: centralizedDyeingFirms.map(f => f.name),
+    groupedByFirmKeys: Object.keys(groupedByFirm),
+    groupedCountProductsKeys: Object.keys(groupedCountProductsByFirm),
+    completeFirmListingCount: completeFirmListing.length,
+    completeFirmListingNames: completeFirmListing.map(f => ({ 
+      name: f.name, 
+      dyeingRecords: f.records.length, 
+      countProducts: f.countProducts.length,
+      hasData: f.hasData 
+    })),
+    timestamp: new Date().toISOString()
+  });
 
   const statusBadge = (status: string) => {
     const base = "px-3 py-1 text-xs font-semibold rounded-full";
@@ -403,79 +515,46 @@ const DyeingOrders: React.FC = () => {
   // Handler for successful form submission
   const handleOrderSuccess = async (orderData: any) => {
     try {
-      // The form already handles the API call, so we just need to refresh
-      console.log("🎯 Order operation completed successfully:", orderData);
-      console.log("🎯 Is editing mode:", !!orderToEdit);
-      console.log("🎯 OrderToEdit details:", orderToEdit);
-      
-      console.log('🔄 Starting comprehensive data refresh after order operation...');
-      
-      // Clear any existing state to force complete refresh
-      setRecords([]);
-      setCentralizedDyeingFirms([]);
-      
-      // CRITICAL: Clear localStorage to force fresh API call
-      localStorage.removeItem('dyeingRecords');
-      localStorage.removeItem('dyeingRecordsTimestamp');
-      console.log('🗑️ Cleared localStorage cache to force fresh fetch');
-      
-      // Add a longer delay to ensure database transaction is fully committed
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Clear browser cache if available
-      if ('caches' in window) {
+      // Ensure firm exists in store before processing
+      const dyeingFirmName = orderData?.dyeingFirm || orderData?.updatedFields?.dyeingFirm;
+      if (dyeingFirmName) {
+        console.log('🏢 Ensuring firm exists in store:', dyeingFirmName);
         try {
-          const cacheNames = await caches.keys();
-          await Promise.all(cacheNames.map(name => caches.delete(name)));
-          console.log('🗑️ Browser cache cleared');
+          await dyeingDataStore.ensureFirm(dyeingFirmName);
+          console.log('✅ Firm ensured in store:', dyeingFirmName);
         } catch (error) {
-          console.log('⚠️ Cache clearing failed:', error);
+          console.warn('⚠️ Failed to ensure firm in store:', error);
         }
       }
       
-      // Force multiple refreshes to ensure data consistency
-      console.log('🔄 Fetching records - First attempt');
-      await fetchRecords();
+      console.log("🎯 Order operation completed successfully:", orderData);
+      console.log("🎯 Is editing mode:", !!orderToEdit);
       
-      // Second fetch with a small delay to ensure consistency
-      setTimeout(async () => {
-        console.log('🔄 Fetching records - Second attempt for consistency');
-        await fetchRecords();
-      }, 200);
+      // Reload data from store
+      console.log('� Reloading data from store...');
+      await dyeingDataStore.loadRecords(true);
+      await dyeingDataStore.loadFirms(true);
       
-      // Also refresh centralized dyeing firms to show newly created firms
-      console.log('🔄 Fetching dyeing firms');
-      await fetchCentralizedDyeingFirms();
-      
-      console.log('✅ Comprehensive data refresh completed');
+      console.log('✅ Store data refreshed');
       
       // Close the form and clear edit state
       setIsFormOpen(false);
       setOrderToEdit(null);
       
-      // Force multiple re-renders to ensure UI updates
+      // Force UI refresh
       setRefreshKey(prev => prev + 1);
-      setTimeout(() => setRefreshKey(prev => prev + 1), 100);
-      setTimeout(() => setRefreshKey(prev => prev + 1), 300);
       
       console.log('🎯 Form closed and edit state cleared');
       
-      // Show success message with more details
+      // Show success message
       const actionType = orderData?.action || 'processed';
-      toast.success(`Order ${actionType} successfully! The listing has been refreshed.`, {
+      toast.success(`Order ${actionType} successfully! Data synchronized across all pages.`, {
         duration: 3000,
       });
       
     } catch (error) {
       console.error("Failed to refresh data after order operation:", error);
-      toast.error("Order operation completed but failed to refresh data. Please manually refresh the page.");
-      
-      // Fallback: force page reload if refresh fails
-      setTimeout(() => {
-        if (window.confirm("Would you like to reload the page to see the updated data?")) {
-          window.location.reload();
-        }
-      }, 2000);
+      toast.error("Order operation completed but failed to refresh data. Please try again.");
     }
   };
 
@@ -498,9 +577,9 @@ const DyeingOrders: React.FC = () => {
       
       toast.success("Record deleted successfully!");
       
-      // Refresh the records list
+      // Refresh the records list using store
       console.log('🔄 Refreshing records list...');
-      await fetchRecords();
+      await dyeingDataStore.loadRecords(true);
       console.log('✅ Records list refreshed');
       
     } catch (error: any) {
@@ -521,7 +600,7 @@ const DyeingOrders: React.FC = () => {
     try {
       await markAsArrived(record.id);
       toast.success("Marked as Arrived");
-      fetchRecords();
+      await dyeingDataStore.loadRecords(true);
     } catch (error) {
       console.error("Mark Arrived error:", error);
       toast.error("Failed to mark as arrived");
@@ -534,7 +613,7 @@ const DyeingOrders: React.FC = () => {
     try {
       await completeReprocessing(record.id, { reprocessingReason: reason });
       toast.success("Marked as Reprocessing");
-      fetchRecords();
+      await dyeingDataStore.loadRecords(true);
     } catch (error) {
       console.error("Reprocessing error:", error);
       toast.error("Failed to complete reprocessing");
@@ -704,7 +783,7 @@ const DyeingOrders: React.FC = () => {
       
       // Refresh data to show updated values
       console.log('🔄 Fetching updated records...');
-      await fetchRecords();
+      await dyeingDataStore.loadRecords(true);
       
       console.log('✅ Edit mode exited, form reset, data refreshed');
       toast.success("Quantities updated successfully and saved to database!");
@@ -731,6 +810,164 @@ const DyeingOrders: React.FC = () => {
   const handleEditValueChange = (field: keyof typeof editValues, value: string) => {
     const numValue = parseFloat(value) || 0;
     setEditValues(prev => ({ ...prev, [field]: numValue }));
+  };
+
+  // CountProduct action handlers - synchronized with CountProductOverview
+  const handleCountProductEdit = (productId: number) => {
+    console.log('🖊️ [DyeingOrders] handleCountProductEdit called for product:', productId);
+    alert(`✅ COUNT PRODUCT EDIT WORKS! Product ID: ${productId}`);
+    const product = countProducts.find(p => p.id === productId);
+    if (product) {
+      // Set up the same edit state as CountProductOverview
+      setSelectedRecord(null); // Clear any dyeing record selection
+      // Note: We would need to implement the same edit modal here or create a shared component
+      toast.info(`Edit Count Product: ${product.partyName} - ${product.dyeingFirm} (Feature needs shared edit modal)`);
+    }
+  };
+
+  const handleCountProductDelete = async (productId: number) => {
+    console.log('🗑️ [DyeingOrders] handleCountProductDelete called for product:', productId);
+    alert(`✅ COUNT PRODUCT DELETE WORKS! Product ID: ${productId}`);
+    
+    const productToDelete = countProducts.find(p => p.id === productId);
+    if (!productToDelete) {
+      console.error('❌ Product not found for deletion');
+      toast.error('Product not found. Please try again.');
+      return;
+    }
+    
+    const confirmMessage = `Are you sure you want to delete this count product?\n\nCustomer: ${productToDelete.partyName}\nDyeing Firm: ${productToDelete.dyeingFirm}\nQuantity: ${productToDelete.quantity} kg\n\nThis action cannot be undone.`;
+    
+    if (!confirm(confirmMessage)) {
+      console.log('❌ Delete cancelled by user');
+      return;
+    }
+
+    try {
+      console.log('✅ Delete confirmed by user, proceeding...', { productToDelete });
+      
+      // Use the API to delete the product properly
+      await deleteCountProduct(productId);
+      
+      // Update local state
+      const updatedCountProducts = countProducts.filter(p => p.id !== productId);
+      setCountProducts(updatedCountProducts);
+      
+      // Update localStorage for persistence across pages
+      localStorage.setItem('countProducts', JSON.stringify(updatedCountProducts));
+      localStorage.setItem('countProductsTimestamp', new Date().getTime().toString());
+      console.log('💾 [DyeingOrders] Updated countProducts saved to localStorage');
+      
+      // Dispatch custom event for cross-page synchronization
+      window.dispatchEvent(new CustomEvent('countProductsUpdated', { 
+        detail: { countProducts: updatedCountProducts } 
+      }));
+      
+      // Force refresh to update UI
+      setRefreshKey(prev => prev + 1);
+      
+      toast.success(`Count Product deleted successfully: ${productToDelete.partyName}`);
+      
+    } catch (error) {
+      console.error('❌ Error deleting count product:', error);
+      toast.error('Failed to delete count product. Please try again.');
+    }
+  };
+
+  const handleCountProductFollowUp = (productId: number) => {
+    console.log('📋 [DyeingOrders] handleCountProductFollowUp called for product:', productId);
+    alert(`✅ COUNT PRODUCT FOLLOW-UP WORKS! Product ID: ${productId}`);
+    const product = countProducts.find(p => p.id === productId);
+    if (product) {
+      // Set up follow-up modal (would need shared follow-up component)
+      toast.info(`Follow Up Count Product: ${product.partyName} - ${product.dyeingFirm} (Feature needs shared follow-up modal)`);
+    }
+  };
+
+  const handleCountProductUpdateQuantities = (productId: number) => {
+    console.log('📊 [DyeingOrders] handleCountProductUpdateQuantities called for product:', productId);
+    alert(`✅ COUNT PRODUCT UPDATE QUANTITIES WORKS! Product ID: ${productId}`);
+    const product = countProducts.find(p => p.id === productId);
+    if (product) {
+      // Set editing mode for this product
+      setEditingRecordId(productId);
+      setEditValues({
+        quantity: product.quantity,
+        receivedQuantity: product.receivedQuantity || 0,
+        dispatchQuantity: product.dispatchQuantity || 0,
+        sentQuantity: product.quantity
+      });
+      toast.info("Edit mode activated. Update quantities and save changes.");
+    }
+  };
+
+  // Save quantities for CountProduct items
+  const handleSaveCountProductQuantities = async (productId: number) => {
+    console.log('🔄 [DyeingOrders] handleSaveCountProductQuantities called for product ID:', productId);
+    console.log('📋 Current editValues:', editValues);
+    
+    if (isSaving) {
+      console.log('⏳ Save already in progress, ignoring duplicate call');
+      return;
+    }
+    
+    try {
+      setIsSaving(true);
+      
+      // Validate inputs
+      if (editValues.quantity <= 0 || editValues.sentQuantity <= 0) {
+        console.log('❌ Validation failed: quantity or sentQuantity <= 0');
+        toast.error("Quantity and sent quantity must be greater than 0.");
+        return;
+      }
+
+      if (editValues.dispatchQuantity < 0 || editValues.receivedQuantity < 0) {
+        console.log('❌ Validation failed: negative quantities');
+        toast.error("Received and dispatch quantities cannot be negative.");
+        return;
+      }
+
+      // Find and update the product
+      const productIndex = countProducts.findIndex(p => p.id === productId);
+      if (productIndex === -1) {
+        toast.error('Product not found. Please refresh and try again.');
+        return;
+      }
+
+      const updatedProduct = {
+        ...countProducts[productIndex],
+        quantity: editValues.quantity,
+        receivedQuantity: editValues.receivedQuantity,
+        dispatchQuantity: editValues.dispatchQuantity
+      };
+
+      // Update local state
+      const updatedCountProducts = [...countProducts];
+      updatedCountProducts[productIndex] = updatedProduct;
+      setCountProducts(updatedCountProducts);
+      
+      // Save to localStorage for cross-page persistence
+      localStorage.setItem('countProducts', JSON.stringify(updatedCountProducts));
+      localStorage.setItem('countProductsTimestamp', new Date().getTime().toString());
+      console.log('💾 [DyeingOrders] Count product quantities updated and saved to localStorage');
+      
+      // Dispatch custom event for cross-page synchronization
+      window.dispatchEvent(new CustomEvent('countProductsUpdated', { 
+        detail: { countProducts: updatedCountProducts } 
+      }));
+      
+      // Exit edit mode
+      setEditingRecordId(null);
+      setEditValues({ quantity: 0, receivedQuantity: 0, dispatchQuantity: 0, sentQuantity: 0 });
+      
+      toast.success("Count product quantities updated successfully!");
+      
+    } catch (error) {
+      console.error('❌ Error saving count product quantities:', error);
+      toast.error('Failed to save changes. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Format quantity display similar to count product
@@ -766,6 +1003,213 @@ const DyeingOrders: React.FC = () => {
       .save();
   };
 
+  // ================= RENDER FIRMS LIST (EXTRACTED) =================
+  // Extract large inline JSX map into a memoized variable to avoid parser ambiguities
+  const renderedFirms = React.useMemo(() => {
+    return completeFirmListing.map(({ name: firm, records: firmRecords, countProducts: firmCountProducts }) => {
+      const allRecordsForDisplay = [
+        ...firmRecords.map(record => ({ ...mapToSimplifiedDisplay(record), type: 'dyeing', originalRecord: record })),
+        ...firmCountProducts.map(product => ({ ...mapCountProductToSimplifiedDisplay(product), type: 'countProduct', originalRecord: product }))
+      ];
+
+      return (
+        <div key={`${firm}-${refreshKey}`} className="overflow-hidden shadow rounded-2xl">
+          <div
+            onClick={() => setExpandedFirm((f) => (f === firm ? null : firm))}
+            className="flex justify-between items-center px-6 py-4 bg-white dark:bg-gray-800 border-b dark:border-gray-700 cursor-pointer hover:bg-purple-50"
+          >
+            <h2 className="text-lg font-semibold text-purple-700 dark:text-purple-400">
+              {firm} ({allRecordsForDisplay.length})
+              {firmCountProducts.length > 0 && (
+                <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                  {firmCountProducts.length} from Count Products
+                </span>
+              )}
+            </h2>
+            {expandedFirm === firm ? <ChevronUp /> : <ChevronDown />}
+          </div>
+
+          {expandedFirm === firm && (
+            <div className="overflow-x-auto bg-white dark:bg-gray-800 border-t dark:border-gray-700" id="dyeing-orders-table">
+              <div className="min-w-[1000px]">
+                {allRecordsForDisplay.length > 0 ? (
+                  <table className="w-full text-sm">
+                    <thead className="text-gray-600 dark:text-gray-300 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                      <tr>
+                        <th className="px-3 py-3 text-left font-semibold">Quantity</th>
+                        <th className="px-3 py-3 text-left font-semibold">Customer Name</th>
+                        <th className="px-3 py-3 text-left font-semibold">Count</th>
+                        <th className="px-3 py-3 text-left font-semibold">Sent to Dye</th>
+                        <th className="px-3 py-3 text-left font-semibold">Sent Date</th>
+                        <th className="px-3 py-3 text-left font-semibold">Received</th>
+                        <th className="px-3 py-3 text-left font-semibold">Received Date</th>
+                        <th className="px-3 py-3 text-left font-semibold">Dispatch</th>
+                        <th className="px-3 py-3 text-left font-semibold">Dispatch Date</th>
+                        <th className="px-3 py-3 text-left font-semibold">Party/Middleman</th>
+                        <th className="px-3 py-3 text-center font-semibold">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-gray-900 dark:text-white divide-y divide-gray-200 dark:divide-gray-700">
+                      {allRecordsForDisplay.map((displayRecord: any, index: number) => {
+                        const isEditing = displayRecord.type === 'dyeing' && editingRecordId === displayRecord.id;
+                        const isCountProduct = displayRecord.type === 'countProduct';
+                        return (
+                          <tr key={`${displayRecord.type}-${displayRecord.id}-${refreshKey}-${index}`}
+                              className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 ${isCountProduct ? 'bg-green-50 dark:bg-green-900/20' : ''}`}>
+                            <td className={`px-3 py-3 font-medium ${isCountProduct ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'}`}>
+                              {isEditing ? (
+                                <input
+                                  type="number"
+                                  value={editValues.quantity}
+                                  onChange={(e) => handleEditValueChange('quantity', e.target.value)}
+                                  className="w-20 px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                                  step="0.01"
+                                  min="0"
+                                />
+                              ) : (
+                                <>
+                                  {formatQuantity(displayRecord.quantity)}
+                                  {isCountProduct && <span className="ml-1 text-xs">(CP)</span>}
+                                </>
+                              )}
+                            </td>
+                            <td className="px-3 py-3 font-medium">{displayRecord.customerName}</td>
+                            <td className="px-3 py-3 text-sm font-medium">{displayRecord.count || "Standard"}</td>
+                            <td className="px-3 py-3">
+                              {isEditing ? (
+                                <input
+                                  type="number"
+                                  value={editValues.sentQuantity}
+                                  onChange={(e) => handleEditValueChange('sentQuantity', e.target.value)}
+                                  className="w-20 px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                                  step="0.01"
+                                  min="0"
+                                />
+                              ) : (
+                                formatQuantity(displayRecord.sentToDye)
+                              )}
+                            </td>
+                            <td className="px-3 py-3">{displayRecord.sentDate ? new Date(displayRecord.sentDate).toLocaleDateString() : '--'}</td>
+                            <td className="px-3 py-3 text-gray-500 dark:text-gray-400">
+                              {isEditing ? (
+                                <input
+                                  type="number"
+                                  value={editValues.receivedQuantity}
+                                  onChange={(e) => handleEditValueChange('receivedQuantity', e.target.value)}
+                                  className="w-20 px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                                  step="0.01"
+                                  min="0"
+                                />
+                              ) : (
+                                formatQuantity(displayRecord.received)
+                              )}
+                            </td>
+                            <td className="px-3 py-3 text-gray-500 dark:text-gray-400">
+                              {displayRecord.receivedDate ? new Date(displayRecord.receivedDate).toLocaleDateString() : '--'}
+                            </td>
+                            <td className="px-3 py-3 text-gray-500 dark:text-gray-400">
+                              {isEditing ? (
+                                <input
+                                  type="number"
+                                  value={editValues.dispatchQuantity}
+                                  onChange={(e) => handleEditValueChange('dispatchQuantity', e.target.value)}
+                                  className="w-20 px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                                  step="0.01"
+                                  min="0"
+                                />
+                              ) : (
+                                formatQuantity(displayRecord.dispatch)
+                              )}
+                            </td>
+                            <td className="px-3 py-3 text-gray-500 dark:text-gray-400">
+                              {displayRecord.dispatchDate ? new Date(displayRecord.dispatchDate).toLocaleDateString() : '--'}
+                            </td>
+                            <td className="px-3 py-3">
+                              <span className="inline-flex px-2 py-1 text-xs font-medium bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 rounded-full">
+                                {displayRecord.partyNameMiddleman}
+                              </span>
+                            </td>
+                            <td className="px-3 py-3 text-center">
+                              {isCountProduct ? (
+                                <span className="text-xs text-green-600 dark:text-green-400 font-medium">
+                                  Count Product
+                                </span>
+                              ) : isEditing ? (
+                                <div className="flex items-center justify-center space-x-2">
+                                  <button
+                                    onClick={() => {
+                                      if (!isCountProduct && 'expectedArrivalDate' in displayRecord.originalRecord) {
+                                        handleSaveQuantities(displayRecord.originalRecord as DyeingRecord);
+                                      }
+                                    }}
+                                    disabled={isSaving}
+                                    className={`p-1.5 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 ${
+                                      isSaving
+                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                        : 'bg-green-100 hover:bg-green-200 text-green-700'
+                                    }`}
+                                    title={isSaving ? "Saving..." : "Save Changes"}
+                                  >
+                                    {isSaving ? (
+                                      <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                                    ) : (
+                                      <Check className="w-4 h-4" />
+                                    )}
+                                  </button>
+                                  <button
+                                    onClick={handleCancelEdit}
+                                    disabled={isSaving}
+                                    className={`p-1.5 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 ${
+                                      isSaving
+                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                        : 'bg-red-100 hover:bg-red-200 text-red-700'
+                                    }`}
+                                    title="Cancel Changes"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <FloatingActionDropdown
+                                  onEdit={() => {
+                                    if (!isCountProduct && 'expectedArrivalDate' in displayRecord.originalRecord) {
+                                      handleEdit(displayRecord.originalRecord as DyeingRecord);
+                                    }
+                                  }}
+                                  onDelete={() => {
+                                    if (!isCountProduct && 'expectedArrivalDate' in displayRecord.originalRecord) {
+                                      handleDelete(displayRecord.originalRecord as DyeingRecord);
+                                    }
+                                  }}
+                                  onFollowUp={() => {
+                                    if (!isCountProduct && 'expectedArrivalDate' in displayRecord.originalRecord) {
+                                      handleFollowUp(displayRecord.originalRecord as DyeingRecord);
+                                    }
+                                  }}
+                                  onUpdateQuantities={() => {
+                                    if (!isCountProduct && 'expectedArrivalDate' in displayRecord.originalRecord) {
+                                      handleUpdateQuantities(displayRecord.originalRecord as DyeingRecord);
+                                    }
+                                  }}
+                                />
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="p-6 text-center text-sm text-gray-500 dark:text-gray-400">No dyeing orders yet for this firm. (Synced firm)</div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    });
+  }, [completeFirmListing, expandedFirm, editingRecordId, editValues, isSaving, refreshKey]);
+
   return (
     <div className="min-h-screen p-6 bg-gray-50 dark:bg-gray-900 relative">
       <div className="flex items-center justify-between mb-8">
@@ -781,28 +1225,21 @@ const DyeingOrders: React.FC = () => {
         <div className="flex gap-2">
           <Button 
             onClick={async () => {
-              console.log('🔄 Manual refresh button clicked');
-              setRecords([]);
-              await fetchRecords();
-              await fetchCentralizedDyeingFirms();
+              await dyeingDataStore.loadRecords(true);
+              await dyeingDataStore.loadFirms(true);
               setRefreshKey(prev => prev + 1);
               toast.success('Data refreshed successfully!');
-            }} 
-            disabled={isRefreshing}
+            }}
+            disabled={dyeingDataStore.isLoadingFirms() || dyeingDataStore.isLoadingRecords()}
             variant="outline"
             className="flex items-center gap-2"
           >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${dyeingDataStore.isLoadingFirms() || dyeingDataStore.isLoadingRecords() ? 'animate-spin' : ''}`} />
             Force Refresh
           </Button>
           <Button onClick={handleExportCSV}>Export CSV</Button>
           <Button onClick={handleExportPDF}>Export PDF</Button>
-          <Button onClick={() => { 
-            console.log('Add Dyeing Order button clicked - Current isFormOpen:', isFormOpen); 
-            setOrderToEdit(null); 
-            setIsFormOpen(true); 
-            console.log('isFormOpen set to true - New state should be:', true);
-          }}>+ Add Dyeing Order</Button>
+          <Button onClick={() => { setOrderToEdit(null); setIsFormOpen(true); }}>+ Add Dyeing Order</Button>
         </div>
       </div>
 
@@ -828,17 +1265,13 @@ const DyeingOrders: React.FC = () => {
         </select>
       </div>
 
-      {/* Add Dyeing Order Form - Shows when button is clicked */}
       {isFormOpen && (
         <div className="animate-fadeIn">
           <SimplifiedDyeingOrderForm
             orderToEdit={orderToEdit}
-            onCancel={() => {
-              setIsFormOpen(false);
-              setOrderToEdit(null);
-            }}
+            onCancel={() => { setIsFormOpen(false); setOrderToEdit(null); }}
             onSuccess={handleOrderSuccess}
-            existingFirms={Array.from(new Set(records.map(record => record.dyeingFirm).filter(Boolean)))}
+            existingFirms={centralizedDyeingFirms.map(firm => firm.name)}
           />
         </div>
       )}
@@ -852,178 +1285,189 @@ const DyeingOrders: React.FC = () => {
             </div>
           </div>
         )}
-        {Object.entries(groupedByFirm).map(([firm, firmRecords]) => (
-          <div key={`${firm}-${refreshKey}`} className="overflow-hidden shadow rounded-2xl">
-            <div
-              onClick={() => setExpandedFirm((f) => (f === firm ? null : firm))}
-              className="flex justify-between items-center px-6 py-4 bg-white dark:bg-gray-800 border-b dark:border-gray-700 cursor-pointer hover:bg-purple-50"
-            >
-              <h2 className="text-lg font-semibold text-purple-700 dark:text-purple-400">{firm} ({firmRecords.length})</h2>
-              {expandedFirm === firm ? <ChevronUp /> : <ChevronDown />}
-            </div>
-
-            {expandedFirm === firm && (
-              <div className="overflow-x-auto bg-white dark:bg-gray-800 border-t dark:border-gray-700" id="dyeing-orders-table">
-                <div className="min-w-[1000px]"> {/* Ensure minimum width for horizontal scroll */}
-                  <table className="w-full text-sm">
-                    <thead className="text-gray-600 dark:text-gray-300 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-                      <tr>
-                        <th className="px-4 py-3 text-left font-semibold">Quantity</th>
-                        <th className="px-4 py-3 text-left font-semibold">Customer Name</th>
-                        <th className="px-4 py-3 text-left font-semibold">Sent to Dye</th>
-                        <th className="px-4 py-3 text-left font-semibold">Sent Date</th>
-                        <th className="px-4 py-3 text-left font-semibold">Received</th>
-                        <th className="px-4 py-3 text-left font-semibold">Received Date</th>
-                        <th className="px-4 py-3 text-left font-semibold">Dispatch</th>
-                        <th className="px-4 py-3 text-left font-semibold">Dispatch Date</th>
-                        <th className="px-4 py-3 text-left font-semibold">Party/Middleman</th>
-                        <th className="px-4 py-3 text-center font-semibold">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="text-gray-900 dark:text-white divide-y divide-gray-200 dark:divide-gray-700">
-                      {firmRecords.map((record) => {
-                        const simplifiedRecord = mapToSimplifiedDisplay(record);
-                        const isEditing = editingRecordId === record.id;
-                        
-                        return (
-                          <tr key={`${record.id}-${refreshKey}-${record.updatedAt || ''}`} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150">
-                            <td className="px-4 py-3 font-medium text-blue-600 dark:text-blue-400">
-                              {isEditing ? (
-                                <input
-                                  type="number"
-                                  value={editValues.quantity}
-                                  onChange={(e) => handleEditValueChange('quantity', e.target.value)}
-                                  className="w-20 px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
-                                  step="0.01"
-                                  min="0"
-                                />
-                              ) : (
-                                formatQuantity(simplifiedRecord.quantity)
-                              )}
-                            </td>
-                            <td className="px-4 py-3 font-medium">{simplifiedRecord.customerName}</td>
-                            <td className="px-4 py-3">
-                              {isEditing ? (
-                                <input
-                                  type="number"
-                                  value={editValues.sentQuantity}
-                                  onChange={(e) => handleEditValueChange('sentQuantity', e.target.value)}
-                                  className="w-20 px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
-                                  step="0.01"
-                                  min="0"
-                                />
-                              ) : (
-                                formatQuantity(simplifiedRecord.sentToDye)
-                              )}
-                            </td>
-                            <td className="px-4 py-3">{new Date(simplifiedRecord.sentDate).toLocaleDateString()}</td>
-                            <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
-                              {isEditing ? (
-                                <input
-                                  type="number"
-                                  value={editValues.receivedQuantity}
-                                  onChange={(e) => handleEditValueChange('receivedQuantity', e.target.value)}
-                                  className="w-20 px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
-                                  step="0.01"
-                                  min="0"
-                                />
-                              ) : (
-                                formatQuantity(simplifiedRecord.received)
-                              )}
-                            </td>
-                            <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
-                              {simplifiedRecord.receivedDate ? new Date(simplifiedRecord.receivedDate).toLocaleDateString() : '--'}
-                            </td>
-                            <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
-                              {isEditing ? (
-                                <input
-                                  type="number"
-                                  value={editValues.dispatchQuantity}
-                                  onChange={(e) => handleEditValueChange('dispatchQuantity', e.target.value)}
-                                  className="w-20 px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
-                                  step="0.01"
-                                  min="0"
-                                />
-                              ) : (
-                                formatQuantity(simplifiedRecord.dispatch)
-                              )}
-                            </td>
-                            <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
-                              {simplifiedRecord.dispatchDate ? new Date(simplifiedRecord.dispatchDate).toLocaleDateString() : '--'}
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className="inline-flex px-2 py-1 text-xs font-medium bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 rounded-full">
-                                {simplifiedRecord.partyNameMiddleman}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              {isEditing ? (
-                                <div className="flex items-center justify-center space-x-2">
-                                  <button
-                                    onClick={() => handleSaveQuantities(record)}
-                                    disabled={isSaving}
-                                    className={`p-1.5 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 ${
-                                      isSaving 
-                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-                                        : 'bg-green-100 hover:bg-green-200 text-green-700'
-                                    }`}
-                                    title={isSaving ? "Saving..." : "Save Changes"}
-                                  >
-                                    {isSaving ? (
-                                      <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-                                    ) : (
-                                      <Check className="w-4 h-4" />
-                                    )}
-                                  </button>
-                                  <button
-                                    onClick={handleCancelEdit}
-                                    disabled={isSaving}
-                                    className={`p-1.5 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 ${
-                                      isSaving 
-                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-                                        : 'bg-red-100 hover:bg-red-200 text-red-700'
-                                    }`}
-                                    title="Cancel Changes"
-                                  >
-                                    <X className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              ) : (
-                                <FloatingActionDropdown
-                                  onEdit={() => {
-                                    console.log('📝 Edit clicked for record:', record.id);
-                                    handleEdit(record);
-                                  }}
-                                  onDelete={() => {
-                                    console.log('🗑️ Delete clicked for record:', record.id, 'Party:', record.partyName);
-                                    console.log('🔍 Full record object:', record);
-                                    handleDelete(record);
-                                  }}
-                                  onFollowUp={() => handleFollowUp(record)}
-                                  onUpdateQuantities={() => handleUpdateQuantities(record)}
-                                />
-                              )}
+        {completeFirmListing.map(({ name: firm, records: firmRecords, countProducts: firmCountProducts }) => {
+          const allRecordsForDisplay = [
+            ...firmRecords.map(record => ({ ...mapToSimplifiedDisplay(record), type: 'dyeing', originalRecord: record })),
+            ...firmCountProducts.map(product => ({ ...mapCountProductToSimplifiedDisplay(product), type: 'countProduct', originalRecord: product }))
+          ];
+          return (
+            <div key={`${firm}-${refreshKey}`} className="overflow-hidden shadow rounded-2xl">
+              <div
+                onClick={() => setExpandedFirm((f) => (f === firm ? null : firm))}
+                className="flex justify-between items-center px-6 py-4 bg-white dark:bg-gray-800 border-b dark:border-gray-700 cursor-pointer hover:bg-purple-50"
+              >
+                <h2 className="text-lg font-semibold text-purple-700 dark:text-purple-400">
+                  {firm} ({allRecordsForDisplay.length})
+                  {firmCountProducts.length > 0 && (
+                    <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                      {firmCountProducts.length} from Count Products
+                    </span>
+                  )}
+                </h2>
+                {expandedFirm === firm ? <ChevronUp /> : <ChevronDown />}
+              </div>
+              {expandedFirm === firm && (
+                <div className="overflow-x-auto bg-white dark:bg-gray-800 border-t dark:border-gray-700" id="dyeing-orders-table">
+                  <div className="min-w-[1000px]">
+                    <table className="w-full text-sm">
+                      <thead className="text-gray-600 dark:text-gray-300 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                        <tr>
+                          <th className="px-3 py-3 text-left font-semibold">Quantity</th>
+                          <th className="px-3 py-3 text-left font-semibold">Customer Name</th>
+                          <th className="px-3 py-3 text-left font-semibold">Count</th>
+                          <th className="px-3 py-3 text-left font-semibold">Sent to Dye</th>
+                          <th className="px-3 py-3 text-left font-semibold">Sent Date</th>
+                          <th className="px-3 py-3 text-left font-semibold">Received</th>
+                          <th className="px-3 py-3 text-left font-semibold">Received Date</th>
+                          <th className="px-3 py-3 text-left font-semibold">Dispatch</th>
+                          <th className="px-3 py-3 text-left font-semibold">Dispatch Date</th>
+                          <th className="px-3 py-3 text-left font-semibold">Party/Middleman</th>
+                          <th className="px-3 py-3 text-center font-semibold">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="text-gray-900 dark:text-white divide-y divide-gray-200 dark:divide-gray-700">
+                        {allRecordsForDisplay.length === 0 && (
+                          <tr>
+                            <td colSpan={11} className="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                              No dyeing or count product entries yet for this synced firm.
                             </td>
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                        )}
+                        {allRecordsForDisplay.map((displayRecord, index) => {
+                          const isEditing = (displayRecord.type === 'dyeing' && editingRecordId === displayRecord.id) || 
+                                          (displayRecord.type === 'countProduct' && editingRecordId === (displayRecord.originalRecord as CountProduct).id);
+                          const isCountProduct = displayRecord.type === 'countProduct';
+                          return (
+                            <tr key={`${displayRecord.type}-${displayRecord.id}-${refreshKey}-${index}`} className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 ${isCountProduct ? 'bg-green-50 dark:bg-green-900/20' : ''}`}>
+                              <td className={`px-4 py-3 font-medium ${isCountProduct ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'}`}>
+                                {isEditing ? (
+                                  <input
+                                    type="number"
+                                    value={editValues.quantity}
+                                    onChange={(e) => handleEditValueChange('quantity', e.target.value)}
+                                    className="w-20 px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                                    step="0.01"
+                                    min="0"
+                                  />
+                                ) : (
+                                  <>
+                                    {formatQuantity(displayRecord.quantity)}
+                                    {isCountProduct && <span className="ml-1 text-xs">(CP)</span>}
+                                  </>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 font-medium">{displayRecord.customerName}</td>
+                              <td className="px-3 py-3 text-sm font-medium">{displayRecord.count || "Standard"}</td>
+                              <td className="px-3 py-3">
+                                {isEditing ? (
+                                  <input
+                                    type="number"
+                                    value={editValues.sentQuantity}
+                                    onChange={(e) => handleEditValueChange('sentQuantity', e.target.value)}
+                                    className="w-20 px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                                    step="0.01"
+                                    min="0"
+                                  />
+                                ) : (
+                                  formatQuantity(displayRecord.sentToDye)
+                                )}
+                              </td>
+                              <td className="px-4 py-3">{displayRecord.sentDate ? new Date(displayRecord.sentDate).toLocaleDateString() : '--'}</td>
+                              <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
+                                {isEditing ? (
+                                  <input
+                                    type="number"
+                                    value={editValues.receivedQuantity}
+                                    onChange={(e) => handleEditValueChange('receivedQuantity', e.target.value)}
+                                    className="w-20 px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                                    step="0.01"
+                                    min="0"
+                                  />
+                                ) : (
+                                  formatQuantity(displayRecord.received)
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{displayRecord.receivedDate ? new Date(displayRecord.receivedDate).toLocaleDateString() : '--'}</td>
+                              <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
+                                {isEditing ? (
+                                  <input
+                                    type="number"
+                                    value={editValues.dispatchQuantity}
+                                    onChange={(e) => handleEditValueChange('dispatchQuantity', e.target.value)}
+                                    className="w-20 px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                                    step="0.01"
+                                    min="0"
+                                  />
+                                ) : (
+                                  formatQuantity(displayRecord.dispatch)
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{displayRecord.dispatchDate ? new Date(displayRecord.dispatchDate).toLocaleDateString() : '--'}</td>
+                              <td className="px-4 py-3">
+                                <span className="inline-flex px-2 py-1 text-xs font-medium bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 rounded-full">
+                                  {displayRecord.partyNameMiddleman}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                {isCountProduct ? (
+                                  <FloatingActionDropdown
+                                    onEdit={() => handleCountProductEdit((displayRecord.originalRecord as CountProduct).id)}
+                                    onDelete={() => handleCountProductDelete((displayRecord.originalRecord as CountProduct).id)}
+                                    onFollowUp={() => handleCountProductFollowUp((displayRecord.originalRecord as CountProduct).id)}
+                                    onUpdateQuantities={() => handleCountProductUpdateQuantities((displayRecord.originalRecord as CountProduct).id)}
+                                  />
+                                ) : isEditing ? (
+                                  <div className="flex items-center justify-center space-x-2">
+                                    <button
+                                      onClick={() => {
+                                        if (isCountProduct) {
+                                          handleSaveCountProductQuantities((displayRecord.originalRecord as CountProduct).id);
+                                        } else if ('expectedArrivalDate' in displayRecord.originalRecord) {
+                                          handleSaveQuantities(displayRecord.originalRecord as DyeingRecord);
+                                        }
+                                      }}
+                                      disabled={isSaving}
+                                      className={`p-1.5 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 ${isSaving ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-green-100 hover:bg-green-200 text-green-700'}`}
+                                      title={isSaving ? 'Saving...' : 'Save Changes'}
+                                    >
+                                      {isSaving ? <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div> : <Check className="w-4 h-4" />}
+                                    </button>
+                                    <button
+                                      onClick={handleCancelEdit}
+                                      disabled={isSaving}
+                                      className={`p-1.5 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 ${isSaving ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-red-100 hover:bg-red-200 text-red-700'}`}
+                                      title="Cancel Changes"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <FloatingActionDropdown
+                                    onEdit={() => handleEdit(displayRecord.originalRecord as DyeingRecord)}
+                                    onDelete={() => handleDelete(displayRecord.originalRecord as DyeingRecord)}
+                                    onFollowUp={() => handleFollowUp(displayRecord.originalRecord as DyeingRecord)}
+                                    onUpdateQuantities={() => handleUpdateQuantities(displayRecord.originalRecord as DyeingRecord)}
+                                  />
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-        ))}
+              )}
+            </div>
+          );
+        })}
       </div>
 
       <FollowUpModal
         isOpen={isFollowUpModalOpen}
-        onClose={() => {
-          setIsFollowUpModalOpen(false);
-          setSelectedRecord(null);
-        }}
+        onClose={() => { setIsFollowUpModalOpen(false); setSelectedRecord(null); }}
         dyeingRecord={selectedRecord}
-        onFollowUpAdded={fetchRecords}
+        onFollowUpAdded={async () => await dyeingDataStore.loadRecords(true)}
       />
     </div>
   );

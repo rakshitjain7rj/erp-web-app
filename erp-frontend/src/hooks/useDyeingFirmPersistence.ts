@@ -62,16 +62,11 @@ export const useDyeingFirmPersistence = () => {
         return savedFirms;
       }
       
-      // Final fallback
-      const fallbackFirms = [
-        { id: 1, name: "Rainbow Dyers", isActive: true, createdAt: "", updatedAt: "" },
-        { id: 2, name: "ColorTech Solutions", isActive: true, createdAt: "", updatedAt: "" },
-        { id: 3, name: "Premium Dye Works", isActive: true, createdAt: "", updatedAt: "" }
-      ];
-      
+      // Final fallback REMOVED: leave empty so only real firms are used
+      const fallbackFirms: DyeingFirm[] = [];
       setDyeingFirms(fallbackFirms);
       saveToLocalStorage(fallbackFirms);
-      console.log('🔧 Using fallback firms:', fallbackFirms.map(f => f.name));
+      console.log('🔧 Using empty fallback (no hard-coded firms)');
       return fallbackFirms;
     } finally {
       setIsLoading(false);

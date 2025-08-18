@@ -29,15 +29,26 @@ const User = sequelize.define('User', {
     allowNull: false,
     defaultValue: 'storekeeper',
   },
-  // status: {
-  //   type: DataTypes.ENUM('active', 'inactive'),
-  //   allowNull: false,
-  //   defaultValue: 'active',
-  // },
+  status: {
+    type: DataTypes.ENUM('active', 'inactive'),
+    allowNull: false,
+    defaultValue: 'active',
+  },
   loginHistory: {
-    type: DataTypes.JSONB,
+    type: DataTypes.TEXT, // Change from JSONB to TEXT to avoid casting issues
     allowNull: true,
-    defaultValue: [], // Example: [{ timestamp: '...', ip: '...' }]
+    defaultValue: '[]', // Store as JSON string
+    get() {
+      const rawValue = this.getDataValue('loginHistory');
+      try {
+        return JSON.parse(rawValue || '[]');
+      } catch {
+        return [];
+      }
+    },
+    set(value) {
+      this.setDataValue('loginHistory', JSON.stringify(value || []));
+    }
   }
 }, {
   tableName: 'Users',

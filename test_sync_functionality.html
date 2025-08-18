@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sync Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .section { border: 1px solid #ccc; margin: 10px 0; padding: 15px; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        .log { background: #f5f5f5; padding: 10px; margin: 10px 0; max-height: 200px; overflow-y: auto; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Dyeing Firm Synchronization Test</h1>
+        
+        <div class="section">
+            <h2>Test Actions</h2>
+            <button onclick="testLoadFirms()">Load Firms</button>
+            <button onclick="testSyncEvent()">Trigger Sync Event</button>
+            <button onclick="clearLog()">Clear Log</button>
+        </div>
+
+        <div class="section">
+            <h2>Sync Log</h2>
+            <div id="log" class="log"></div>
+        </div>
+
+        <div class="section">
+            <h2>Current Firms</h2>
+            <div id="firms-list"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5000/api';
+        
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : '';
+            logDiv.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        async function testLoadFirms() {
+            try {
+                log('🔄 Loading firms from API...');
+                const response = await fetch(`${API_BASE}/dyeing-firms`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                log(`✅ Loaded ${data.data.length} firms successfully`, 'success');
+                
+                // Display firms
+                const firmsList = document.getElementById('firms-list');
+                firmsList.innerHTML = data.data.map(firm => 
+                    `<div>📍 ${firm.name} (ID: ${firm.id}) - ${firm.contactPerson}</div>`
+                ).join('');
+                
+                return data.data;
+            } catch (error) {
+                log(`❌ Error loading firms: ${error.message}`, 'error');
+                return [];
+            }
+        }
+
+        function testSyncEvent() {
+            log('🔄 Testing sync event dispatch...');
+            
+            // Create a custom event to test sync functionality
+            const syncEvent = new CustomEvent('FIRMS_UPDATED', {
+                detail: { source: 'test', timestamp: Date.now() }
+            });
+            
+            window.dispatchEvent(syncEvent);
+            log('✅ Sync event dispatched', 'success');
+        }
+
+        // Listen for sync events
+        window.addEventListener('FIRMS_UPDATED', (event) => {
+            log(`🔔 Received FIRMS_UPDATED event from: ${event.detail?.source || 'unknown'}`, 'success');
+        });
+
+        window.addEventListener('FIRM_ADDED', (event) => {
+            log(`🔔 Received FIRM_ADDED event: ${JSON.stringify(event.detail)}`, 'success');
+        });
+
+        window.addEventListener('FIRM_EDITED', (event) => {
+            log(`🔔 Received FIRM_EDITED event: ${JSON.stringify(event.detail)}`, 'success');
+        });
+
+        // Test localStorage sync
+        window.addEventListener('storage', (event) => {
+            if (event.key === 'dyeingFirms') {
+                log(`🔔 LocalStorage updated: ${event.key}`, 'success');
+            }
+        });
+
+        // Initial load
+        window.addEventListener('load', () => {
+            log('🚀 Sync test page loaded');
+            testLoadFirms();
+        });
+    </script>
+</body>
+</html>

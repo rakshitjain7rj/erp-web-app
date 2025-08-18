@@ -43,6 +43,7 @@ export interface SimplifiedDyeingDisplayRecord {
   id: number;
   quantity: number;           // Total quantity ordered
   customerName: string;       // Customer/client name  
+  count: string;             // Count value (e.g., "20s", "30s", "Standard")
   sentToDye: number;         // Quantity sent to dyeing firm
   sentDate: string;          // Date when sent to dyeing
   received?: number;         // Quantity received back (optional)

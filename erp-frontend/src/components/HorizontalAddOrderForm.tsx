@@ -19,6 +19,7 @@ import {
   getAllPartyNames, 
   createParty 
 } from "../api/partyApi";
+import { dyeingDataStore } from '../stores/dyeingDataStore';
 
 interface HorizontalAddOrderFormProps {
   onSuccess: (newProduct: any) => void;
@@ -30,6 +31,7 @@ interface HorizontalAddOrderFormProps {
 interface FormData {
   quantity: string;
   customerName: string;
+  count: string; // Add count field
   sentToDye: string;
   sentDate: string;
   received: string;
@@ -38,6 +40,7 @@ interface FormData {
   dispatchDate: string;
   partyName: string;
   dyeingFirm: string;
+  remarks: string; // new
 }
 
 interface FormErrors {
@@ -56,6 +59,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
       return {
         quantity: productToEdit.quantity.toString(),
         customerName: productToEdit.customerName || "",
+        count: (productToEdit as any).count || "", // Empty by default, no pre-filled value
         sentToDye: productToEdit.quantity.toString(),
         sentDate: productToEdit.sentDate ? new Date(productToEdit.sentDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
         received: productToEdit.receivedQuantity ? productToEdit.receivedQuantity.toString() : "",
@@ -63,12 +67,14 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
         dispatch: productToEdit.dispatchQuantity ? productToEdit.dispatchQuantity.toString() : "",
         dispatchDate: productToEdit.dispatchDate ? new Date(productToEdit.dispatchDate).toISOString().split('T')[0] : "",
         partyName: productToEdit.partyName || "",
-        dyeingFirm: productToEdit.dyeingFirm || ""
+        dyeingFirm: productToEdit.dyeingFirm || "",
+        remarks: (productToEdit as any).remarks || "" // populate remarks if present
       };
     }
     return {
       quantity: "",
       customerName: "",
+      count: "", // Empty by default so users can type directly
       sentToDye: "",
       sentDate: new Date().toISOString().split('T')[0],
       received: "",
@@ -76,7 +82,8 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
       dispatch: "",
       dispatchDate: "",
       partyName: "",
-      dyeingFirm: ""
+      dyeingFirm: "",
+      remarks: ""
     };
   };
 
@@ -93,6 +100,9 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
   // Data state
   const [dyeingFirms, setDyeingFirms] = useState<DyeingFirm[]>([]);
   const [partyOptions, setPartyOptions] = useState<string[]>([]);
+  // Track selected existing firm for potential rename
+  const [selectedFirmId, setSelectedFirmId] = useState<number | null>(null);
+  const [selectedFirmOriginalName, setSelectedFirmOriginalName] = useState<string>("");
 
   // Fetch both dyeing firms and parties on mount
   useEffect(() => {
@@ -134,14 +144,9 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
         }
       } catch (error) {
         console.error("Failed to fetch dyeing firms:", error);
-        const fallbackFirms = [
-          { id: 1, name: "Rainbow Dyers", isActive: true, createdAt: "", updatedAt: "" },
-          { id: 2, name: "ColorTech Solutions", isActive: true, createdAt: "", updatedAt: "" },
-          { id: 3, name: "Premium Dye Works", isActive: true, createdAt: "", updatedAt: "" }
-        ];
-        setDyeingFirms(fallbackFirms);
-        // Save fallback to localStorage
-        localStorage.setItem('dyeingFirms', JSON.stringify(fallbackFirms));
+        // REMOVE hard-coded fallback; leave empty so only real firms appear
+        setDyeingFirms([]);
+        localStorage.removeItem('dyeingFirms');
       }
 
       // Fetch party names
@@ -176,6 +181,31 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
     fetchInitialData();
   }, []);
 
+  // Subscribe to centralized firm updates so new firms from other pages appear live
+  useEffect(() => {
+    let unsubscribe: (() => void) | null = null;
+    
+    const setupSubscription = async () => {
+      try {
+        unsubscribe = await dyeingDataStore.subscribeFirms((firms) => {
+          console.log('📡 HorizontalAddOrderForm received firm sync update:', firms.map(f => f.name));
+          setDyeingFirms(firms);
+          try { localStorage.setItem('dyeingFirms', JSON.stringify(firms)); } catch {}
+        });
+      } catch (error) {
+        console.error('❌ Error setting up firm subscription:', error);
+      }
+    };
+    
+    setupSubscription();
+    
+    return () => {
+      if (unsubscribe && typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, []);
+
   // Validation
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
@@ -185,6 +215,9 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
     }
     if (!formData.customerName.trim()) {
       newErrors.customerName = "Customer name is required";
+    }
+    if (!formData.count.trim()) {
+      newErrors.count = "Count is required";
     }
     // sentToDye is optional, but if provided should be positive
     if (formData.sentToDye.trim() && parseFloat(formData.sentToDye) <= 0) {
@@ -214,22 +247,22 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
   // Handle creating new dyeing firm
   const handleCreateDyeingFirm = async (firmName: string) => {
     try {
-      const newFirmData: CreateDyeingFirmRequest = {
-        name: firmName
-      };
-      
+      const newFirmData: CreateDyeingFirmRequest = { name: firmName };
       const createdFirm = await createDyeingFirm(newFirmData);
       
-      // Add the new firm to the local state
+      // Update local state
       setDyeingFirms(prev => [...prev, createdFirm]);
       
-      // Select the newly created firm
-      handleInputChange('dyeingFirm', createdFirm.name);
-      setShowFirmDropdown(false);
+      // Note: Using unified store now - sync handled automatically
       
-      toast.success(`Dyeing firm "${firmName}" created successfully!`);
+      handleInputChange('dyeingFirm', createdFirm.name);
+      setSelectedFirmId(createdFirm.id);
+      setSelectedFirmOriginalName(createdFirm.name);
+      setShowFirmDropdown(false);
+      toast.success(`Dyeing firm "${firmName}" created and synced to all pages!`);
     } catch (error) {
       console.error("Failed to create dyeing firm:", error);
+      // Do not inject hard-coded fallback lists; just warn.
       toast.error("Failed to create dyeing firm. Please try again.");
     }
   };
@@ -260,59 +293,19 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
   // Check and auto-save new dyeing firm if not exists
   const ensureDyeingFirmExists = async (firmName: string) => {
     if (!firmName || firmName.trim() === "") return;
+    const trimmed = firmName.trim();
     
-    const existingFirm = dyeingFirms.find(firm => 
-      firm.name.toLowerCase() === firmName.toLowerCase()
-    );
-    
-    if (!existingFirm) {
-      console.log(`🏭 Auto-creating new dyeing firm: ${firmName}`);
-      try {
-        // Use findOrCreateDyeingFirm to avoid duplicates
-        const response = await findOrCreateDyeingFirm({ name: firmName.trim() });
-        const createdFirm = response.data;
-        
-        // Add the new firm to the local state if it's not already there
-        setDyeingFirms(prev => {
-          const exists = prev.some(f => f.id === createdFirm.id);
-          if (!exists) {
-            const updatedFirms = [...prev, createdFirm];
-            // Save to localStorage immediately for persistence
-            localStorage.setItem('dyeingFirms', JSON.stringify(updatedFirms));
-            console.log('💾 Saved updated firms to localStorage');
-            return updatedFirms;
-          }
-          return prev;
-        });
-        
-        console.log(`✅ Dyeing firm ${response.created ? 'created' : 'found'} and saved: ${firmName}`, createdFirm);
-        toast.success(`Dyeing firm "${firmName}" ${response.created ? 'created and saved' : 'found'} in database!`);
-        return createdFirm;
-      } catch (error) {
-        console.error("Failed to auto-create dyeing firm:", error);
-        // Create a fallback firm for local state to prevent form blocking
-        const fallbackFirm: DyeingFirm = {
-          id: Date.now(), // Temporary ID
-          name: firmName.trim(),
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-        
-        setDyeingFirms(prev => {
-          const updatedFirms = [...prev, fallbackFirm];
-          // Save fallback to localStorage as well
-          localStorage.setItem('dyeingFirms', JSON.stringify(updatedFirms));
-          console.log('💾 Saved fallback firm to localStorage');
-          return updatedFirms;
-        });
-        
-        console.log(`⚠️ Created fallback firm for local state: ${firmName}`);
-        toast.warning(`Dyeing firm "${firmName}" saved locally (backend connection failed)`);
-        return fallbackFirm;
-      }
+    try {
+      const createdFirm = await dyeingDataStore.ensureFirm(trimmed);
+      setSelectedFirmId(createdFirm.id);
+      setSelectedFirmOriginalName(createdFirm.name);
+      toast.success(`Firm "${trimmed}" ensured in store!`);
+      return createdFirm;
+    } catch (error) {
+      console.error("Failed to ensure dyeing firm exists:", error);
+      toast.error(`Failed to save firm "${trimmed}"`);
+      return null;
     }
-    return existingFirm;
   };
 
   // Check and auto-save new party if not exists
@@ -385,7 +378,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
           dispatch: formData.dispatch ? parseFloat(formData.dispatch) > 0 : false,
           dispatchDate: formData.dispatchDate || undefined,
           middleman: formData.partyName || "Direct",
-          remarks: `Updated via horizontal form - Customer: ${formData.customerName}`
+          remarks: formData.remarks?.trim() || ''
         };
         
         console.log('📦 Updating count product with data:', updateData);
@@ -393,9 +386,13 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
         const updatedProduct = await updateCountProduct(productToEdit.id, updateData);
         console.log('✅ Count product updated successfully:', updatedProduct);
         
-        // Call success callback
-        console.log('📞 Calling success callback with updated product:', updatedProduct);
-        onSuccess(updatedProduct);
+        // Call success callback with enhanced data including dyeing firm
+        const successData = {
+          ...updatedProduct,
+          dyeingFirm: formData.dyeingFirm // Ensure dyeing firm is available for sync
+        };
+        console.log('📞 Calling success callback with enhanced updated product data:', successData);
+        onSuccess(successData);
         toast.success("Dyeing order updated successfully!");
         
         console.log('🎉 Form update completed successfully');
@@ -405,16 +402,16 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
           partyName: formData.partyName || "Direct",
           dyeingFirm: formData.dyeingFirm,
           yarnType: "Mixed", // Default value
-          count: "Standard", // Default value
+          count: formData.count || "Standard", // Use form count value
           shade: "As Required", // Default value
           quantity: parseFloat(formData.quantity),
           completedDate: new Date().toISOString().split('T')[0],
           qualityGrade: "A", // Default grade
-          remarks: `Added via horizontal form - Customer: ${formData.customerName}`,
-          lotNumber: `HOR-${Date.now()}`, // Generate lot number
+          remarks: formData.remarks?.trim() || '',
+          lotNumber: `HOR-${Date.now()}`,
           processedBy: "System",
           customerName: formData.customerName,
-          sentToDye: true, // Always true when form is submitted
+          sentToDye: true,
           sentDate: formData.sentDate,
           received: formData.received ? parseFloat(formData.received) > 0 : false,
           receivedDate: formData.receivedDate || undefined,
@@ -430,9 +427,13 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
         const createdProduct = await createCountProduct(newCountProductData);
         console.log('✅ Count product created successfully:', createdProduct);
         
-        // Call success callback
-        console.log('📞 Calling success callback with product:', createdProduct);
-        onSuccess(createdProduct);
+        // Call success callback with enhanced data including dyeing firm
+        const successData = {
+          ...createdProduct,
+          dyeingFirm: formData.dyeingFirm // Ensure dyeing firm is available for sync
+        };
+        console.log('📞 Calling success callback with enhanced product data:', successData);
+        onSuccess(successData);
         toast.success("Dyeing order added successfully!");
         
         console.log('🎉 Form submission completed successfully');
@@ -443,6 +444,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
         setFormData({
           quantity: "",
           customerName: "",
+          count: "", // Empty by default
           sentToDye: "",
           sentDate: new Date().toISOString().split('T')[0],
           received: "",
@@ -450,7 +452,8 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
           dispatch: "",
           dispatchDate: "",
           partyName: "",
-          dyeingFirm: ""
+          dyeingFirm: "",
+          remarks: ""
         });
         setErrors({});
       }
@@ -486,7 +489,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
             dispatch: formData.dispatch ? parseFloat(formData.dispatch) > 0 : false,
             dispatchDate: formData.dispatchDate || "",
             middleman: formData.partyName || "Direct",
-            remarks: `Updated via horizontal form - Customer: ${formData.customerName}`
+            remarks: formData.remarks?.trim() || ''
           };
           
           console.log('📞 Calling success callback with demo updated product:', mockUpdatedProduct);
@@ -501,12 +504,12 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
             partyName: formData.partyName || "Direct",
             dyeingFirm: formData.dyeingFirm,
             yarnType: "Mixed",
-            count: "Standard",
+            count: formData.count || "Standard", // Use form count value
             shade: "As Required",
             quantity: parseFloat(formData.quantity),
             completedDate: new Date().toISOString().split('T')[0],
             qualityGrade: "A" as const,
-            remarks: `Added via horizontal form - Customer: ${formData.customerName}`,
+            remarks: formData.remarks?.trim() || '',
             lotNumber: `HOR-${Date.now()}`,
             processedBy: "System",
             customerName: formData.customerName,
@@ -533,6 +536,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
           setFormData({
             quantity: "",
             customerName: "",
+            count: "", // Empty by default
             sentToDye: "",
             sentDate: new Date().toISOString().split('T')[0],
             received: "",
@@ -540,7 +544,8 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
             dispatch: "",
             dispatchDate: "",
             partyName: "",
-            dyeingFirm: ""
+            dyeingFirm: "",
+            remarks: ""
           });
           setErrors({});
         }
@@ -566,6 +571,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
     setFormData({
       quantity: "",
       customerName: "",
+      count: "", // Empty by default
       sentToDye: "",
       sentDate: new Date().toISOString().split('T')[0],
       received: "",
@@ -573,7 +579,8 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
       dispatch: "",
       dispatchDate: "",
       partyName: "",
-      dyeingFirm: ""
+      dyeingFirm: "",
+      remarks: ""
     });
     setErrors({});
   };
@@ -622,7 +629,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
       
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* First Row - Required Fields */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Quantity */}
           <div className="space-y-1">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block">
@@ -664,6 +671,27 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
             />
             {errors.customerName && (
               <p className="text-xs text-red-500">{errors.customerName}</p>
+            )}
+          </div>
+
+          {/* Count */}
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block">
+              Count *
+            </label>
+            <input
+              type="text"
+              value={formData.count}
+              onChange={(e) => handleInputChange('count', e.target.value)}
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors ${
+                errors.count 
+                  ? 'border-red-500 focus:ring-red-500' 
+                  : 'border-gray-300 dark:border-gray-600'
+              }`}
+              placeholder="e.g. 20s, 30s, Standard"
+            />
+            {errors.count && (
+              <p className="text-xs text-red-500">{errors.count}</p>
             )}
           </div>
 
@@ -816,6 +844,8 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
                         className="px-3 py-2 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 text-gray-900 dark:text-white"
                         onMouseDown={() => {
                           handleInputChange('dyeingFirm', firm.name);
+                          setSelectedFirmId(firm.id);
+                          setSelectedFirmOriginalName(firm.name);
                           setShowFirmDropdown(false);
                         }}
                       >
@@ -936,6 +966,20 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
               )}
             </div>
           </div>
+        </div>
+
+        {/* Remarks field */}
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Remarks
+          </label>
+          <textarea
+            value={formData.remarks}
+            onChange={(e)=>handleInputChange('remarks', e.target.value)}
+            className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            placeholder="Enter any additional notes"
+            rows={3}
+          />
         </div>
 
         {/* Action Buttons */}

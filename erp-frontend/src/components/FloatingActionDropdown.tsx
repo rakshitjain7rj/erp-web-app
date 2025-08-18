@@ -107,7 +107,12 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({
             <div className="min-w-[192px] rounded-lg bg-white dark:bg-gray-800 shadow-xl ring-1 ring-black ring-opacity-5 border border-gray-200 dark:border-gray-600 overflow-hidden">
               <div className="py-1" role="menu" aria-orientation="vertical">
                 <button
-                  onClick={() => handleActionClick(onEdit)}
+                  onClick={() => {
+                    console.log('🚨🖊️ EDIT BUTTON CLICKED IN DROPDOWN');
+                    console.log('🔍 onEdit function:', onEdit);
+                    console.log('🔍 onEdit type:', typeof onEdit);
+                    handleActionClick(onEdit);
+                  }}
                   className="flex items-center w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700"
                   role="menuitem"
                 >
@@ -117,7 +122,12 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({
 
                 {onUpdateQuantities && (
                   <button
-                    onClick={() => handleActionClick(onUpdateQuantities)}
+                    onClick={() => {
+                      console.log('🚨📊 UPDATE QUANTITIES BUTTON CLICKED IN DROPDOWN');
+                      console.log('🔍 onUpdateQuantities function:', onUpdateQuantities);
+                      console.log('🔍 onUpdateQuantities type:', typeof onUpdateQuantities);
+                      handleActionClick(onUpdateQuantities);
+                    }}
                     className="flex items-center w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700"
                     role="menuitem"
                   >
@@ -128,9 +138,9 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({
                 
                 <button
                   onClick={() => {
-                    console.log('🗑️ FloatingActionDropdown: Delete button clicked');
-                    console.log('🔍 onDelete function type:', typeof onDelete);
+                    console.log('��🗑️ DELETE BUTTON CLICKED IN DROPDOWN');
                     console.log('🔍 onDelete function:', onDelete);
+                    console.log('🔍 onDelete type:', typeof onDelete);
                     handleActionClick(onDelete);
                   }}
                   className="flex items-center w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700"
@@ -143,7 +153,12 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({
                 <div className="border-t border-gray-200 dark:border-gray-600 my-1" />
                 
                 <button
-                  onClick={() => handleActionClick(onFollowUp)}
+                  onClick={() => {
+                    console.log('🚨📋 FOLLOW-UP BUTTON CLICKED IN DROPDOWN');
+                    console.log('🔍 onFollowUp function:', onFollowUp);
+                    console.log('🔍 onFollowUp type:', typeof onFollowUp);
+                    handleActionClick(onFollowUp);
+                  }}
                   className="flex items-center w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700"
                   role="menuitem"
                 >

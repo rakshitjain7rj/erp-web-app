@@ -6,7 +6,7 @@ const API_BASE = "/api/inventory";
 
 // Create axios instance with better error handling
 const api = axios.create({
-  timeout: 10000, // 10 second timeout
+  timeout: 30000, // Increased to 30 seconds
 });
 
 // Add response interceptor for better error handling

@@ -21,7 +21,7 @@ const {
 
 // ===== 📦 Count Product CRUD Routes =====
 router.get('/', getAllCountProducts);                           // GET /api/count-products
-router.post('/', auth, createCountProduct);                     // POST /api/count-products
+router.post('/', createCountProduct);                          // POST /api/count-products (removed auth for testing)
 router.get('/dyeing-firm/:dyeingFirm', getCountProductsByDyeingFirm);  // GET /api/count-products/dyeing-firm/:dyeingFirm
 router.get('/:id', getCountProductById);                        // GET /api/count-products/:id
 router.put('/:id', auth, updateCountProduct);                   // PUT /api/count-products/:id

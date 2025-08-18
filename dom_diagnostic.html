@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DOM Diagnostic</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .status { padding: 10px; margin: 5px 0; border-radius: 4px; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+    </style>
+</head>
+<body>
+    <h1>DOM Diagnostic</h1>
+    <div id="results"></div>
+
+    <script>
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `status ${type}`;
+            div.textContent = message;
+            document.getElementById('results').appendChild(div);
+        }
+
+        function runDiagnostics() {
+            log('🔍 Running DOM diagnostics...', 'info');
+            
+            // Check document ready state
+            log(`📄 Document ready state: ${document.readyState}`, 'info');
+            
+            // Check if document.body exists
+            if (document.body) {
+                log('✅ document.body exists', 'success');
+            } else {
+                log('❌ document.body is null', 'error');
+            }
+            
+            // Check if root element exists
+            const rootEl = document.getElementById('root');
+            if (rootEl) {
+                log('✅ Root element found', 'success');
+            } else {
+                log('❌ Root element not found', 'error');
+            }
+            
+            // Test appendChild functionality
+            try {
+                const testDiv = document.createElement('div');
+                testDiv.style.display = 'none';
+                document.body.appendChild(testDiv);
+                document.body.removeChild(testDiv);
+                log('✅ appendChild/removeChild working', 'success');
+            } catch (error) {
+                log(`❌ appendChild error: ${error.message}`, 'error');
+            }
+            
+            // Check for any global errors
+            window.addEventListener('error', (event) => {
+                log(`❌ Global error: ${event.error.message}`, 'error');
+            });
+            
+            log('🎯 Diagnostics complete', 'info');
+        }
+
+        // Run diagnostics when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', runDiagnostics);
+        } else {
+            runDiagnostics();
+        }
+    </script>
+</body>
+</html>

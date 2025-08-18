@@ -71,65 +71,6 @@ async function createDyeingFirmsTable() {
     `);
     console.log('✅ Indexes created');
 
-    console.log('\n5. 📥 Inserting sample dyeing firms...');
-    
-    // Insert sample dyeing firms (commonly used ones)
-    const sampleFirms = [
-      {
-        name: 'Rainbow Dyers',
-        contactPerson: 'Rajesh Kumar',
-        phoneNumber: '+91-9876543210',
-        email: 'contact@rainbowdyers.com',
-        address: 'Industrial Area, Sector 15, Gurgaon, Haryana',
-        notes: 'Specialized in cotton and silk dyeing'
-      },
-      {
-        name: 'ColorTech Solutions',
-        contactPerson: 'Priya Sharma',
-        phoneNumber: '+91-9876543211',
-        email: 'info@colortech.in',
-        address: 'Textile Hub, Coimbatore, Tamil Nadu',
-        notes: 'Advanced chemical dyeing techniques'
-      },
-      {
-        name: 'Premium Dye Works',
-        contactPerson: 'Amit Patel',
-        phoneNumber: '+91-9876543212',
-        email: 'sales@premiumdye.co.in',
-        address: 'Dyeing Complex, Surat, Gujarat',
-        notes: 'High-quality fabric dyeing and finishing'
-      },
-      {
-        name: 'Elite Textile Dyeing',
-        contactPerson: 'Sunita Gupta',
-        phoneNumber: '+91-9876543213',
-        email: 'elite@textiledye.net',
-        address: 'Industrial Estate, Ludhiana, Punjab',
-        notes: 'Eco-friendly dyeing processes'
-      },
-      {
-        name: 'Modern Dye House',
-        contactPerson: 'Vikram Singh',
-        phoneNumber: '+91-9876543214',
-        email: 'modern@dyehouse.com',
-        address: 'Textile Park, Erode, Tamil Nadu',
-        notes: 'State-of-the-art dyeing facility'
-      }
-    ];
-
-    for (const firm of sampleFirms) {
-      const insertResult = await client.query(`
-        INSERT INTO "DyeingFirms" 
-        ("name", "contactPerson", "phoneNumber", "email", "address", "isActive", "notes", "createdAt", "updatedAt")
-        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
-        RETURNING *
-      `, [
-        firm.name, firm.contactPerson, firm.phoneNumber, 
-        firm.email, firm.address, true, firm.notes
-      ]);
-      console.log(`   ✅ Created: ${insertResult.rows[0].name}`);
-    }
-
     console.log('\n6. 🧪 Testing table operations...');
     
     // Test search functionality

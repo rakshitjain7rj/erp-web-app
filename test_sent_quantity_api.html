@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Count Product API</title>
+</head>
+<body>
+    <h1>Count Product API Test</h1>
+    <button onclick="testFetch()">Test Fetch Count Products</button>
+    <button onclick="testSentQuantity()">Test Update with Sent Quantity</button>
+    <div id="results"></div>
+
+    <script>
+        const API_BASE = 'http://localhost:5000/api';
+
+        async function testFetch() {
+            try {
+                const response = await fetch(`${API_BASE}/count-products`);
+                const data = await response.json();
+                document.getElementById('results').innerHTML = '<h3>Fetch Results:</h3><pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                console.log('Count Products:', data);
+            } catch (error) {
+                document.getElementById('results').innerHTML = '<h3>Error:</h3>' + error.message;
+                console.error('Error:', error);
+            }
+        }
+
+        async function testSentQuantity() {
+            try {
+                // First fetch existing data
+                const fetchResponse = await fetch(`${API_BASE}/count-products`);
+                const products = await fetchResponse.json();
+                
+                if (products.length > 0) {
+                    const product = products[0];
+                    
+                    // Update with different quantity and sentQuantity
+                    const updateData = {
+                        quantity: 100,
+                        sentQuantity: 75,
+                        sentToDye: true
+                    };
+                    
+                    const response = await fetch(`${API_BASE}/count-products/${product.id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(updateData)
+                    });
+                    
+                    const updatedProduct = await response.json();
+                    document.getElementById('results').innerHTML = '<h3>Update Results:</h3><pre>' + JSON.stringify(updatedProduct, null, 2) + '</pre>';
+                    console.log('Updated Product:', updatedProduct);
+                } else {
+                    document.getElementById('results').innerHTML = '<h3>No products found to update</h3>';
+                }
+            } catch (error) {
+                document.getElementById('results').innerHTML = '<h3>Error:</h3>' + error.message;
+                console.error('Error:', error);
+            }
+        }
+    </script>
+</body>
+</html>

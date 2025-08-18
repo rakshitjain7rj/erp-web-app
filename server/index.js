@@ -72,7 +72,13 @@ app.use(cors({
   origin: [
     process.env.CORS_ORIGIN || 'http://localhost:3000',
     'http://localhost:5173',
-    'http://localhost:5174'
+    'http://localhost:5174',
+    'http://localhost:5175',
+    'http://localhost:5176',
+    'http://localhost:5177',
+    'http://localhost:5178',
+    'http://localhost:5179',
+    'http://localhost:5180'
   ],
   credentials: true,
 }));
@@ -207,14 +213,25 @@ connectPostgres()
         await ASUProductionEntry.sync({ alter: true }); // This will create/update the ASU Production Entries table
         console.log('✅ ASU Production Entries table synced');
         
-        await Machine.sync({ alter: true }); // This will create/update the Machines table
-        console.log('✅ Machines table synced');
+        // Sync Machine table with error handling for enum issues
+        try {
+          await Machine.sync({ alter: true }); // This will create/update the Machines table
+          console.log('✅ Machines table synced');
+        } catch (machineError) {
+          console.warn('⚠️ Machines table sync error (continuing):', machineError.message);
+        }
         
         await DyeingRecord.sync({ alter: true }); // This will create/update the Dyeing Records table
         console.log('✅ Dyeing Records table synced');
         
         await DyeingFollowUp.sync({ alter: true }); // This will create/update the Dyeing Follow Up table
         console.log('✅ Dyeing Follow Up table synced');
+        
+        await CountProduct.sync({ alter: true }); // This will create/update the Count Products table
+        console.log('✅ Count Products table synced');
+        
+        await DyeingFirm.sync({ alter: true }); // This will create/update the Dyeing Firms table
+        console.log('✅ Dyeing Firms table synced');
         
         // Sync CountProductFollowUp table
         try {
@@ -241,7 +258,7 @@ connectPostgres()
       console.log(`📦 Inventory API: http://localhost:${PORT}/api/inventory`);
       console.log(`🏢 Party API: http://localhost:${PORT}/api/parties`);
       console.log(`🧪 Test API route: http://localhost:${PORT}/api/test`);
-      console.log(`🔧 CORS enabled for: http://localhost:5173, http://localhost:5174`);
+      console.log(`🔧 CORS enabled for: http://localhost:5173, http://localhost:5174, http://localhost:5175, http://localhost:5176, http://localhost:5177, http://localhost:5178, http://localhost:5179, http://localhost:5180`);
     });
   })
   .catch((err) => {
@@ -253,6 +270,6 @@ connectPostgres()
       console.log(`🚀 Server running on port ${PORT} (without database)`);
       console.log(`📡 API endpoints available at http://localhost:${PORT}/api`);
       console.log(`🧪 Test API route: http://localhost:${PORT}/api/test`);
-      console.log(`🔧 CORS enabled for: http://localhost:5173, http://localhost:5174`);
+      console.log(`🔧 CORS enabled for: http://localhost:5173, http://localhost:5174, http://localhost:5175, http://localhost:5176, http://localhost:5177, http://localhost:5178, http://localhost:5179, http://localhost:5180`);
     });
   });

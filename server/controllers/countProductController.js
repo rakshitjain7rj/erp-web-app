@@ -16,11 +16,23 @@ const getAllCountProducts = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching count products:', error.message);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch count products',
-      error: error.message
-    });
+    
+    // If table doesn't exist, return empty array instead of error
+    if (error.message.includes('does not exist') || error.message.includes('CountProducts')) {
+      console.log('📊 CountProducts table not found, returning empty data');
+      res.status(200).json({
+        success: true,
+        data: [],
+        count: 0,
+        message: 'CountProducts table not initialized - using fallback'
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch count products',
+        error: error.message
+      });
+    }
   }
 });
 

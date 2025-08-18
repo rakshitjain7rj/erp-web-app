@@ -58,6 +58,16 @@ const CountProduct = sequelize.define('CountProduct', {
       }
     }
   },
+  sentQuantity: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: true,
+    validate: {
+      min: {
+        args: [0],
+        msg: 'Sent quantity must be positive'
+      }
+    }
+  },
   completedDate: {
     type: DataTypes.DATEONLY,
     allowNull: false,

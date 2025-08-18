@@ -13,7 +13,7 @@ const API_BASE_URL = "http://localhost:5000/api/dyeing";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 30000, // Increased to 30 seconds
   headers: { "Content-Type": "application/json" },
 });
 
@@ -29,7 +29,13 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    console.error("API Error:", error.response?.data || error.message);
+    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+      console.error("API Timeout Error - Server may be overloaded:", error.message);
+    } else if (error.response?.status === 429) {
+      console.error("API Rate Limit Error - Too many requests:", error.response?.data);
+    } else {
+      console.error("API Error:", error.response?.data || error.message);
+    }
     return Promise.reject(error);
   }
 );
