@@ -1203,50 +1203,7 @@ const DailyProduction: React.FC = () => {
                       </div>
                     </div>
                     
-                    {/* Production@100
-
-                    <div className="lg:col-span-2">
-                      <div className="p-4 mb-5 border border-green-100 rounded-lg bg-gradient-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20 dark:border-green-800/30">
-                        <h4 className="mb-2 text-sm font-semibold text-green-800 dark:text-green-300">Production Summary</h4>
-                        <div className="grid grid-cols-2 gap-3 text-sm">
-                          <div className="flex items-center gap-2">
-                            <span className="p-1 bg-green-100 rounded-full dark:bg-green-800/30">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-green-700 dark:text-green-300" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                              </svg>
-                            </span>
-                            <span className="font-medium text-gray-700 dark:text-gray-300">
-                              Total: <span className="font-bold text-green-700 dark:text-green-300">
-                                {calculateTotal(formData.dayShift, formData.nightShift).toFixed(2)} kg
-                              </span>
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="p-1 bg-green-100 rounded-full dark:bg-green-800/30">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-green-700 dark:text-green-300" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd" />
-                              </svg>
-                            </span>
-                            <span className="font-medium text-gray-700 dark:text-gray-300">
-                              Efficiency: <span className="font-bold text-green-700 dark:text-green-300">
-                                {calculatePercentage(calculateTotal(formData.dayShift, formData.nightShift), Number(selectedMachine?.productionAt100) || 0).toFixed(1)}%
-                              </span>
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="lg:col-span-2">
-                      <Button 
-                        type="submit" 
-                        className="flex items-center justify-center w-full px-3 py-2 font-medium text-white rounded-md bg-green-600 hover:bg-green-700" 
-                        disabled={loading || !selectedMachine}
-                      >
-                        <Plus className="w-4 h-4 mr-2" />
-                        {loading ? 'Saving...' : 'Add Production Entry'}
-                      </Button>
-                    </div>
+                    {/* Production summary section temporarily disabled */}
                   </>
                 )}
               </div>
