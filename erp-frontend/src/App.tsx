@@ -13,9 +13,7 @@ import Unauthorized from "./pages/Unauthorized";
 // Core Pages
 import Dashboard from "./pages/Dashboard";
 import Inventory from "./pages/Inventory";
-import BOM from "./pages/BOM";
-import WorkOrders from "./pages/WorkOrders";
-import Costing from "./pages/Costing";
+// Removed unused pages: BOM, WorkOrders, Costing
 import Reports from "./pages/Reports";
 import DyeingOrders from "./pages/DyeingOrders";
 import Product from "./pages/Product";
@@ -122,30 +120,9 @@ const App = () => {
                     </PrivateRoute>
                   }
                 />
-                <Route
-                  path="/bom"
-                  element={
-                    <PrivateRoute roles={["admin", "manager", "storekeeper"]}>
-                      <BOM />
-                    </PrivateRoute>
-                  }
-                />
-                <Route
-                  path="/workorders"
-                  element={
-                    <PrivateRoute roles={["admin", "manager", "storekeeper"]}>
-                      <WorkOrders />
-                    </PrivateRoute>
-                  }
-                />
-                <Route
-                  path="/costing"
-                  element={
-                    <PrivateRoute roles={["admin"]}>
-                      <Costing />
-                    </PrivateRoute>
-                  }
-                />
+                {/** BOM removed */}
+                {/** Work Orders removed */}
+                {/** Costing removed */}
                 <Route
                   path="/reports"
                   element={

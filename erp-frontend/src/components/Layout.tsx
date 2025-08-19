@@ -12,9 +12,7 @@ const Layout = () => {
           <NavLink to="/dashboard" icon={<LayoutDashboard size={20} />} label="Dashboard" />
           <NavLink to="/products" icon={<Package size={20} />} label="Products" />
           <NavLink to="/inventory" icon={<Boxes size={20} />} label="Inventory" />
-          <NavLink to="/bom" icon={<ClipboardList size={20} />} label="BOM" />
-          <NavLink to="/work-orders" icon={<ClipboardList size={20} />} label="Work Orders" />
-          <NavLink to="/costing" icon={<ClipboardList size={20} />} label="Costing" />
+          {/** BOM/Work Orders/Costing removed */}
           <NavLink to="/reports" icon={<ClipboardList size={20} />} label="Reports" />
         </nav>
       </aside>
