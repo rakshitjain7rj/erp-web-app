@@ -13,7 +13,7 @@ const Layout = () => {
           <NavLink to="/products" icon={<Package size={20} />} label="Products" />
           <NavLink to="/inventory" icon={<Boxes size={20} />} label="Inventory" />
           {/** BOM/Work Orders/Costing removed */}
-          <NavLink to="/reports" icon={<ClipboardList size={20} />} label="Reports" />
+          {/** Reports removed */}
         </nav>
       </aside>
 

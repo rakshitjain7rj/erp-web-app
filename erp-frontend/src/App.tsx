@@ -14,11 +14,11 @@ import Unauthorized from "./pages/Unauthorized";
 import Dashboard from "./pages/Dashboard";
 import Inventory from "./pages/Inventory";
 // Removed unused pages: BOM, WorkOrders, Costing
-import Reports from "./pages/Reports";
+// Removed: Reports
 import DyeingOrders from "./pages/DyeingOrders";
 import Product from "./pages/Product";
-import Users from "./pages/Users";
-import Settings from "./pages/Settings";
+// Removed: Users
+// Removed: Settings
 import DyeingSummary from "./pages/DyeingSummary";
 import PartyMaster from "./pages/PartyMaster";
 import ArchivedParties from "./pages/ArchivedParties";
@@ -123,14 +123,7 @@ const App = () => {
                 {/** BOM removed */}
                 {/** Work Orders removed */}
                 {/** Costing removed */}
-                <Route
-                  path="/reports"
-                  element={
-                    <PrivateRoute roles={["admin", "manager"]}>
-                      <Reports />
-                    </PrivateRoute>
-                  }
-                />
+                {/** Reports removed */}
                 <Route
                   path="/dyeing-orders"
                   element={
@@ -180,22 +173,8 @@ const App = () => {
                     </PrivateRoute>
                   }
                 />
-                <Route
-                  path="/users"
-                  element={
-                    <PrivateRoute roles={["admin"]}>
-                      <Users />
-                    </PrivateRoute>
-                  }
-                />
-                <Route
-                  path="/settings"
-                  element={
-                    <PrivateRoute roles={["admin"]}>
-                      <Settings />
-                    </PrivateRoute>
-                  }
-                />
+                {/** Users removed */}
+                {/** Settings removed */}
                 <Route path="/products" element={<Product />} />
                 <Route path="/party-test" element={<PartyMaster />} />
                 <Route path="/archived-parties" element={<ArchivedParties />} />

@@ -89,17 +89,14 @@ const Navbar = () => {
     if (["admin", "manager"].includes(role)) links.push({ to: "/reports", label: "Reports", icon: <FaChartBar /> });
     if (["admin", "manager"].includes(role)) links.push({ to: "/dyeing-orders", label: "Dyeing Orders", icon: <FaClipboardList /> });
     if (["admin", "manager"].includes(role)) links.push({ to: "/dyeing-summary", label: "Dyeing Summary", icon: <FaClipboardList /> });
-    if (["admin", "manager"].includes(role)) links.push({ to: "/party-master", label: "Party Master", icon: <FaUsers /> });
+  if (["admin", "manager"].includes(role)) links.push({ to: "/party-master", label: "Party Master", icon: <FaUsers /> });
     
     // Production Module
   if (["admin", "manager", "operator"].includes(role)) links.push({ to: "/production/asu-unit-1", label: "ASU Unit 1", icon: <FaIndustry /> });
   if (["admin", "manager", "operator"].includes(role)) links.push({ to: "/production/asu-unit-2", label: "ASU Unit 2", icon: <FaIndustry /> });
     // ASU Machines link removed - functionality now integrated into ASU Unit 1 page
     
-    if (role === "admin") {
-      links.push({ to: "/users", label: "Users", icon: <FaUsers /> });
-      links.push({ to: "/settings", label: "Settings", icon: <FaCogs /> });
-    }
+  // Admin-only links Users/Settings removed
 
     return (
       <ul className="mt-6 flex flex-col gap-3">
