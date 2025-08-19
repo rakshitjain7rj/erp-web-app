@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "npx nodemon index.js"
+  "dev": "npx nodemon index.js",
+  "fix:asu-unique": "node scripts/ensure_asu_composite_unique.js"
   },
   "keywords": [],
   "author": "",

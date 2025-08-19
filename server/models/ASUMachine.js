@@ -71,6 +71,17 @@ const ASUMachine = sequelize.define('ASUMachine', {
     validate: {
       isIn: [['ACTIVE', 'INACTIVE', 'MAINTENANCE', 'ARCHIVED']]
     }
+  },
+  // Virtual identifier to distinguish units as a string label
+  machineAsuUnit: {
+    type: DataTypes.VIRTUAL,
+    get() {
+      const u = this.getDataValue('unit');
+      return u === 2 ? 'UNIT_2' : 'UNIT_1';
+    },
+    set(_val) {
+      // no-op; derived from unit
+    }
   }
 }, {
   tableName: 'asu_machines',

@@ -80,11 +80,13 @@ const ASUProductionEntry = sequelize.define('ASUProductionEntry', {
 });
 
 ASUProductionEntry.associate = (models) => {
-  // Add association with ASUMachine
+  // Keep association for include()s but avoid DB-level single-column FK constraints
+  // because machine_no is only unique per (unit, machine_no).
   ASUProductionEntry.belongsTo(models.ASUMachine, {
     foreignKey: 'machineNumber',
     targetKey: 'machineNo',
-    as: 'machine'
+    as: 'machine',
+    constraints: false
   });
 };
 

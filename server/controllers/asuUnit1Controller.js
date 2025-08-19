@@ -29,7 +29,7 @@ const getASUMachines = async (req, res) => {
 const getAllMachines = async (req, res) => {
   try {
     // Find all machines with unit 1 (both active and inactive)
-    const machines = await ASUMachine.findAll({
+  const machines = await ASUMachine.findAll({
       where: {
         unit: 1
       },
@@ -850,7 +850,7 @@ const deleteMachine = async (req, res) => {
     const machineNo = machine.machineNo;
     
     const relatedEntries = await ASUProductionEntry.count({
-      where: { machineNumber: machineNo }
+      where: { machineNumber: machineNo, unit: 1 }
     });
 
     if (relatedEntries > 0 && force !== 'true') {
@@ -865,7 +865,7 @@ const deleteMachine = async (req, res) => {
     // If force=true, delete related entries first
     if (force === 'true' && relatedEntries > 0) {
       await ASUProductionEntry.destroy({
-        where: { machineNumber: machineNo }
+        where: { machineNumber: machineNo, unit: 1 }
       });
     }
 

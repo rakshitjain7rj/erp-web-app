@@ -3,7 +3,8 @@
 // we will parameterize the shared components to accept a unit key / config object.
 
 import React, { useState, useEffect } from 'react';
-import { Activity, Package, Settings } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Activity, Package, Settings, Gauge } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { ASU_UNITS } from '../config/asuUnits';
 import { asuUnit2Api } from '../api/asuUnit2Api';
@@ -12,25 +13,37 @@ import { asuUnit2Api } from '../api/asuUnit2Api';
 import DailyProductionUnit2 from '../components/asuUnit2/DailyProductionUnit2';
 import YarnSummaryUnit2 from '../components/asuUnit2/YarnSummaryUnit2';
 import MachineManagerUnit2 from '../components/asuUnit2/MachineManagerUnit2';
+import DashboardUnit2 from '../components/asuUnit2/DashboardUnit2';
 
 // NOTE: If later we add Unit2-specific fields (e.g. mains readings, worker name),
 // convert these components into generic versions (e.g. /components/asuShared/) and
 // pass a config prop: { unit: 'unit2', hasMains: true, hasWorkerName: true, apiBase: '...' }
 
 const ASUUnit2Page: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'production' | 'summary' | 'machines'>('production');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTabParam = (searchParams.get('tab') || '').toLowerCase();
+  const initialTab = (['dashboard', 'production', 'summary', 'machines'] as const).includes(
+    initialTabParam as any
+  )
+    ? (initialTabParam as 'dashboard' | 'production' | 'summary' | 'machines')
+    : 'production';
+
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'production' | 'summary' | 'machines'>(initialTab);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.ctrlKey) {
         switch (event.key) {
           case '1':
-            setActiveTab('production');
+            setActiveTab('dashboard');
             break;
           case '2':
-            setActiveTab('summary');
+            setActiveTab('production');
             break;
           case '3':
+            setActiveTab('summary');
+            break;
+          case '4':
             setActiveTab('machines');
             break;
           default:
@@ -42,6 +55,14 @@ const ASUUnit2Page: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Keep URL in sync with selected tab for deep-linking/shareable links
+  useEffect(() => {
+    const current = (searchParams.get('tab') || '').toLowerCase();
+    if (current !== activeTab) {
+      setSearchParams({ tab: activeTab });
+    }
+  }, [activeTab]);
+
   return (
     <div className="container mx-auto p-4 max-w-7xl">
       {/* Using config: {ASU_UNITS.unit2.productionEndpoint} */}
@@ -49,20 +70,33 @@ const ASUUnit2Page: React.FC = () => {
         <h1 className="text-2xl font-bold">ASU Unit 2 Management</h1>
         <div className="flex space-x-1">
           <button
+            onClick={() => setActiveTab('dashboard')}
+            className={`px-3 py-2 flex items-center space-x-1 rounded transition-colors ${
+              activeTab === 'dashboard'
+                ? 'bg-primary text-white'
+                : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700'
+            }`}
+            title="Dashboard (Ctrl+1)"
+          >
+            <Gauge size={18} />
+            <span>Dashboard</span>
+            <span className="ml-2 text-xs opacity-70">(Ctrl+1)</span>
+          </button>
+          <button
             onClick={() => setActiveTab('production')}
             className={`px-3 py-2 flex items-center space-x-1 rounded transition-colors ${
               activeTab === 'production'
                 ? 'bg-primary text-white'
                 : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700'
             }`}
-            title="Daily Production (Ctrl+1)"
+            title="Daily Production (Ctrl+2)"
           >
             <Activity size={18} />
             <span>Daily Production</span>
             <Badge variant="outline" className="ml-1 text-xs py-0">
               Entry
             </Badge>
-            <span className="ml-2 text-xs opacity-70">(Ctrl+1)</span>
+            <span className="ml-2 text-xs opacity-70">(Ctrl+2)</span>
           </button>
           <button
             onClick={() => setActiveTab('summary')}
@@ -71,11 +105,11 @@ const ASUUnit2Page: React.FC = () => {
                 ? 'bg-primary text-white'
                 : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700'
             }`}
-            title="Yarn Summary (Ctrl+2)"
+            title="Yarn Summary (Ctrl+3)"
           >
             <Package size={18} />
             <span>Yarn Summary</span>
-            <span className="ml-2 text-xs opacity-70">(Ctrl+2)</span>
+            <span className="ml-2 text-xs opacity-70">(Ctrl+3)</span>
           </button>
           <button
             onClick={() => setActiveTab('machines')}
@@ -84,17 +118,18 @@ const ASUUnit2Page: React.FC = () => {
                 ? 'bg-primary text-white'
                 : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700'
             }`}
-            title="Machine Manager (Ctrl+3)"
+            title="Machine Manager (Ctrl+4)"
           >
             <Settings size={18} />
             <span>Machine Manager</span>
-            <span className="ml-2 text-xs opacity-70">(Ctrl+3)</span>
+            <span className="ml-2 text-xs opacity-70">(Ctrl+4)</span>
           </button>
         </div>
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        {activeTab === 'production' && <DailyProductionUnit2 />}
+  {activeTab === 'dashboard' && <DashboardUnit2 />}
+  {activeTab === 'production' && <DailyProductionUnit2 />}
         {activeTab === 'summary' && <YarnSummaryUnit2 />}
         {activeTab === 'machines' && <MachineManagerUnit2 />}
       </div>

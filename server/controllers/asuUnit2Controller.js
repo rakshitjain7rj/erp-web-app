@@ -301,7 +301,7 @@ const createMachine = async (req, res) => {
   } catch (error) {
     console.error('Error creating ASU Unit 2 machine:', error);
     if (error.name === 'SequelizeUniqueConstraintError') {
-      return res.status(409).json({ success: false, error: `Machine with number ${req.body.machineNo} already exists` });
+      return res.status(409).json({ success: false, error: `Machine number ${req.body.machineNo} already exists for another unit because of an old constraint. Please restart the server to apply the per-unit uniqueness fix, or run the migration to enforce UNIQUE(unit, machine_no).` });
     }
     res.status(500).json({ success: false, error: error.message });
   }

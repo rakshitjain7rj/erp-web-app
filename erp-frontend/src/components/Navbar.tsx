@@ -78,7 +78,7 @@ const Navbar = () => {
   const renderNavLinks = () => {
     if (!user) return null;
     const { role } = user;
-    const links: { to: string; label: string; icon: React.ReactNode }[] = [];
+  const links: { to: string; label: string; icon: React.ReactNode }[] = [];
 
     if (["admin", "manager", "storekeeper"].includes(role)) links.push({ to: "/dashboard", label: "Dashboard", icon: <FaChartBar /> });
     if (["admin", "manager", "storekeeper"].includes(role)) links.push({ to: "/inventory", label: "Inventory", icon: <FaWarehouse /> });
@@ -92,8 +92,8 @@ const Navbar = () => {
     if (["admin", "manager"].includes(role)) links.push({ to: "/party-master", label: "Party Master", icon: <FaUsers /> });
     
     // Production Module
-    if (["admin", "manager", "operator"].includes(role)) links.push({ to: "/production/asu-unit-1", label: "ASU Unit 1", icon: <FaIndustry /> });
-    if (["admin", "manager", "operator"].includes(role)) links.push({ to: "/production/asu-unit-2", label: "ASU Unit 2", icon: <FaIndustry /> });
+  if (["admin", "manager", "operator"].includes(role)) links.push({ to: "/production/asu-unit-1", label: "ASU Unit 1", icon: <FaIndustry /> });
+  if (["admin", "manager", "operator"].includes(role)) links.push({ to: "/production/asu-unit-2", label: "ASU Unit 2", icon: <FaIndustry /> });
     // ASU Machines link removed - functionality now integrated into ASU Unit 1 page
     
     if (role === "admin") {
@@ -104,7 +104,10 @@ const Navbar = () => {
     return (
       <ul className="mt-6 flex flex-col gap-3">
         {links.map((link) => {
-          const isActive = location.pathname.startsWith(link.to);
+          const currentPath = `${location.pathname}${location.search}`;
+          const isActive = link.to.includes("?")
+            ? currentPath === link.to
+            : location.pathname.startsWith(link.to);
           return (
             <li key={link.to}>
               <Link
