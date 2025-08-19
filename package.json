@@ -1,6 +1,26 @@
 {
   "scripts": {
-    "apply:asu-unique": "node apply_asu_unit_unique_fix.js"
+  
+  "server:start": "npm --prefix server run start",
+  "server:dev": "npm --prefix server run dev",
+  "server:dev:start": "npm --prefix server run dev:start",
+  "server:fix:asu-unique": "npm --prefix server run fix:asu-unique",
+  "server:diag:check-schema": "npm --prefix server run diag:check-schema",
+  "server:diag:check-yarn-col": "npm --prefix server run diag:check-yarn-col",
+  "server:diag:find-production": "npm --prefix server run diag:find-production",
+  "server:diag:inspect-structure": "npm --prefix server run diag:inspect-structure",
+  "server:diag:test-asu-prod-table": "npm --prefix server run diag:test-asu-prod-table",
+  "server:test:routes-load": "npm --prefix server run test:routes-load",
+  "server:test:api": "npm --prefix server run test:api",
+  "server:test:create-entry": "npm --prefix server run test:create-entry",
+  "server:test:yarn-summary-u1": "npm --prefix server run test:yarn-summary-u1",
+  "server:test:duplicate": "npm --prefix server run test:duplicate",
+  "server:test:historical": "npm --prefix server run test:historical",
+  "server:test:login-yarn": "npm --prefix server run test:login-yarn",
+  "server:test:machine-config": "npm --prefix server run test:machine-config",
+  "server:test:machine-creation": "npm --prefix server run test:machine-creation",
+  "server:test:machine-performance": "npm --prefix server run test:machine-performance",
+  "server:ops:create-admin": "npm --prefix server run ops:create-admin"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.21",
