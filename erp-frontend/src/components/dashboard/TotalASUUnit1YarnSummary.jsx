@@ -152,25 +152,34 @@ function TotalASUUnit1YarnSummary({ days = 31, showRefreshButton = false }) {
   const [yarnTypeBreakdown, setYarnTypeBreakdown] = useState([]);
   const [totalProduction, setTotalProduction] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  // Date range state (defaults to last `days` days)
+  const todayIso = () => new Date().toISOString().split('T')[0];
+  const pastDaysIso = (n) => {
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    return d.toISOString().split('T')[0];
+  };
+  const startOfMonthIso = () => {
+    const d = new Date();
+    const s = new Date(d.getFullYear(), d.getMonth(), 1);
+    return s.toISOString().split('T')[0];
+  };
+  const [dateFrom, setDateFrom] = useState(pastDaysIso(days));
+  const [dateTo, setDateTo] = useState(todayIso());
 
   const fetchData = async () => {
     try {
       setLoading(true);
       
-      // Calculate date range for the last 'days' days
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - days);
-      
-      // Format dates for API
-      const dateFrom = startDate.toISOString().split('T')[0];
-      const dateTo = endDate.toISOString().split('T')[0];
+      // Use selected date range
+      const from = dateFrom || pastDaysIso(days);
+      const to = dateTo || todayIso();
       
       // Build the API URL for ASU Unit 1 production entries
       const baseUrl = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL;
       const apiEndpoint = `${baseUrl}/asu-unit1/production-entries`;
       
-      console.log(`Fetching ASU Unit 1 production data from ${apiEndpoint} for date range: ${dateFrom} to ${dateTo}`);
+      console.log(`Fetching ASU Unit 1 production data from ${apiEndpoint} for date range: ${from} to ${to}`);
       
       // Prepare auth headers
       const token = user?.token;
@@ -179,8 +188,8 @@ function TotalASUUnit1YarnSummary({ days = 31, showRefreshButton = false }) {
       // Fetch data from the ASU Unit 1 API with a large limit to get all entries
       const response = await axios.get(apiEndpoint, {
         params: {
-          dateFrom,
-          dateTo,
+          dateFrom: from,
+          dateTo: to,
           limit: 1000 // Get enough entries to cover the date range
         },
         headers
@@ -209,6 +218,7 @@ function TotalASUUnit1YarnSummary({ days = 31, showRefreshButton = false }) {
 
   useEffect(() => {
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [days]);
 
   const handleRefresh = () => {
@@ -527,7 +537,7 @@ function TotalASUUnit1YarnSummary({ days = 31, showRefreshButton = false }) {
           <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-br from-green-400 to-blue-500 rounded-full blur-3xl opacity-20 animate-pulse transform -translate-x-1/3 translate-y-1/3 animation-delay-1000"></div>
           <div className="absolute top-1/2 left-1/2 w-48 h-48 bg-gradient-to-br from-pink-400 to-orange-500 rounded-full blur-3xl opacity-15 animate-pulse transform -translate-x-1/2 -translate-y-1/2 animation-delay-2000"></div>
         </div>
-      <CardHeader className="relative z-10 flex flex-row items-center justify-between pb-6 dark:bg-gray-800/50 border-b-2 dark:border-gray-600/50 bg-gradient-to-r from-blue-50/80 via-indigo-50/80 to-purple-50/80 dark:from-gray-800/80 dark:via-gray-800/80 dark:to-gray-800/80 backdrop-blur-sm">
+      <CardHeader className="relative z-10 flex flex-col gap-4 pb-6 dark:bg-gray-800/50 border-b-2 dark:border-gray-600/50 bg-gradient-to-r from-blue-50/80 via-indigo-50/80 to-purple-50/80 dark:from-gray-800/80 dark:via-gray-800/80 dark:to-gray-800/80 backdrop-blur-sm">
         <div className="flex items-center gap-4">
           <div className="relative p-3 bg-gradient-to-br from-blue-500 via-indigo-600 to-purple-600 rounded-2xl shadow-xl transform hover:scale-110 transition-all duration-300">
             <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent rounded-2xl"></div>
@@ -559,28 +569,65 @@ function TotalASUUnit1YarnSummary({ days = 31, showRefreshButton = false }) {
             </CardDescription>
           </div>
         </div>
-        {showRefreshButton && (
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="p-3 rounded-xl hover:bg-white/50 dark:hover:bg-gray-700/50 transition-all duration-200 backdrop-blur-sm border border-white/20 dark:border-gray-600/20"
-          >
-            <svg 
-              xmlns="http://www.w3.org/2000/svg" 
-              className={`h-5 w-5 transition-transform duration-500 ${refreshing ? 'animate-spin text-blue-500 dark:text-blue-300' : 'text-gray-600 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-400'}`}
-              fill="none" 
-              viewBox="0 0 24 24" 
-              stroke="currentColor"
-            >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" 
+        <div className="flex items-end justify-between gap-3 flex-wrap">
+          <div className="flex items-end gap-3">
+            <div>
+              <div className="text-xs text-gray-600 dark:text-gray-300 mb-1">From</div>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="w-44 bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100 dark:border-gray-700 rounded-md px-2 py-1 border"
               />
-            </svg>
-          </button>
-        )}
+            </div>
+            <div>
+              <div className="text-xs text-gray-600 dark:text-gray-300 mb-1">To</div>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="w-44 bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100 dark:border-gray-700 rounded-md px-2 py-1 border"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={fetchData}
+                disabled={loading}
+                className="px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+              >
+                {loading ? 'Loading…' : 'Apply'}
+              </button>
+              <button
+                onClick={() => { setDateFrom(startOfMonthIso()); setDateTo(todayIso()); setTimeout(fetchData, 0); }}
+                className="px-3 py-1.5 rounded-md bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600"
+              >
+                This Month
+              </button>
+            </div>
+          </div>
+          {showRefreshButton && (
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="p-3 rounded-xl hover:bg-white/50 dark:hover:bg-gray-700/50 transition-all duration-200 backdrop-blur-sm border border-white/20 dark:border-gray-600/20"
+            >
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                className={`h-5 w-5 transition-transform duration-500 ${refreshing ? 'animate-spin text-blue-500 dark:text-blue-300' : 'text-gray-600 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-400'}`}
+                fill="none" 
+                viewBox="0 0 24 24" 
+                stroke="currentColor"
+              >
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth={2} 
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" 
+                />
+              </svg>
+            </button>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="relative z-10 dark:bg-gray-800/50 p-8 backdrop-blur-sm">
         <div className="space-y-8">

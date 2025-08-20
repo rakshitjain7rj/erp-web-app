@@ -19,7 +19,7 @@ const getYarnProductionEntries = async (req, res) => {
     }
 
     // Use raw SQL query to avoid issues with column names
-    const query = `
+  const query = `
       SELECT 
         "ASUProductionEntry".date,
         SUM("ASUProductionEntry".actual_production) AS "productionKg",
@@ -30,7 +30,7 @@ const getYarnProductionEntries = async (req, res) => {
         "asu_production_entries" AS "ASUProductionEntry"
       LEFT JOIN 
         "asu_machines" AS "machine" 
-        ON "ASUProductionEntry".machine_no = "machine".machine_no
+    ON "ASUProductionEntry".machine_no = "machine".machine_no AND "ASUProductionEntry".unit = "machine".unit
       ${(dateFrom || dateTo) ? 'WHERE' : ''}
         ${dateFrom ? `"ASUProductionEntry".date >= '${dateFrom}'` : ''}
         ${dateFrom && dateTo ? 'AND' : ''}
