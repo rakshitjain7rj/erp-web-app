@@ -152,6 +152,8 @@ function TotalASUUnit1YarnSummary({ days = 31, showRefreshButton = false }) {
   const [yarnTypeBreakdown, setYarnTypeBreakdown] = useState([]);
   const [totalProduction, setTotalProduction] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  // Compact yarn summary controls
+  const [showAllYarns, setShowAllYarns] = useState(false);
   // Date range state (defaults to last `days` days)
   const todayIso = () => new Date().toISOString().split('T')[0];
   const pastDaysIso = (n) => {
@@ -528,16 +530,16 @@ function TotalASUUnit1YarnSummary({ days = 31, showRefreshButton = false }) {
   return (
     <div className="relative">
       {/* Background decorative elements */}
-      <div className="absolute -inset-4 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 rounded-3xl blur-xl opacity-20 animate-pulse"></div>
+  {/* Simplified: no background effects for compact view */}
       
-      <Card className="relative w-full border-0 dark:bg-gray-800 dark:border-gray-600 shadow-2xl hover:shadow-3xl transition-all duration-500 transform hover:-translate-y-2 bg-gradient-to-br from-white via-blue-50 to-indigo-50 dark:from-gray-900 dark:via-gray-800 dark:to-indigo-900 overflow-hidden">
+  <Card className="relative w-full border dark:bg-gray-800 dark:border-gray-700 shadow-sm transition-all duration-300 bg-white dark:from-gray-900 overflow-hidden">
         {/* Animated background pattern */}
         <div className="absolute inset-0 opacity-30 dark:opacity-20">
           <div className="absolute top-0 right-0 w-72 h-72 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full blur-3xl opacity-20 animate-pulse transform translate-x-1/3 -translate-y-1/3"></div>
           <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-br from-green-400 to-blue-500 rounded-full blur-3xl opacity-20 animate-pulse transform -translate-x-1/3 translate-y-1/3 animation-delay-1000"></div>
           <div className="absolute top-1/2 left-1/2 w-48 h-48 bg-gradient-to-br from-pink-400 to-orange-500 rounded-full blur-3xl opacity-15 animate-pulse transform -translate-x-1/2 -translate-y-1/2 animation-delay-2000"></div>
         </div>
-      <CardHeader className="relative z-10 flex flex-col gap-4 pb-6 dark:bg-gray-800/50 border-b-2 dark:border-gray-600/50 bg-gradient-to-r from-blue-50/80 via-indigo-50/80 to-purple-50/80 dark:from-gray-800/80 dark:via-gray-800/80 dark:to-gray-800/80 backdrop-blur-sm">
+  <CardHeader className="relative z-10 flex flex-col gap-4 pb-4 dark:bg-gray-800/50 border-b dark:border-gray-700/70 bg-gray-50/60 dark:bg-gray-800/60">
         <div className="flex items-center gap-4">
           <div className="relative p-3 bg-gradient-to-br from-blue-500 via-indigo-600 to-purple-600 rounded-2xl shadow-xl transform hover:scale-110 transition-all duration-300">
             <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent rounded-2xl"></div>
@@ -569,7 +571,7 @@ function TotalASUUnit1YarnSummary({ days = 31, showRefreshButton = false }) {
             </CardDescription>
           </div>
         </div>
-        <div className="flex items-end justify-between gap-3 flex-wrap">
+  <div className="flex items-end justify-between gap-3 flex-wrap">
           <div className="flex items-end gap-3">
             <div>
               <div className="text-xs text-gray-600 dark:text-gray-300 mb-1">From</div>
@@ -609,11 +611,11 @@ function TotalASUUnit1YarnSummary({ days = 31, showRefreshButton = false }) {
             <button
               onClick={handleRefresh}
               disabled={refreshing}
-              className="p-3 rounded-xl hover:bg-white/50 dark:hover:bg-gray-700/50 transition-all duration-200 backdrop-blur-sm border border-white/20 dark:border-gray-600/20"
+              className="ml-auto p-3 rounded-xl hover:bg-white/50 dark:hover:bg-gray-700/50 transition-all duration-200 backdrop-blur-sm border border-white/20 dark:border-gray-600/20"
             >
               <svg 
                 xmlns="http://www.w3.org/2000/svg" 
-                className={`h-5 w-5 transition-transform duration-500 ${refreshing ? 'animate-spin text-blue-500 dark:text-blue-300' : 'text-gray-600 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-400'}`}
+                className={`h-5 w-5 transition-transform duration-500 ${refreshing ? 'animate-spin text-blue-500 dark:text-blue-300' : 'text-gray-600 dark:text-gray-300 hover:text-blue-500 dark:hover:bg-gray-700'}`}
                 fill="none" 
                 viewBox="0 0 24 24" 
                 stroke="currentColor"
@@ -629,7 +631,7 @@ function TotalASUUnit1YarnSummary({ days = 31, showRefreshButton = false }) {
           )}
         </div>
       </CardHeader>
-      <CardContent className="relative z-10 dark:bg-gray-800/50 p-8 backdrop-blur-sm">
+  <CardContent className="relative z-10 dark:bg-gray-800/50 p-4 sm:p-6">
         <div className="space-y-8">
           {/* Enhanced Summary Statistics */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -684,63 +686,52 @@ function TotalASUUnit1YarnSummary({ days = 31, showRefreshButton = false }) {
             </div>
           </div>
           
-          {/* Section Divider */}
-          <div className="flex items-center gap-4 my-8">
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-blue-300 to-transparent dark:via-blue-600"></div>
-            <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-gray-700 dark:to-gray-600 rounded-full shadow-lg">
-              <span className="text-lg">📈</span>
-              <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">Production Breakdown</span>
-            </div>
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-purple-300 to-transparent dark:via-purple-600"></div>
+          {/* Yarn Summary */}
+          <div className="flex items-center gap-4 my-6">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Yarn Summary</h3>
+            <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
           </div>
 
-          {yarnTypeBreakdown.map((item, index) => {
-            const percentage = Math.round((item.total / totalProduction) * 100);
-            const colorScheme = getColorForYarnType(item.type);
-            
-            return (
-              <div key={index} className={`p-4 rounded-xl border transition-all duration-300 hover:shadow-md ${colorScheme.bgLight} ${colorScheme.border} group hover:scale-[1.02]`}>
-                <div className="flex justify-between items-center mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${colorScheme.text} transition-transform duration-200 group-hover:scale-110`}>
-                      <YarnTypeIcon type={item.type} />
-                    </div>
-                    <div>
-                      <span className="font-semibold text-gray-800 dark:text-white text-lg">
-                        {item.type}
-                      </span>
-                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Yarn Category
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-2xl font-bold text-gray-900 dark:text-white">
-                        {item.total.toLocaleString()}
-                      </span>
-                      <span className="text-sm text-gray-500 dark:text-gray-400">kg</span>
-                    </div>
-                    <div className="text-sm font-medium" style={{ color: colorScheme.text.includes('text-') ? undefined : colorScheme.text }}>
-                      {percentage}% of total
-                    </div>
-                  </div>
-                </div>
-                <div className="relative">
-                  <Progress 
-                    value={percentage} 
-                    className={`bg-gradient-to-r ${colorScheme.gradient} shadow-sm`}
-                    showGradient={true}
-                  />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-xs font-medium text-white drop-shadow-sm">
-                      {percentage > 10 ? `${percentage}%` : ''}
-                    </span>
-                  </div>
-                </div>
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm table-fixed">
+                <thead className="bg-gray-50 dark:bg-gray-800/50">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-medium text-gray-600 dark:text-gray-300 w-2/3 sm:w-1/2">Yarn Type</th>
+                    <th className="text-right px-3 py-2 font-medium text-gray-600 dark:text-gray-300 w-1/6">Total (kg)</th>
+                    <th className="text-right px-3 py-2 font-medium text-gray-600 dark:text-gray-300 w-1/6">Share</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(showAllYarns ? yarnTypeBreakdown : yarnTypeBreakdown.slice(0, 12)).map((item, idx) => {
+                    const pct = totalProduction > 0 ? Math.round((item.total / totalProduction) * 100) : 0;
+                    return (
+                      <tr key={`${item.type}-${idx}`} className="border-t border-gray-100 dark:border-gray-800">
+                        <td className="px-3 py-2 whitespace-nowrap text-gray-800 dark:text-gray-200 truncate">{item.type}</td>
+                        <td className="px-3 py-2 text-right text-gray-900 dark:text-white">{item.total.toFixed(2)}</td>
+                        <td className="px-3 py-2 text-right text-gray-600 dark:text-gray-300">{pct}%</td>
+                      </tr>
+                    );
+                  })}
+                  {yarnTypeBreakdown.length === 0 && (
+                    <tr>
+                      <td colSpan={3} className="px-3 py-6 text-center text-gray-500 dark:text-gray-400">No data</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {yarnTypeBreakdown.length > 12 && (
+              <div className="px-3 py-2 bg-gray-50 dark:bg-gray-800/50 text-right">
+                <button
+                  className="text-xs px-2 py-1 rounded border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  onClick={() => setShowAllYarns((v) => !v)}
+                >
+                  {showAllYarns ? 'Show less' : `Show all (${yarnTypeBreakdown.length})`}
+                </button>
               </div>
-            );
-          })}
+            )}
+          </div>
         </div>
         
         {/* Summary Statistics */}
