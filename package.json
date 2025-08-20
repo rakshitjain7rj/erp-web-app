@@ -20,7 +20,8 @@
   "server:test:machine-config": "npm --prefix server run test:machine-config",
   "server:test:machine-creation": "npm --prefix server run test:machine-creation",
   "server:test:machine-performance": "npm --prefix server run test:machine-performance",
-  "server:ops:create-admin": "npm --prefix server run ops:create-admin"
+  "server:ops:create-admin": "npm --prefix server run ops:create-admin",
+  "repo:cleanup": "node server/scripts/ops/cleanup_root_files.js"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.21",
