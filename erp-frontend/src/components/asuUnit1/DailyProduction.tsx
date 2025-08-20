@@ -1204,6 +1204,18 @@ const DailyProduction: React.FC = () => {
                     </div>
                     
                     {/* Production summary section temporarily disabled */}
+                    {/* Submit row */}
+                    <div className="lg:col-span-2 flex items-center justify-end pt-2">
+                      <Button
+                        type="submit"
+                        disabled={loading || !selectedMachine}
+                        className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md disabled:opacity-60 disabled:cursor-not-allowed"
+                        title={!selectedMachine ? 'Select a machine first' : 'Add production entry'}
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add Production Entry
+                      </Button>
+                    </div>
                   </>
                 )}
               </div>

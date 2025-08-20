@@ -395,7 +395,7 @@ const DailyProductionUnit2: React.FC = () => {
         updates.push(asuUnit2Api.updateProductionEntry(editingEntry.dayShiftId, {
           ...(undefined as any),
           date: editingEntry.date,
-          dayShift: editingEntry.dayShift,
+          actualProduction: editingEntry.dayShift,
           yarnType: yarnTypeToUse
         } as any));
       }
@@ -403,7 +403,7 @@ const DailyProductionUnit2: React.FC = () => {
         updates.push(asuUnit2Api.updateProductionEntry(editingEntry.nightShiftId, {
           ...(undefined as any),
           date: editingEntry.date,
-          nightShift: editingEntry.nightShift,
+          actualProduction: editingEntry.nightShift,
           yarnType: yarnTypeToUse
         } as any));
       }
@@ -767,83 +767,84 @@ const DailyProductionUnit2: React.FC = () => {
               <p className="max-w-md mt-1 text-sm text-gray-500 dark:text-gray-400">{selectedMachine ? 'Add production data using the form above.' : 'Choose a machine from the dropdown first.'}</p>
             </div>
           ) : (
-            <div className="w-full overflow-x-auto">
-              <Table className="w-full min-w-full">
+      <div className="w-full overflow-x-auto">
+        <Table className="w-full min-w-[1200px] sm:min-w-[1280px]">
         <TableHeader className="bg-gray-50 dark:bg-gray-800">
                   <TableRow className="border-b dark:border-gray-700">
-          <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400">Date</TableHead>
-          <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400">Yarn Type</TableHead>
-          <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-right text-gray-500 uppercase sm:px-6 dark:text-gray-400">Day Shift</TableHead>
-          <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-right text-gray-500 uppercase sm:px-6 dark:text-gray-400">Night Shift</TableHead>
-          <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-right text-gray-500 uppercase sm:px-6 dark:text-gray-400">Day Mains</TableHead>
-          <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-right text-gray-500 uppercase sm:px-6 dark:text-gray-400">Night Mains</TableHead>
-          <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400">Day Worker</TableHead>
-          <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400">Night Worker</TableHead>
-          <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-right text-gray-500 uppercase sm:px-6 dark:text-gray-400">Total</TableHead>
-          <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-right text-gray-500 uppercase sm:px-6 dark:text-gray-400">Efficiency</TableHead>
+      <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400 w-36">Date</TableHead>
+      <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400 w-48">Yarn Type</TableHead>
+      <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-right text-gray-500 uppercase sm:px-6 dark:text-gray-400 w-28">Day Shift</TableHead>
+      <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-right text-gray-500 uppercase sm:px-6 dark:text-gray-400 w-28">Night Shift</TableHead>
+      <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-right text-gray-500 uppercase sm:px-6 dark:text-gray-400 w-28">Day Mains</TableHead>
+      <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-right text-gray-500 uppercase sm:px-6 dark:text-gray-400 w-28">Night Mains</TableHead>
+      <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400 w-40">Day Worker</TableHead>
+      <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400 w-40">Night Worker</TableHead>
+      <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-right text-gray-500 uppercase sm:px-6 dark:text-gray-400 w-28">Total</TableHead>
+      <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-right text-gray-500 uppercase sm:px-6 dark:text-gray-400 w-28">Efficiency</TableHead>
+      <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-right text-gray-500 uppercase sm:px-6 dark:text-gray-400 w-28">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {productionEntries.map((entry: any) => (
                     <TableRow key={entry.id} className="transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
+            <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6 min-w-[9rem]">
                         {editingEntry && editingEntry.id === entry.id ? (
-                          <Input type="date" value={editingEntry.date} onChange={(e)=> setEditingEntry(prev => prev ? { ...prev, date: e.target.value } : prev)} className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
+              <Input type="date" value={editingEntry.date} onChange={(e)=> setEditingEntry(prev => prev ? { ...prev, date: e.target.value } : prev)} className="w-36 sm:w-40 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
                         ) : (
                           <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">{entry.date}</span>
                         )}
                       </TableCell>
-                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
+            <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6 min-w-[12rem]">
                         {editingEntry && editingEntry.id === entry.id ? (
-                          <Input type="text" value={entry.yarnType} onChange={(e)=> setEditingEntry(prev => prev ? { ...prev, yarnType: e.target.value } : prev)} className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
+              <Input type="text" value={entry.yarnType} onChange={(e)=> setEditingEntry(prev => prev ? { ...prev, yarnType: e.target.value } : prev)} className="w-44 sm:w-56 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
                         ) : (
                           <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">{formatYarnType(entry.yarnType)}</span>
                         )}
                       </TableCell>
-                      <TableCell className="px-4 py-4 whitespace-nowrap text-right sm:px-6">
+            <TableCell className="px-4 py-4 whitespace-nowrap text-right sm:px-6 min-w-[7rem]">
                         {editingEntry && editingEntry.id === entry.id ? (
-                          <Input type="number" value={editingEntry.dayShift} onChange={(e)=> setEditingEntry(prev => prev ? { ...prev, dayShift: parseFloat(e.target.value) || 0 } : prev)} className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
+              <Input type="number" value={editingEntry.dayShift} onChange={(e)=> setEditingEntry(prev => prev ? { ...prev, dayShift: parseFloat(e.target.value) || 0 } : prev)} className="w-24 sm:w-28 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
                         ) : (
                           <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">{entry.dayShift?.toFixed(2) || '0.00'}</span>
                         )}
                       </TableCell>
-                      <TableCell className="px-4 py-4 whitespace-nowrap text-right sm:px-6">
+            <TableCell className="px-4 py-4 whitespace-nowrap text-right sm:px-6 min-w-[7rem]">
                         {editingEntry && editingEntry.id === entry.id ? (
-                          <Input type="number" value={editingEntry.nightShift} onChange={(e)=> setEditingEntry(prev => prev ? { ...prev, nightShift: parseFloat(e.target.value) || 0 } : prev)} className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
+              <Input type="number" value={editingEntry.nightShift} onChange={(e)=> setEditingEntry(prev => prev ? { ...prev, nightShift: parseFloat(e.target.value) || 0 } : prev)} className="w-24 sm:w-28 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
                         ) : (
                           <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">{entry.nightShift?.toFixed(2) || '0.00'}</span>
                         )}
                       </TableCell>
-                      <TableCell className="px-4 py-4 whitespace-nowrap text-right sm:px-6">
+            <TableCell className="px-4 py-4 whitespace-nowrap text-right sm:px-6 min-w-[7rem]">
                         {editingEntry && editingEntry.id === entry.id ? (
-                          <Input type="number" value={entry.dayMains} onChange={(e)=> setEditingEntry(prev => prev ? { ...prev, dayMains: parseFloat(e.target.value) || 0 } : prev)} className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
+              <Input type="number" value={entry.dayMains} onChange={(e)=> setEditingEntry(prev => prev ? { ...prev, dayMains: parseFloat(e.target.value) || 0 } : prev)} className="w-24 sm:w-28 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
                         ) : (
                           <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">{entry.dayMains !== undefined && entry.dayMains !== null ? entry.dayMains.toFixed(2) : '-'}</span>
                         )}
                       </TableCell>
-                      <TableCell className="px-4 py-4 whitespace-nowrap text-right sm:px-6">
+            <TableCell className="px-4 py-4 whitespace-nowrap text-right sm:px-6 min-w-[7rem]">
                         {editingEntry && editingEntry.id === entry.id ? (
-                          <Input type="number" value={entry.nightMains} onChange={(e)=> setEditingEntry(prev => prev ? { ...prev, nightMains: parseFloat(e.target.value) || 0 } : prev)} className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
+              <Input type="number" value={entry.nightMains} onChange={(e)=> setEditingEntry(prev => prev ? { ...prev, nightMains: parseFloat(e.target.value) || 0 } : prev)} className="w-24 sm:w-28 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
                         ) : (
                           <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">{entry.nightMains !== undefined && entry.nightMains !== null ? entry.nightMains.toFixed(2) : '-'}</span>
                         )}
                       </TableCell>
-                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
+            <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6 min-w-[10rem]">
                         {editingEntry && editingEntry.id === entry.id ? (
-                          <Input type="text" value={entry.dayWorkerName} onChange={(e)=> setEditingEntry(prev => prev ? { ...prev, dayWorkerName: e.target.value } : prev)} className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
+              <Input type="text" value={entry.dayWorkerName} onChange={(e)=> setEditingEntry(prev => prev ? { ...prev, dayWorkerName: e.target.value } : prev)} className="w-40 sm:w-48 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
                         ) : (
                           <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">{entry.dayWorkerName || '-'}</span>
                         )}
                       </TableCell>
-                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
+            <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6 min-w-[10rem]">
                         {editingEntry && editingEntry.id === entry.id ? (
-                          <Input type="text" value={entry.nightWorkerName} onChange={(e)=> setEditingEntry(prev => prev ? { ...prev, nightWorkerName: e.target.value } : prev)} className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
+              <Input type="text" value={entry.nightWorkerName} onChange={(e)=> setEditingEntry(prev => prev ? { ...prev, nightWorkerName: e.target.value } : prev)} className="w-40 sm:w-48 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200" />
                         ) : (
                           <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">{entry.nightWorkerName || '-'}</span>
                         )}
                       </TableCell>
-                      {/* Total */}
-                      <TableCell className="px-4 py-4 whitespace-nowrap text-right sm:px-6">
+            {/* Total */}
+            <TableCell className="px-4 py-4 whitespace-nowrap text-right sm:px-6 min-w-[7rem]">
                         {editingEntry && editingEntry.id === entry.id ? (
                           <span className="text-blue-600 dark:text-blue-400 font-medium">
                             {calculateTotal(editingEntry.dayShift, editingEntry.nightShift).toFixed(2)} <span className="text-xs text-gray-500 dark:text-gray-400">kg</span>
@@ -854,8 +855,8 @@ const DailyProductionUnit2: React.FC = () => {
                           </span>
                         )}
                       </TableCell>
-                      {/* Efficiency */}
-                      <TableCell className="px-4 py-4 whitespace-nowrap text-right sm:px-6">
+            {/* Efficiency */}
+            <TableCell className="px-4 py-4 whitespace-nowrap text-right sm:px-6 min-w-[7rem]">
                         {(() => {
                           const total = editingEntry && editingEntry.id === entry.id
                             ? calculateTotal(editingEntry.dayShift, editingEntry.nightShift)
@@ -868,6 +869,46 @@ const DailyProductionUnit2: React.FC = () => {
                             </Badge>
                           );
                         })()}
+                      </TableCell>
+            <TableCell className="px-4 py-4 whitespace-nowrap text-right sm:px-6 min-w-[7rem]">
+                        <div className="flex justify-end gap-2">
+                          {editingEntry && editingEntry.id === entry.id ? (
+                            <>
+                              <Button
+                                size="sm"
+                                onClick={handleSaveEdit}
+                                disabled={loading}
+                                className="p-1 text-white bg-green-600 rounded-md hover:bg-green-700 focus:ring-green-500"
+                              >
+                                <Save className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => setEditingEntry(null)}
+                                className="p-1 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 focus:ring-gray-400 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200"
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                size="sm"
+                                onClick={() => handleEdit(entry)}
+                                className="p-1 text-blue-700 rounded-md bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-800/50 dark:text-blue-300"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => handleDelete(entry.id)}
+                                className="p-1 text-white rounded-md bg-red-600 hover:bg-red-700 border border-red-700 dark:bg-red-900/70 dark:hover:bg-red-800 dark:text-red-200"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
