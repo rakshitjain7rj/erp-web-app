@@ -43,6 +43,7 @@ export const useFloatingDropdown = ({
       onOpenChange?.(open);
     },
     placement,
+    strategy: 'fixed',
     middleware: [
       offset(offsetValue),
       flip({

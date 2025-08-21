@@ -1,0 +1,24 @@
+  // ================= COUNT PRODUCT MAPPING FUNCTION =================
+  const mapCountProductToSimplifiedDisplay = (countProduct: CountProduct): SimplifiedDyeingDisplayRecord => {
+    // PRESERVE USER INPUT FIX: Always use exactly what the user entered
+    // Do not modify customer name at all - show exactly what was saved
+    
+    const mappedRecord = {
+      id: countProduct.id,
+      quantity: countProduct.quantity,
+      customerName: countProduct.customerName || "", // Always use exactly what was entered, even if empty
+      count: countProduct.count || "Standard", 
+      sentToDye: countProduct.sentToDye ? (countProduct.sentQuantity ?? countProduct.quantity) : 0,
+      sentDate: countProduct.sentDate,
+      received: countProduct.received ? countProduct.receivedQuantity : undefined,
+      receivedDate: countProduct.receivedDate || undefined,
+      dispatch: countProduct.dispatch ? countProduct.dispatchQuantity : undefined,
+      dispatchDate: countProduct.dispatchDate || undefined,
+      partyNameMiddleman: countProduct.middleman || countProduct.partyName, // Use middleman if available, otherwise fall back to partyName
+      dyeingFirm: countProduct.dyeingFirm,
+      remarks: countProduct.remarks || ''
+    };
+    
+    console.log('✅ [CountProduct] Mapped with preserved customer name:', countProduct.customerName);
+    return mappedRecord;
+  };

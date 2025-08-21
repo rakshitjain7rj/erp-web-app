@@ -37,6 +37,27 @@ class DyeingDataStore {
 
   private FIRMS_KEY = "dyeing_firms_version";
   private RECORDS_KEY = "dyeing_records_version";
+  private CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+  private CACHE_TIMESTAMP_KEY = "dyeing_data_cache_timestamp";
+
+  // Method to check if cache is still valid (within 24 hours)
+  private isCacheValid(): boolean {
+    const lastCache = localStorage.getItem(this.CACHE_TIMESTAMP_KEY);
+    if (!lastCache) return false;
+    
+    const cacheTime = parseInt(lastCache);
+    const now = Date.now();
+    const isValid = (now - cacheTime) < this.CACHE_DURATION;
+    
+    console.log(`📅 Cache validity check: ${isValid ? 'VALID' : 'EXPIRED'} (age: ${Math.round((now - cacheTime) / 1000 / 60)} minutes)`);
+    return isValid;
+  }
+
+  // Method to update cache timestamp
+  private updateCacheTimestamp(): void {
+    localStorage.setItem(this.CACHE_TIMESTAMP_KEY, Date.now().toString());
+    console.log('🕒 Cache timestamp updated');
+  }
 
   async init() {
     if (this.initPromise) {
@@ -83,22 +104,25 @@ class DyeingDataStore {
       }
     });
 
-    // Initial load with force to ensure we have fresh data
-    console.log('🔧 [Store] Performing initial data load...');
+    // Smart initial load - only force if cache is expired
+    console.log('🔧 [Store] Performing smart initial data load...');
+    const shouldForceLoad = !this.isCacheValid();
+    console.log(`📊 Initial load strategy: ${shouldForceLoad ? 'FORCE (cache expired)' : 'CACHED (cache valid)'}`);
+    
     try {
       await Promise.all([
-        this.loadFirms(true),
-        this.loadRecords(true)
+        this.loadFirms(shouldForceLoad),
+        this.loadRecords(shouldForceLoad)
       ]);
       console.log('✅ [Store] Initial data load complete');
     } catch (err) {
       console.error('❌ [Store] Initial data load failed:', err);
     }
     
-    // Set up periodic sync check (every 5 seconds)
+    // Set up periodic sync check (every 30 seconds instead of 5 to prevent rate limiting)
     setInterval(() => {
       this.checkForRemoteUpdates();
-    }, 5000);
+    }, 30000);
     
     console.log('✅ [Store] Initialization complete');
   }
@@ -351,6 +375,13 @@ class DyeingDataStore {
       console.log('⏳ [Store] Already loading firms and force=false, skipping...');
       return;
     }
+    
+    // Check cache validity first - only load from API if cache is expired or force is true
+    if (!force && this.isCacheValid() && this.state.firms.length > 0) {
+      console.log('🏢 Using cached firms - skipping API call');
+      return;
+    }
+    
     this.state.loadingFirms = true;
     try {
       console.log('🌐 [Store] Fetching firms from API...');
@@ -401,6 +432,7 @@ class DyeingDataStore {
       }
 
       this.state.firmVersion = Date.now();
+      this.updateCacheTimestamp(); // Update cache timestamp after successful load
       console.log('📡 [Store] Emitting firms to subscribers...');
       this.emitFirms();
       console.log('✅ [Store] Firms loaded and emitted successfully');
@@ -446,12 +478,30 @@ class DyeingDataStore {
 
   async loadRecords(force: boolean = true) {
     if (this.state.loadingRecords && !force) return;
+    
+    // Check cache validity first - only load from API if cache is expired or force is true
+    if (!force && this.isCacheValid() && this.state.dyeingRecords.length > 0) {
+      console.log('📋 Using cached records - skipping API call');
+      return;
+    }
+    
     this.state.loadingRecords = true;
     try {
+      console.log('🌐 Loading records from API...');
       const recs = await getAllDyeingRecords();
-      this.state.dyeingRecords = Array.isArray(recs) ? recs : [];
+      // Ensure each record has a customerName property
+      const processedRecs = Array.isArray(recs) ? recs.map(record => ({
+        ...record,
+        // FINAL FIX: Keep the original customer name exactly as it comes from the database
+        // Don't apply any fallbacks - preserve the user's input exactly
+        customerName: record.customerName
+      })) : [];
+      
+      this.state.dyeingRecords = processedRecs;
       this.state.recordVersion = Date.now();
+      this.updateCacheTimestamp(); // Update cache timestamp after successful load
       this.emitRecords();
+      console.log(`✅ Loaded ${processedRecs.length} records from API`);
     } catch (error) {
       console.warn('Failed to load records from API:', error);
       // Keep existing records on error

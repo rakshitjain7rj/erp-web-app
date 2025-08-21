@@ -35,6 +35,7 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({
 }) => {
   const {
     isOpen,
+  setIsOpen,
     refs,
     floatingStyles,
     getReferenceProps,
@@ -49,24 +50,31 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({
   // Use controlled state if provided
   const dropdownOpen = controlledOpen !== undefined ? controlledOpen : isOpen;
 
-  const handleActionClick = (action: () => void) => {
+  const handleActionClick = (action: () => void, event?: React.MouseEvent) => {
     console.log('🎯 FloatingActionDropdown: Action clicked');
     console.log('🔍 Action function type:', typeof action);
     console.log('🔍 Action function:', action);
     
+    // Prevent event propagation to avoid triggering auto-refresh
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    
     try {
-      // Close the dropdown first
-      if (onOpenChange) {
-        onOpenChange(false);
-      }
-      
-      // Execute the action
+      // Close immediately so the menu never lingers, then run the action
+      setIsOpen(false);
+      onOpenChange?.(false);
+
       console.log('⚡ Executing action...');
       action();
       console.log('✅ Action executed successfully');
       
     } catch (error) {
       console.error('❌ Error executing action:', error);
+      // Ensure dropdown is closed even if action fails
+      setIsOpen(false);
+      onOpenChange?.(false);
     }
   };
 
@@ -84,12 +92,13 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({
 
   return (
     <>
-      <div ref={refs.setReference} className="relative inline-block">
+      <div ref={refs.setReference} className="relative inline-block FloatingActionDropdown">
         {trigger ? (
           React.cloneElement(trigger as React.ReactElement, {
             ...getReferenceProps(),
             'aria-expanded': dropdownOpen.toString(),
             'aria-haspopup': 'menu',
+            'data-dropdown-trigger': 'true',
           } as any)
         ) : (
           defaultTrigger
@@ -101,17 +110,20 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({
           <div
             ref={refs.setFloating}
             style={floatingStyles as React.CSSProperties}
-            className="z-[1000] animate-in fade-in-0 zoom-in-95 duration-200"
+            className="z-[10000] animate-in fade-in-0 zoom-in-95 duration-200"
+            data-floating-ui-portal="true"
             {...getFloatingProps()}
           >
-            <div className="min-w-[192px] rounded-lg bg-white dark:bg-gray-800 shadow-xl ring-1 ring-black ring-opacity-5 border border-gray-200 dark:border-gray-600 overflow-hidden">
+            <div className="min-w-[192px] rounded-lg bg-white dark:bg-gray-800 shadow-xl ring-1 ring-black ring-opacity-5 border border-gray-200 dark:border-gray-600 overflow-hidden"
+                 onClick={(e) => e.stopPropagation()} 
+                 onMouseDown={(e) => e.stopPropagation()}>
               <div className="py-1" role="menu" aria-orientation="vertical">
                 <button
-                  onClick={() => {
+                  onClick={(e) => {
                     console.log('🚨🖊️ EDIT BUTTON CLICKED IN DROPDOWN');
                     console.log('🔍 onEdit function:', onEdit);
                     console.log('🔍 onEdit type:', typeof onEdit);
-                    handleActionClick(onEdit);
+                    handleActionClick(onEdit, e);
                   }}
                   className="flex items-center w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700"
                   role="menuitem"
@@ -122,11 +134,11 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({
 
                 {onUpdateQuantities && (
                   <button
-                    onClick={() => {
-                      console.log('🚨📊 UPDATE QUANTITIES BUTTON CLICKED IN DROPDOWN');
+                    onClick={(e) => {
+                      console.log(' UPDATE QUANTITIES BUTTON CLICKED IN DROPDOWN');
                       console.log('🔍 onUpdateQuantities function:', onUpdateQuantities);
                       console.log('🔍 onUpdateQuantities type:', typeof onUpdateQuantities);
-                      handleActionClick(onUpdateQuantities);
+                      handleActionClick(onUpdateQuantities, e);
                     }}
                     className="flex items-center w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700"
                     role="menuitem"
@@ -137,11 +149,11 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({
                 )}
                 
                 <button
-                  onClick={() => {
-                    console.log('��🗑️ DELETE BUTTON CLICKED IN DROPDOWN');
+                  onClick={(e) => {
+                    console.log('🚨🗑️ DELETE BUTTON CLICKED IN DROPDOWN');
                     console.log('🔍 onDelete function:', onDelete);
                     console.log('🔍 onDelete type:', typeof onDelete);
-                    handleActionClick(onDelete);
+                    handleActionClick(onDelete, e);
                   }}
                   className="flex items-center w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700"
                   role="menuitem"
@@ -153,11 +165,11 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({
                 <div className="border-t border-gray-200 dark:border-gray-600 my-1" />
                 
                 <button
-                  onClick={() => {
+                  onClick={(e) => {
                     console.log('🚨📋 FOLLOW-UP BUTTON CLICKED IN DROPDOWN');
                     console.log('🔍 onFollowUp function:', onFollowUp);
                     console.log('🔍 onFollowUp type:', typeof onFollowUp);
-                    handleActionClick(onFollowUp);
+                    handleActionClick(onFollowUp, e);
                   }}
                   className="flex items-center w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700"
                   role="menuitem"
@@ -168,7 +180,7 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({
                 
                 {onMarkArrived && (
                   <button
-                    onClick={() => handleActionClick(onMarkArrived)}
+                    onClick={(e) => handleActionClick(onMarkArrived, e)}
                     className="flex items-center w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700"
                     role="menuitem"
                   >
@@ -179,7 +191,7 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({
                 
                 {onReprocessing && (
                   <button
-                    onClick={() => handleActionClick(onReprocessing)}
+                    onClick={(e) => handleActionClick(onReprocessing, e)}
                     className="flex items-center w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700"
                     role="menuitem"
                   >

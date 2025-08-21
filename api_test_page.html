@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test Page</title>
+</head>
+<body>
+    <h1>Count Products API Test</h1>
+    <div id="results"></div>
+    
+    <script>
+        console.log('🔍 Starting API Test...');
+        
+        async function testAPI() {
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                console.log('📡 Making API call to localhost:5000...');
+                const response = await fetch('http://localhost:5000/api/count-products');
+                
+                console.log('📊 Response status:', response.status);
+                console.log('📊 Response headers:', Object.fromEntries(response.headers.entries()));
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('✅ API Data received:', data);
+                    
+                    resultsDiv.innerHTML = `
+                        <h2>API Success! Status: ${response.status}</h2>
+                        <h3>Records found: ${data.length}</h3>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                    
+                    // Check customer names specifically
+                    data.forEach((item, index) => {
+                        console.log(`🏷️ Record ${index + 1}:`, {
+                            id: item.id,
+                            customerName: item.customerName,
+                            dyeingFirm: item.dyeingFirm,
+                            hasCustomerName: !!item.customerName && item.customerName.trim() !== ''
+                        });
+                    });
+                    
+                } else {
+                    const errorText = await response.text();
+                    console.error('❌ API Error:', response.status, errorText);
+                    resultsDiv.innerHTML = `
+                        <h2>API Error! Status: ${response.status}</h2>
+                        <pre>${errorText}</pre>
+                    `;
+                }
+                
+            } catch (error) {
+                console.error('🚨 Network Error:', error);
+                resultsDiv.innerHTML = `
+                    <h2>Network Error!</h2>
+                    <pre>${error.message}</pre>
+                `;
+            }
+        }
+        
+        // Test immediately
+        testAPI();
+        
+        // Also test the exact API call from the frontend
+        async function testFrontendAPI() {
+            console.log('🎯 Testing frontend API call pattern...');
+            try {
+                const API_BASE_URL = 'http://localhost:5000/api';
+                const response = await fetch(`${API_BASE_URL}/count-products`);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('✅ Frontend pattern API call success:', data);
+                    
+                    // Test the exact mapping function pattern
+                    const simplifiedItems = data.map(item => ({
+                        id: item.id,
+                        customerName: item.customerName,
+                        dyeingFirm: item.dyeingFirm,
+                        productionDate: item.productionDate,
+                        hasCustomerName: !!item.customerName
+                    }));
+                    
+                    console.log('🔄 Mapped data for display:', simplifiedItems);
+                    
+                } else {
+                    console.error('❌ Frontend pattern API failed:', response.status);
+                }
+            } catch (error) {
+                console.error('🚨 Frontend pattern error:', error);
+            }
+        }
+        
+        // Test frontend pattern too
+        setTimeout(testFrontendAPI, 2000);
+    </script>
+</body>
+</html>

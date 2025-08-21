@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Name Fix Tool</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2563eb;
+            text-align: center;
+        }
+        .button-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 0 10px;
+        }
+        button:hover {
+            background: #1d4ed8;
+        }
+        .log-area {
+            background: #1f2937;
+            color: #10b981;
+            padding: 15px;
+            border-radius: 6px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            margin-top: 20px;
+        }
+        .instructions {
+            background: #fef3c7;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        .status {
+            text-align: center;
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+        .success { background: #dcfce7; color: #166534; }
+        .error { background: #fee2e2; color: #dc2626; }
+        .info { background: #dbeafe; color: #1d4ed8; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Customer Name Fix Tool</h1>
+        
+        <div class="instructions">
+            <h3>Instructions:</h3>
+            <ol>
+                <li>Open your main ERP application in another tab (http://localhost:5177)</li>
+                <li>Navigate to the Dyeing Orders page</li>
+                <li>Click "Test API Connection" to verify backend connectivity</li>
+                <li>Click "Fix Customer Names" to directly load and display customer names</li>
+                <li>Check the logs below for detailed progress</li>
+            </ol>
+        </div>
+
+        <div class="button-container">
+            <button onclick="testAPIConnection()">🔍 Test API Connection</button>
+            <button onclick="fixCustomerNames()">🔧 Fix Customer Names</button>
+            <button onclick="openMainApp()">🚀 Open Main App</button>
+            <button onclick="clearLogs()">🗑️ Clear Logs</button>
+        </div>
+
+        <div id="status" class="status info">Ready to fix customer names...</div>
+
+        <div class="log-area" id="logArea">
+            <div>🔧 Customer Name Fix Tool Ready</div>
+            <div>💡 Use the buttons above to test and fix customer name display issues</div>
+            <div>---</div>
+        </div>
+    </div>
+
+    <script>
+        function log(message) {
+            const logArea = document.getElementById('logArea');
+            const timestamp = new Date().toLocaleTimeString();
+            logArea.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+
+        function setStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+        }
+
+        async function testAPIConnection() {
+            log('🔍 Testing API connection...');
+            setStatus('Testing API connection...', 'info');
+            
+            try {
+                const response = await fetch('http://localhost:5000/api/count-products');
+                log(`📡 API Response: Status ${response.status}`);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`✅ API Success: Found ${data.data ? data.data.length : 0} products`);
+                    
+                    if (data.data && data.data.length > 0) {
+                        log('📋 Customer Names in Database:');
+                        data.data.forEach((product, index) => {
+                            log(`   ${index + 1}. ID=${product.id}, Customer="${product.customerName}", Party="${product.partyName}"`);
+                        });
+                        setStatus(`API Working! Found ${data.data.length} products with customer names`, 'success');
+                    } else {
+                        log('⚠️ No products found in database');
+                        setStatus('API working but no products found', 'error');
+                    }
+                } else {
+                    log(`❌ API Error: ${response.status} ${response.statusText}`);
+                    setStatus(`API Error: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                log(`🚨 Connection Error: ${error.message}`);
+                setStatus('Cannot connect to API', 'error');
+            }
+        }
+
+        async function fixCustomerNames() {
+            log('🔧 Starting customer name fix...');
+            setStatus('Fixing customer names...', 'info');
+            
+            try {
+                // First get the data
+                const response = await fetch('http://localhost:5000/api/count-products');
+                if (!response.ok) {
+                    throw new Error(`API Error: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                log(`📡 Received ${data.data ? data.data.length : 0} products from API`);
+                
+                if (!data.data || data.data.length === 0) {
+                    log('❌ No products received from API');
+                    setStatus('No products found to fix', 'error');
+                    return;
+                }
+
+                // Open main app in new tab and inject fix
+                const mainWindow = window.open('http://localhost:5177', 'erpApp');
+                
+                // Wait a moment for the page to load
+                setTimeout(() => {
+                    try {
+                        // Inject the customer name fix script
+                        const script = mainWindow.document.createElement('script');
+                        script.textContent = generateFixScript(data.data);
+                        mainWindow.document.head.appendChild(script);
+                        
+                        log('✅ Customer name fix script injected into main app');
+                        setStatus('Fix script injected! Check main app for results', 'success');
+                        
+                        // Monitor the main window
+                        const monitor = setInterval(() => {
+                            try {
+                                const hasEmptyNames = mainWindow.document.body.textContent.includes('[No Customer Name]');
+                                if (!hasEmptyNames) {
+                                    log('🎉 Customer names successfully fixed!');
+                                    setStatus('Customer names fixed successfully!', 'success');
+                                    clearInterval(monitor);
+                                }
+                            } catch (e) {
+                                // Cross-origin issues, ignore
+                            }
+                        }, 2000);
+                        
+                    } catch (error) {
+                        log(`🚨 Error injecting script: ${error.message}`);
+                        setStatus('Error injecting fix script', 'error');
+                    }
+                }, 3000);
+                
+            } catch (error) {
+                log(`🚨 Fix Error: ${error.message}`);
+                setStatus('Fix failed', 'error');
+            }
+        }
+
+        function generateFixScript(products) {
+            return `
+                console.log('🔥 CUSTOMER NAME FIX SCRIPT INJECTED');
+                
+                const customerData = ${JSON.stringify(products)};
+                console.log('📋 Customer data loaded:', customerData.length, 'products');
+                
+                function updateCustomerNames() {
+                    console.log('🔄 Searching for customer name elements...');
+                    let updated = 0;
+                    
+                    // Method 1: Look for [No Customer Name] text
+                    const walker = document.createTreeWalker(
+                        document.body,
+                        NodeFilter.SHOW_TEXT,
+                        null,
+                        false
+                    );
+                    
+                    const textNodes = [];
+                    let node;
+                    while (node = walker.nextNode()) {
+                        if (node.textContent.includes('[No Customer Name]')) {
+                            textNodes.push(node);
+                        }
+                    }
+                    
+                    console.log('🎯 Found', textNodes.length, 'text nodes with [No Customer Name]');
+                    
+                    textNodes.forEach((textNode, index) => {
+                        const parentElement = textNode.parentElement;
+                        const row = parentElement.closest('tr');
+                        
+                        if (row && customerData.length > index) {
+                            const customerName = customerData[index].customerName;
+                            if (customerName) {
+                                textNode.textContent = customerName;
+                                parentElement.style.backgroundColor = '#dcfce7';
+                                parentElement.style.fontWeight = 'bold';
+                                console.log('✅ Updated customer name:', customerName);
+                                updated++;
+                            }
+                        }
+                    });
+                    
+                    // Method 2: Look for specific table structure
+                    const tables = document.querySelectorAll('table');
+                    tables.forEach(table => {
+                        const rows = table.querySelectorAll('tr');
+                        rows.forEach((row, rowIndex) => {
+                            const cells = row.querySelectorAll('td');
+                            cells.forEach(cell => {
+                                if (cell.textContent.includes('[No Customer Name]') && customerData[rowIndex - 1]) {
+                                    const customerName = customerData[rowIndex - 1].customerName;
+                                    if (customerName) {
+                                        cell.textContent = customerName;
+                                        cell.style.backgroundColor = '#dcfce7';
+                                        cell.style.fontWeight = 'bold';
+                                        console.log('✅ Table method - Updated customer name:', customerName);
+                                        updated++;
+                                    }
+                                }
+                            });
+                        });
+                    });
+                    
+                    console.log('🎉 Total updates made:', updated);
+                    return updated;
+                }
+                
+                // Run immediately
+                updateCustomerNames();
+                
+                // Run periodically
+                setInterval(updateCustomerNames, 3000);
+                
+                // Run on DOM changes
+                const observer = new MutationObserver(() => {
+                    setTimeout(updateCustomerNames, 1000);
+                });
+                observer.observe(document.body, { childList: true, subtree: true });
+                
+                console.log('✅ Customer name fix script active');
+            `;
+        }
+
+        function openMainApp() {
+            window.open('http://localhost:5177', 'erpApp');
+            log('🚀 Opened main app in new tab');
+        }
+
+        function clearLogs() {
+            document.getElementById('logArea').innerHTML = '<div>🔧 Logs cleared</div><div>---</div>';
+        }
+
+        // Auto-test API on load
+        setTimeout(() => {
+            log('🔄 Auto-testing API connection...');
+            testAPIConnection();
+        }, 1000);
+    </script>
+</body>
+</html>

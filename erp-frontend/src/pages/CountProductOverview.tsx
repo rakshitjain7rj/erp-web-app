@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "../components/ui/Button";
-import { ChevronDown, ChevronUp, Package, TrendingUp, Calendar, BarChart3, Plus, Check, X, RefreshCw, Loader } from "lucide-react";
+import { ChevronDown, ChevronUp, Package, TrendingUp, Calendar, BarChart3, Plus, Check, X, Loader } from "lucide-react";
 import { FaCheck, FaTimes } from "react-icons/fa";
 import { toast } from "sonner";
 import { exportDataToCSV } from "../utils/exportUtils";
@@ -28,7 +28,7 @@ const CountProductOverview: React.FC = () => {
   const [expandedFirm, setExpandedFirm] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [firmFilter, setFirmFilter] = useState<string>("");
-  const [gradeFilter, setGradeFilter] = useState<string>("");
+  // Removed grade filter per request
   const [partyFilter, setPartyFilter] = useState<string>("");
   const [showHorizontalForm, setShowHorizontalForm] = useState(false); // New state for horizontal form
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
@@ -46,6 +46,11 @@ const CountProductOverview: React.FC = () => {
   const [dyeingRecords, setDyeingRecords] = useState<DyeingRecord[]>([]);
   const [isLoadingFirms, setIsLoadingFirms] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  
+  // Multiple delete functionality
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [isMultiDeleteMode, setIsMultiDeleteMode] = useState(false);
   
   const [editValues, setEditValues] = useState<{
     quantity: number;
@@ -129,7 +134,7 @@ const CountProductOverview: React.FC = () => {
     const mappedRecord = {
       id: record.id,
       quantity: trackingInfo.originalQuantity || record.quantity,
-      customerName: record.partyName,
+      customerName: record.customerName, // FIX: Use actual customer name, not party name!
       sentToDye: record.quantity, // This is what was actually sent
       sentDate: record.sentDate,
       received: trackingInfo.received,
@@ -372,6 +377,7 @@ const CountProductOverview: React.FC = () => {
       if (e.detail && e.detail.countProducts) {
         console.log('🔄 [CountProductOverview] Custom countProducts sync received:', e.detail.countProducts.length);
         setProducts(e.detail.countProducts);
+        setRefreshKey(prev => prev + 1);
       }
     };
 
@@ -380,6 +386,61 @@ const CountProductOverview: React.FC = () => {
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('countProductsUpdated', handleCustomSync as EventListener);
+    };
+  }, []);
+
+  // Auto-refresh functionality - triggers fast refresh on component mount and focus
+  useEffect(() => {
+    let isRefreshing = false;
+
+    const fastRefresh = async () => {
+      if (isRefreshing) return; // Prevent multiple simultaneous refreshes
+      
+      isRefreshing = true;
+      try {
+        // Check if data is stale before refreshing
+        const lastRefresh = localStorage.getItem('lastCountProductRefresh');
+        const now = Date.now();
+        const staleThreshold = 500; // 500ms threshold for staleness
+        
+        if (!lastRefresh || (now - parseInt(lastRefresh)) > staleThreshold) {
+          setIsLoading(true);
+          
+          // Parallel data loading for maximum speed
+          const refreshPromises = [
+            fetchCountProducts(),
+            dyeingDataStore.loadRecords(true),
+            dyeingDataStore.loadFirms(true)
+          ];
+          
+          await Promise.all(refreshPromises);
+          localStorage.setItem('lastCountProductRefresh', now.toString());
+          setRefreshKey(prev => prev + 1);
+        }
+      } catch (error) {
+        console.error('Initial load failed:', error);
+      } finally {
+        setIsLoading(false);
+        isRefreshing = false;
+      }
+    };
+
+    // Smart one-time initial load - check if we need to load data
+    const lastLoadKey = `countProductOverviewLastLoad_${new Date().toDateString()}`;
+    const hasLoadedToday = localStorage.getItem(lastLoadKey);
+    
+    if (!hasLoadedToday) {
+      console.log('🚀 First load of the day - performing initial data load...');
+      fastRefresh();
+      localStorage.setItem(lastLoadKey, Date.now().toString());
+    } else {
+      console.log('✅ Data already loaded today - using cached data for instant display');
+      // Data is already available from the store - no need to force update
+    }
+
+    // No continuous refresh listeners - data updates happen through forms and actions
+    return () => {
+      // no-op
     };
   }, []);
 
@@ -483,7 +544,7 @@ const CountProductOverview: React.FC = () => {
       product.lotNumber.toLowerCase().includes(query);
 
     const matchesFirm = firmFilter ? product.dyeingFirm === firmFilter : true;
-    const matchesGrade = gradeFilter ? product.qualityGrade === gradeFilter : true;
+  const matchesGrade = true;
     const matchesParty = partyFilter ? product.partyName === partyFilter : true;
 
     return matchesSearch && matchesFirm && matchesGrade && matchesParty;
@@ -491,8 +552,15 @@ const CountProductOverview: React.FC = () => {
 
   // Get unique values for filters
   // Use centralized dyeing firms instead of extracting from products
-  const uniqueFirms = centralizedDyeingFirms.map(firm => firm.name);
-  const uniqueGrades = Array.from(new Set(products.map((p) => p.qualityGrade)));
+  // Firms currently visible on this page, derived from filtered products
+  const pageFirms = React.useMemo(() => {
+    const set = new Set<string>();
+    products.forEach(p => p?.dyeingFirm && set.add(p.dyeingFirm));
+    // Also include dyeingRecords mapped to simplified display if used in UI lists here
+    dyeingRecords.forEach(r => r?.dyeingFirm && set.add(r.dyeingFirm));
+    return Array.from(set).sort((a,b) => a.localeCompare(b));
+  }, [products, dyeingRecords]);
+  // Removed uniqueGrades, no longer used
   const uniqueParties = Array.from(new Set(products.map((p) => p.partyName)));
 
   // Group products by dyeing firm
@@ -648,6 +716,125 @@ const CountProductOverview: React.FC = () => {
     }
   };
 
+  // Multiple delete functions
+  const toggleItemSelection = (itemId: string) => {
+    const newSelected = new Set(selectedItems);
+    if (newSelected.has(itemId)) {
+      newSelected.delete(itemId);
+    } else {
+      newSelected.add(itemId);
+    }
+    setSelectedItems(newSelected);
+  };
+
+  const selectAllItems = () => {
+    const allItemIds = new Set<string>();
+    
+    // Add all count products
+    products.forEach((product) => {
+      allItemIds.add(`count-${product.id}`);
+    });
+    
+    // Add all dyeing records
+    dyeingRecords.forEach((record) => {
+      allItemIds.add(`dyeing-${record.id}`);
+    });
+    
+    setSelectedItems(allItemIds);
+  };
+
+  const clearSelection = () => {
+    setSelectedItems(new Set());
+  };
+
+  const handleMultipleDelete = async () => {
+    if (selectedItems.size === 0) {
+      toast.error("No items selected for deletion");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${selectedItems.size} selected item(s)? This action cannot be undone.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const deletePromises: Promise<void>[] = [];
+      
+      // Process selected items
+      selectedItems.forEach(itemId => {
+        const [type, id] = itemId.split('-');
+        const numericId = parseInt(id);
+        
+        if (type === 'count') {
+          deletePromises.push(deleteCountProduct(numericId));
+        } else if (type === 'dyeing') {
+          deletePromises.push(deleteDyeingRecord(numericId));
+        }
+      });
+
+      // Execute all deletions
+      await Promise.all(deletePromises);
+      
+      toast.success(`Successfully deleted ${selectedItems.size} item(s)`);
+      
+      // Clear selection and refresh data
+      setSelectedItems(new Set());
+      setIsMultiDeleteMode(false);
+      
+      // Refresh data
+      await fetchCountProducts();
+      await dyeingDataStore.loadRecords(true);
+      
+    } catch (error: any) {
+      console.error("❌ Multiple delete failed:", error);
+      
+      // Handle demo mode fallback
+      if ((error instanceof Error && error.message.includes('ECONNREFUSED')) ||
+          (error as any)?.response?.status >= 500 ||
+          (error instanceof Error && error.message.includes('Network Error'))) {
+        
+        // Process local deletions in demo mode
+        let updatedProducts = [...products];
+        let updatedRecords = [...dyeingRecords];
+        
+        selectedItems.forEach(itemId => {
+          const [type, id] = itemId.split('-');
+          const numericId = parseInt(id);
+          
+          if (type === 'count') {
+            updatedProducts = updatedProducts.filter(p => p.id !== numericId);
+          } else if (type === 'dyeing') {
+            updatedRecords = updatedRecords.filter(r => r.id !== numericId);
+          }
+        });
+        
+        setProducts(updatedProducts);
+        setDyeingRecords(updatedRecords);
+        
+        // Save to localStorage
+        localStorage.setItem('countProducts', JSON.stringify(updatedProducts));
+        localStorage.setItem('countProductsTimestamp', new Date().getTime().toString());
+        
+        // Dispatch events for cross-page sync
+        window.dispatchEvent(new CustomEvent('countProductsUpdated', { 
+          detail: { countProducts: updatedProducts } 
+        }));
+        
+        setSelectedItems(new Set());
+        setIsMultiDeleteMode(false);
+        
+        toast.success(`Successfully deleted ${selectedItems.size} item(s) (Demo mode)`);
+      } else {
+        const errorMessage = error?.response?.data?.message || error?.message || "Unknown error occurred";
+        toast.error(`Failed to delete items: ${errorMessage}`);
+      }
+    }
+  };
+
   const handleFollowUp = (productId: number) => {
     const product = products.find(p => p.id === productId);
     if (product) {
@@ -676,6 +863,9 @@ const CountProductOverview: React.FC = () => {
     // Close the modal
     setIsEditModalOpen(false);
     setProductToEdit(null);
+    
+    // Force refresh to update the display
+    setRefreshKey(prev => prev + 1);
     
     toast.success("Product updated successfully!");
   };
@@ -977,41 +1167,6 @@ const CountProductOverview: React.FC = () => {
     toast.success("PDF exported successfully!");
   };
 
-  // Force refresh from server
-  const handleForceRefresh = async () => {
-    console.log('🔄 Force refresh requested - clearing localStorage and fetching from API');
-    
-    // Clear localStorage to force API fetch
-    localStorage.removeItem('countProducts');
-    localStorage.removeItem('countProductsTimestamp');
-    
-    // Force fetch from API
-    setIsLoading(true);
-    try {
-      const data = await getAllCountProducts();
-      console.log(`✅ Force refresh: Successfully fetched ${data.length} products from API`);
-      
-      setProducts(data);
-      
-      // Save fresh API data to localStorage
-      localStorage.setItem('countProducts', JSON.stringify(data));
-      localStorage.setItem('countProductsTimestamp', new Date().getTime().toString());
-      
-      // Also refresh firms and dyeing records from the store
-      console.log('🔄 Force refreshing firms and dyeing records from store...');
-      await dyeingDataStore.loadFirms(true);
-      await dyeingDataStore.loadRecords(true);
-      console.log('✅ Store data refreshed');
-      
-      toast.success(`Refreshed from server: ${data.length} products loaded, firms synced`);
-    } catch (error) {
-      console.error('❌ Force refresh failed:', error);
-      toast.error('Failed to refresh from server. Check your connection.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   // Cross-page handlers for DyeingRecord items (created in DyeingOrders page)
   const handleDyeingRecordEdit = (recordId: number) => {
     console.log('🖊️ [CountProductOverview] handleDyeingRecordEdit called for record:', recordId);
@@ -1041,7 +1196,7 @@ const CountProductOverview: React.FC = () => {
       const formattedRecord = {
         id: record.id,
         quantity: trackingInfo.originalQuantity || record.quantity,
-        customerName: record.partyName,
+        customerName: record.customerName, // FIX: Use actual customer name, not party name!
         sentToDye: record.quantity,
         sentDate: formatDateForInput(record.sentDate),
         received: trackingInfo.received || 0,
@@ -1245,10 +1400,10 @@ const CountProductOverview: React.FC = () => {
   console.log('  - Products data:', products.slice(0, 2)); // Show first 2 products for debugging
 
   useEffect(() => {
-    if (firmFilter && !centralizedDyeingFirms.find(f => f.name === firmFilter)) {
+    if (firmFilter && !pageFirms.includes(firmFilter)) {
       setFirmFilter("");
     }
-  }, [firmFilter, centralizedDyeingFirms]);
+  }, [firmFilter, pageFirms]);
 
   return (
     <div className="min-h-screen p-6 bg-gray-50 dark:bg-gray-900">
@@ -1279,23 +1434,6 @@ const CountProductOverview: React.FC = () => {
             </div>
             <div className="flex gap-3">
               <Button 
-                onClick={() => {
-                  console.log('🔄 Manual refresh requested by user');
-                  dyeingDataStore.forceRefresh().then(() => {
-                    console.log('✅ Manual refresh completed');
-                    toast.success('Data refreshed successfully');
-                  }).catch((err) => {
-                    console.error('❌ Manual refresh failed:', err);
-                    toast.error('Failed to refresh data');
-                  });
-                }}
-                variant="outline"
-                className="flex items-center space-x-2"
-              >
-                <RefreshCw className="w-4 h-4" />
-                <span>Refresh Firms</span>
-              </Button>
-              <Button 
                 onClick={() => setShowHorizontalForm(!showHorizontalForm)}
                 className={`flex items-center space-x-2 transition-all ${
                   showHorizontalForm 
@@ -1322,15 +1460,39 @@ const CountProductOverview: React.FC = () => {
             <Calendar className="w-4 h-4" />
             <span>Export PDF</span>
           </Button>
-          <Button 
-            onClick={handleForceRefresh}
-            variant="outline"
-            disabled={isLoading}
-            className="flex items-center space-x-2"
-          >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-            <span>{isLoading ? 'Refreshing...' : 'Refresh'}</span>
-          </Button>
+          
+          {/* Multiple Delete Buttons */}
+          {!isMultiDeleteMode ? (
+            <Button 
+              onClick={() => {
+                setSelectedItems(new Set()); // Clear any existing selections
+                setIsMultiDeleteMode(true);
+              }}
+              variant="outline"
+              className="text-red-600 border-red-300 hover:bg-red-50"
+            >
+              Multiple Delete
+            </Button>
+          ) : (
+            <div className="flex gap-2">
+              <Button 
+                onClick={handleMultipleDelete}
+                disabled={selectedItems.size === 0}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                Delete Selected ({selectedItems.size})
+              </Button>
+              <Button 
+                onClick={() => {
+                  setIsMultiDeleteMode(false);
+                  setSelectedItems(new Set());
+                }}
+                variant="outline"
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1349,20 +1511,11 @@ const CountProductOverview: React.FC = () => {
           className="px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
         >
           <option value="">All Dyeing Firms</option>
-          {uniqueFirms.map((firm) => (
+          {pageFirms.map((firm) => (
             <option key={firm} value={firm}>{firm}</option>
           ))}
         </select>
-        <select 
-          value={gradeFilter} 
-          onChange={(e) => setGradeFilter(e.target.value)} 
-          className="px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">All Quality Grades</option>
-          {uniqueGrades.map((grade) => (
-            <option key={grade} value={grade}>Grade {grade}</option>
-          ))}
-        </select>
+  {/* Grade filter removed */}
         <select 
           value={partyFilter} 
           onChange={(e) => setPartyFilter(e.target.value)} 
@@ -1400,6 +1553,7 @@ const CountProductOverview: React.FC = () => {
               <HorizontalAddOrderForm
                 onSuccess={handleHorizontalFormSuccess}
                 onCancel={() => setShowHorizontalForm(false)}
+                existingFirms={pageFirms}
               />
             </div>
           </div>
@@ -1407,7 +1561,7 @@ const CountProductOverview: React.FC = () => {
       )}
 
       {/* Grouped Content by Dyeing Firm */}
-      <div className="space-y-6">
+      <div className="space-y-6" key={refreshKey}>
         {completeFirmListing.map((firmInfo) => (
           <div key={firmInfo.name} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
             {/* Firm Header - Collapsible */}
@@ -1445,6 +1599,34 @@ const CountProductOverview: React.FC = () => {
                   <table className="min-w-full text-sm">
                     <thead className="bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600">
                       <tr>
+                        <th className="px-3 py-3 text-center font-semibold w-12">
+                          {isMultiDeleteMode && (
+                            <input
+                              type="checkbox"
+                              checked={
+                                (firmInfo.products.length + firmInfo.dyeingRecords.length) > 0 && 
+                                selectedItems.size > 0 &&
+                                selectedItems.size === (firmInfo.products.length + firmInfo.dyeingRecords.length)
+                              }
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  // Select all items in current firm view
+                                  const allItemIds = new Set<string>();
+                                  firmInfo.products.forEach((product) => {
+                                    allItemIds.add(`count-${product.id}`);
+                                  });
+                                  firmInfo.dyeingRecords.forEach((record) => {
+                                    allItemIds.add(`dyeing-${record.id}`);
+                                  });
+                                  setSelectedItems(allItemIds);
+                                } else {
+                                  clearSelection();
+                                }
+                              }}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                          )}
+                        </th>
                         <th className="px-3 py-3 text-left font-semibold">Quantity</th>
                         <th className="px-3 py-3 text-left font-semibold">Customer Name</th>
                         <th className="px-3 py-3 text-left font-semibold">Count</th>
@@ -1454,7 +1636,7 @@ const CountProductOverview: React.FC = () => {
                         <th className="px-3 py-3 text-left font-semibold">Received Date</th>
                         <th className="px-3 py-3 text-left font-semibold">Dispatch</th>
                         <th className="px-3 py-3 text-left font-semibold">Dispatch Date</th>
-                        <th className="px-3 py-3 text-left font-semibold">Party Name / Middleman</th>
+                        <th className="px-3 py-3 text-left font-semibold">Party/Middleman</th>
                         <th className="px-3 py-3 text-left font-semibold w-16">Actions</th>
                       </tr>
                     </thead>
@@ -1462,9 +1644,20 @@ const CountProductOverview: React.FC = () => {
                       {/* Count Products - Green Background/Text */}
                       {firmInfo.products.map((product) => {
                         const isCountProduct = true;
+                        const itemId = `count-${product.id}`;
                         return (
                           <tr key={`count-${product.id}`} 
                               className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${isCountProduct ? 'bg-green-50 dark:bg-green-900/20' : ''}`}>
+                            <td className="px-3 py-3 text-center">
+                              {isMultiDeleteMode && (
+                                <input
+                                  type="checkbox"
+                                  checked={selectedItems.has(itemId)}
+                                  onChange={() => toggleItemSelection(itemId)}
+                                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                              )}
+                            </td>
                             <td className={`px-3 py-3 font-medium ${isCountProduct ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'}`}>
                               {editingProductId === product.id ? (
                                 <div className="flex items-center space-x-2">
@@ -1592,18 +1785,6 @@ const CountProductOverview: React.FC = () => {
                                   >
                                     <X className="w-4 h-4" />
                                   </button>
-                                  {/* Debug reset button */}
-                                  <button
-                                    onClick={() => {
-                                      console.log('🔄 Debug reset clicked');
-                                      setIsSaving(false);
-                                      toast.info("Debug: isSaving reset to false");
-                                    }}
-                                    className="p-1.5 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                                    title="Debug: Reset isSaving state"
-                                  >
-                                    <RefreshCw className="w-4 h-4" />
-                                  </button>
                                 </div>
                               ) : (
                                 <FloatingActionDropdown
@@ -1638,10 +1819,21 @@ const CountProductOverview: React.FC = () => {
                         const simplifiedRecord = mapToSimplifiedDisplay(record);
                         const isCountProduct = false;
                         const isEditing = editingProductId === -record.id; // Negative ID for dyeing records
+                        const itemId = `dyeing-${record.id}`;
                         
                         return (
                           <tr key={`dyeing-${record.id}`} 
                               className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${isCountProduct ? 'bg-green-50 dark:bg-green-900/20' : ''}`}>
+                            <td className="px-3 py-3 text-center">
+                              {isMultiDeleteMode && (
+                                <input
+                                  type="checkbox"
+                                  checked={selectedItems.has(itemId)}
+                                  onChange={() => toggleItemSelection(itemId)}
+                                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                              )}
+                            </td>
                             <td className={`px-4 py-3 font-medium ${isCountProduct ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'}`}>
                               {isEditing ? (
                                 <input
@@ -1824,6 +2016,7 @@ const CountProductOverview: React.FC = () => {
                 productToEdit={productToEdit}
                 onSuccess={handleEditSuccess}
                 onCancel={handleEditCancel}
+                existingFirms={pageFirms}
               />
             </div>
           </div>
@@ -1871,6 +2064,7 @@ const CountProductOverview: React.FC = () => {
                   toast.success('Dyeing record updated successfully!');
                 }}
                 orderToEdit={dyeingRecordToEdit}
+                existingFirms={pageFirms}
               />
             </div>
           </div>

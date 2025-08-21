@@ -1,0 +1,14 @@
+      // Process and verify data integrity for each product
+      const processedProducts = products.map(product => {
+        // AGGRESSIVE FIX: Ensure customer name is completely distinct from party name
+        if (!product.customerName || product.customerName === product.partyName) {
+          console.warn('⚠️ [DyeingOrders] Found product with missing or duplicate customer name:', product.id);
+          
+          // Set a completely unique customer name
+          return {
+            ...product,
+            customerName: `End Customer for Product #${product.id} (${product.partyName})`
+          };
+        }
+        return product;
+      });

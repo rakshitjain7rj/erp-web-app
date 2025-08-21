@@ -105,8 +105,23 @@ export const createCountProduct = async (data: CreateCountProductRequest): Promi
 };
 
 export const updateCountProduct = async (id: number, data: Partial<CreateCountProductRequest>): Promise<CountProduct> => {
+  console.log('\n🔥 AGGRESSIVE DEBUG - API UPDATE COUNT PRODUCT');
+  console.log('📡 API call to update product ID:', id);
+  console.log('📤 Data being sent to server:', JSON.stringify(data, null, 2));
+  console.log('🔍 CRITICAL FIELDS IN API CALL:');
+  console.log(`   customerName: "${data.customerName}"`);
+  console.log(`   partyName: "${data.partyName}"`);
+  
   const response = await api.put(`/${id}`, data);
-  return response.data.data || response.data;
+  
+  console.log('📥 API response received:', JSON.stringify(response.data, null, 2));
+  console.log('🔍 RESPONSE CRITICAL FIELDS:');
+  const responseData = response.data.data || response.data;
+  console.log(`   returned customerName: "${responseData.customerName}"`);
+  console.log(`   returned partyName: "${responseData.partyName}"`);
+  console.log('🔥 API UPDATE COMPLETE\n');
+  
+  return responseData;
 };
 
 export const deleteCountProduct = async (id: number): Promise<void> => {

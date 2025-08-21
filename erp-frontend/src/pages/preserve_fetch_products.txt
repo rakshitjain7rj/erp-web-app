@@ -1,0 +1,6 @@
+      // Process and verify data integrity for each product
+      const processedProducts = products.map(product => {
+        // PRESERVE USER INPUT FIX: Always use exactly what the user entered
+        // No modification of customer name - preserve exactly what was entered in the form
+        return product;
+      });

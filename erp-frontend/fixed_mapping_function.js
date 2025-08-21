@@ -1,0 +1,20 @@
+// ================= COUNT PRODUCT MAPPING FUNCTION =================
+  const mapCountProductToSimplifiedDisplay = (countProduct: CountProduct): SimplifiedDyeingDisplayRecord => {
+    const mappedRecord = {
+      id: countProduct.id,
+      quantity: countProduct.quantity,
+      customerName: countProduct.customerName, // Use the customer name directly from the record
+      count: countProduct.count || "Standard", // Add count field from count product
+      sentToDye: countProduct.sentToDye ? (countProduct.sentQuantity ?? countProduct.quantity) : 0,
+      sentDate: countProduct.sentDate,
+      received: countProduct.received ? countProduct.receivedQuantity : undefined,
+      receivedDate: countProduct.receivedDate || undefined,
+      dispatch: countProduct.dispatch ? countProduct.dispatchQuantity : undefined,
+      dispatchDate: countProduct.dispatchDate || undefined,
+      partyNameMiddleman: countProduct.middleman || countProduct.partyName, // Use middleman if available, otherwise fall back to partyName
+      dyeingFirm: countProduct.dyeingFirm,
+      remarks: countProduct.remarks || ''
+    };
+    
+    return mappedRecord;
+  };

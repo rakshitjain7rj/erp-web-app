@@ -49,5 +49,36 @@ function testGetFirms() {
   });
 }
 
-console.log('Testing dyeing firms API...');
+// Clear cache and test customer names
+console.log('🧹 Clearing cache...');
+localStorage.clear();
+sessionStorage.clear();
+
+// Test API directly
+console.log('📡 Testing count products API...');
+fetch('/api/count-products')
+  .then(response => response.json())
+  .then(data => {
+    console.log('📋 API Response:', data);
+    
+    const products = data.data || data;
+    if (Array.isArray(products)) {
+      console.log(`✅ Found ${products.length} products`);
+      
+      products.forEach((product, i) => {
+        console.log(`${i+1}. ID: ${product.id}`);
+        console.log(`   Customer Name: "${product.customerName}"`);
+        console.log(`   Party Name: "${product.partyName}"`);
+        console.log(`   Valid: ${!!product.customerName}`);
+        console.log('---');
+      });
+    } else {
+      console.log('❌ Products is not an array:', typeof products);
+    }
+  })
+  .catch(error => {
+    console.error('❌ API Error:', error);
+  });
+
+console.log('✅ Test complete - reload page to see fresh data');
 testCreateFirm();

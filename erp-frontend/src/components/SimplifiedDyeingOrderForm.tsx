@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from "react";
 import { format, addDays } from "date-fns";
 import { toast } from "sonner";
-import { createDyeingRecord, updateDyeingRecord } from "../api/dyeingApi";
+import { createCountProduct, updateCountProduct } from "../api/countProductApi";
+import { updateDyeingRecord } from "../api/dyeingApi";
 import { findOrCreateDyeingFirm } from "../api/dyeingFirmApi";
-import { CreateDyeingRecordRequest } from "../types/dyeing";
 import { Button } from "./ui/Button";
 import { X, ChevronDown, Check, Package, Calendar, Plus } from "lucide-react";
 import { dyeingDataStore } from '../stores/dyeingDataStore';
@@ -77,14 +77,20 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
   const [selectedFirmIndex, setSelectedFirmIndex] = useState(-1);
   const firmDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Keep a local reactive copy of firms so we can update when new ones are broadcast
+  // Count suggestions dropdown states
+  const [showCountDropdown, setShowCountDropdown] = useState(false);
+  const countDropdownRef = useRef<HTMLDivElement>(null);
+  const [liveCounts, setLiveCounts] = useState<string[]>([]);
+
+  // Keep a local reactive copy of firms so we can update; prefer page-provided list if present
+  const preferPropFirms = (existingFirms && existingFirms.length > 0);
   const [liveFirms, setLiveFirms] = useState<string[]>(existingFirms);
 
-  // Subscribe to firm updates from sync manager
+  // Subscribe to firm updates from sync manager ONLY if no page-provided list is given
   useEffect(() => {
+    if (preferPropFirms) return; // use page list exclusively
     let unsubscribe: (() => void) | null = null;
-    
-    const setupSubscription = async () => {
+    (async () => {
       try {
         unsubscribe = await dyeingDataStore.subscribeFirms((firms) => {
           const firmNames = firms.map(f => f.name);
@@ -94,26 +100,61 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
       } catch (error) {
         console.error('❌ Error setting up firm subscription:', error);
       }
-    };
-    
-    setupSubscription();
-    
-    return () => {
-      if (unsubscribe && typeof unsubscribe === 'function') {
-        unsubscribe();
-      }
-    };
-  }, []);
+    })();
+    return () => { if (unsubscribe) unsubscribe(); };
+  }, [preferPropFirms]);
 
   // Update liveFirms when existingFirms prop changes
   useEffect(() => {
-    setLiveFirms(existingFirms);
-  }, [existingFirms]);
+    if (preferPropFirms) {
+      setLiveFirms(existingFirms);
+    }
+  }, [existingFirms, preferPropFirms]);
 
   // Filter existing firms based on input (use dynamic firms from database)
   const filteredFirms = liveFirms.filter(firm =>
     firm.toLowerCase().includes(firmFilter.toLowerCase())
   );
+
+  // Build unique counts from dyeing records (store) and count products (localStorage)
+  useEffect(() => {
+    let unsubscribe: (() => void) | null = null;
+    const collectCounts = (records: any[]) => {
+      const recCounts = Array.from(new Set((records || [])
+        .map(r => (r?.count || '').toString().trim())
+        .filter(Boolean)));
+      let cpCounts: string[] = [];
+      try {
+        const raw = localStorage.getItem('countProducts');
+        if (raw) {
+          const cps = JSON.parse(raw);
+          cpCounts = Array.from(new Set((cps || [])
+            .map((p: any) => (p?.count || '').toString().trim())
+            .filter(Boolean)));
+        }
+      } catch {}
+      const merged = Array.from(new Set([...recCounts, ...cpCounts])).sort();
+      setLiveCounts(merged);
+    };
+
+    const setup = async () => {
+      try {
+        unsubscribe = await dyeingDataStore.subscribeRecords((records) => {
+          collectCounts(records as any[]);
+        });
+      } catch (e) {
+        // fallback: try from localStorage only
+        collectCounts([]);
+      }
+    };
+    setup();
+    return () => { if (unsubscribe) unsubscribe(); };
+  }, []);
+
+  const filteredCounts = React.useMemo(() => {
+    const q = (formData.count || '').toLowerCase();
+    return liveCounts.filter(c => c.toLowerCase().includes(q));
+  }, [liveCounts, formData.count]);
 
   useEffect(() => {
     console.log('🔄 useEffect triggered');
@@ -162,6 +203,9 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
       if (firmDropdownRef.current && !firmDropdownRef.current.contains(event.target as Node)) {
         setShowFirmDropdown(false);
         setSelectedFirmIndex(-1);
+      }
+      if (countDropdownRef.current && !countDropdownRef.current.contains(event.target as Node)) {
+        setShowCountDropdown(false);
       }
     };
 
@@ -450,81 +494,96 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
       console.log('🔍 FormData received:', formData.received);
       console.log('🔍 FormData dispatch:', formData.dispatch);
 
-      // Create the dyeing record data for API (with only supported fields)
-      const dyeingRecordData: CreateDyeingRecordRequest = {
-        yarnType: formData.yarnType || "Standard", // Provide default if empty
-        sentDate: formData.sentDate,
-        expectedArrivalDate: formData.expectedArrivalDate || formData.sentDate, // Use sent date as fallback
-        remarks: enhancedRemarks,
-        partyName: formData.partyName || formData.customerName, // Preserve existing partyName if available, otherwise use customerName
-        quantity: formData.sentToDye || formData.quantity, // Use sentToDye as the main quantity (what was actually sent)
-        shade: formData.shade || "Natural", // Provide default if empty
-        count: formData.count || "Standard", // Provide default if empty
-        lot: formData.lot || (orderToEdit ? formData.lot : `LOT-${Date.now()}`), // Keep existing lot for updates, generate new for creates
+      // Create the count product data for API (this will save customer name properly)
+      const countProductData = {
+        partyName: formData.partyName || "Unknown Party", // Use actual party name from form
         dyeingFirm: formData.dyeingFirm,
+        yarnType: formData.yarnType || "Standard",
+        count: formData.count || "Standard", 
+        shade: formData.shade || "Natural",
+        quantity: formData.sentToDye || formData.quantity,
+        completedDate: formData.sentDate, // Use sent date as completed date
+        qualityGrade: 'A' as const,
+        remarks: enhancedRemarks,
+        lotNumber: formData.lot || `LOT-${Date.now()}`,
+        customerName: formData.customerName || "Unknown Customer", // 🎯 SEPARATE field for customer!
+        sentToDye: true,
+        sentDate: formData.sentDate,
+        received: !!formData.received,
+        receivedDate: formData.receivedDate || undefined,
+        receivedQuantity: formData.received || undefined,
+        dispatch: !!formData.dispatch,
+        dispatchDate: formData.dispatchDate || undefined,
+        dispatchQuantity: formData.dispatch || undefined,
+        middleman: formData.partyName || "" // 🔥 CRITICAL: Save party name as middleman field
       };
 
-      console.log('📤 API Request Data:', dyeingRecordData);
-      console.log('📋 Main Quantity (sentToDye) in API request:', dyeingRecordData.quantity);
-      console.log('📋 Form sentToDye value:', formData.sentToDye);
-      console.log('📋 Form received value:', formData.received);
-      console.log('📋 Form dispatch value:', formData.dispatch);
-      console.log('👤 PartyName (Customer) in API request:', dyeingRecordData.partyName);
-      console.log('👤 FormData.partyName:', formData.partyName);
-      console.log('👤 FormData.customerName:', formData.customerName);
-      console.log('🏭 DyeingFirm in API request:', dyeingRecordData.dyeingFirm);
-      console.log('🧵 YarnType in API request:', dyeingRecordData.yarnType);
-      console.log('🎨 Shade in API request:', dyeingRecordData.shade);
-      console.log('🔢 Count in API request:', dyeingRecordData.count);
-      console.log('📦 Lot in API request:', dyeingRecordData.lot);
-      console.log('📅 SentDate in API request:', dyeingRecordData.sentDate);
-      console.log('📅 ExpectedArrivalDate in API request:', dyeingRecordData.expectedArrivalDate);
-      console.log('📝 Enhanced Remarks in API request:', dyeingRecordData.remarks);
-      console.log('🔍 Total fields being sent:', Object.keys(dyeingRecordData).length);
+      console.log('� Count Product API Request Data:', countProductData);
+      console.log('� Customer Name in request:', countProductData.customerName);
+      console.log('� Party Name in request:', countProductData.partyName);
+      console.log('🏭 Dyeing Firm in request:', countProductData.dyeingFirm);
+      console.log('� Lot Number in request:', countProductData.lotNumber);
 
       let result;
       
       if (shouldUpdate) {
         const idToUse = formData.id || orderToEdit?.id;
-        console.log('🔄 UPDATE PATH: Updating existing record with ID:', idToUse);
+        console.log('🔄 UPDATE PATH: Updating existing dyeing record with ID:', idToUse);
         console.log('🔄 ID source:', formData.id ? 'formData' : 'orderToEdit prop');
-        console.log('🔄 Update data:', dyeingRecordData);
         
         if (!idToUse || idToUse <= 0) {
           throw new Error(`Invalid ID for update: ${idToUse}`);
         }
-        
-        result = await updateDyeingRecord(idToUse, dyeingRecordData);
-        console.log('✅ Record updated successfully:', result);
-        console.log('✅ Updated record ID:', result?.id);
-        console.log('✅ Updated record remarks:', result?.remarks);
-        console.log('✅ Updated record quantity:', result?.quantity);
+
+        // Build full payload expected by updateDyeingRecord (PUT)
+        const dyeingUpdateData = {
+          yarnType: formData.yarnType || "Mixed",
+          sentDate: formData.sentDate,
+          expectedArrivalDate: formData.expectedArrivalDate,
+          remarks: enhancedRemarks,
+          partyName: formData.partyName || "Direct",
+          customerName: formData.customerName || undefined,
+          quantity: formData.sentToDye || formData.quantity,
+          shade: formData.shade || "Natural",
+          count: formData.count || "Standard",
+          lot: formData.lot || `LOT-${Date.now()}`,
+          dyeingFirm: formData.dyeingFirm
+        };
+
+        console.log('📦 PUT /dyeing with payload:', dyeingUpdateData);
+        result = await updateDyeingRecord(idToUse, dyeingUpdateData as any);
+        console.log('✅ Dyeing record updated successfully:', result);
+
+        // Note: We no longer attempt to update a CountProduct here because IDs are not guaranteed to match.
       } else {
-        console.log('🔄 CREATE PATH: Creating new record');
-        console.log('🔄 Create data:', dyeingRecordData);
-        result = await createDyeingRecord(dyeingRecordData);
-        console.log('✅ Record created successfully:', result);
+        console.log('🔄 CREATE PATH: Creating new count product');
+        console.log('🔄 Create data:', countProductData);
+        result = await createCountProduct(countProductData);
+        console.log('✅ Count product created successfully:', result);
+        console.log('✅ Created customer name:', result?.customerName);
+        console.log('🎯 Created partyName field:', result?.partyName);
+        console.log('🎯 Created middleman field:', result?.middleman);
       }
       
       // Create a simple success signal for the parent component
       const successData = {
         action: shouldUpdate ? 'updated' : 'created',
         recordId: result?.id || formData.id,
-        dyeingFirm: dyeingRecordData.dyeingFirm, // CRITICAL: Include dyeing firm for sync
+        dyeingFirm: countProductData.dyeingFirm,
+        customerName: countProductData.customerName, // Include customer name in success data
         timestamp: new Date().toISOString(),
         updatedFields: {
-          quantity: dyeingRecordData.quantity,
-          partyName: dyeingRecordData.partyName,
-          dyeingFirm: dyeingRecordData.dyeingFirm,
-          yarnType: dyeingRecordData.yarnType,
-          shade: dyeingRecordData.shade,
-          count: dyeingRecordData.count,
-          lot: dyeingRecordData.lot,
-          // Include tracking information for verification
+          quantity: countProductData.quantity,
+          customerName: countProductData.customerName,
+          dyeingFirm: countProductData.dyeingFirm,
+          yarnType: countProductData.yarnType,
+          shade: countProductData.shade,
+          count: countProductData.count,
+          lotNumber: countProductData.lotNumber,
           sentToDye: formData.sentToDye,
           received: formData.received,
           dispatch: formData.dispatch,
-          remarks: dyeingRecordData.remarks
+          remarks: countProductData.remarks
         }
       };
       
@@ -532,9 +591,9 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
       onSuccess(successData);
       
       const actionType = shouldUpdate ? 'updated' : 'created';
-      toast.success(`Order ${actionType} successfully! ${shouldUpdate ? `(ID: ${formData.id}) - Quantities and tracking info updated` : 'New order created with tracking'}`, {
+      toast.success(`Order ${actionType} successfully! Customer: ${countProductData.customerName}`, {
         duration: 4000,
-        description: shouldUpdate ? 'The listing will refresh automatically to show updated values in Sent to Dye, Received, and Dispatch columns.' : undefined
+        description: shouldUpdate ? 'The listing will refresh to show updated customer name and values.' : 'Customer name will now be saved and displayed properly.'
       });
       
       // Only reset form if not editing, let parent component handle form closure for edits
@@ -544,7 +603,7 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
     } catch (error) {
       console.error("Failed to submit order:", error);
       const actionType = (orderToEdit && formData.id) ? 'update' : 'create';
-      toast.error(`Failed to ${actionType} order. Please try again.`);
+      toast.error(`Failed to ${actionType} order with customer name. Please try again.`);
     } finally {
       setIsSubmitting(false);
     }
@@ -628,8 +687,8 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
             )}
           </div>
 
-          {/* Count */}
-          <div className="space-y-1">
+          {/* Count with suggestions */}
+          <div className="space-y-1 relative" ref={countDropdownRef}>
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block">
               Count *
             </label>
@@ -637,7 +696,9 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
               type="text"
               name="count"
               value={formData.count}
-              onChange={handleInputChange}
+              onChange={(e) => { handleInputChange(e); setShowCountDropdown(true); }}
+              onFocus={() => setShowCountDropdown(true)}
+              onBlur={() => setTimeout(() => setShowCountDropdown(false), 180)}
               className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors ${
                 errors.count 
                   ? 'border-red-500 focus:ring-red-500' 
@@ -645,6 +706,35 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
               }`}
               placeholder="e.g. 20s, 30s, Standard"
             />
+            {showCountDropdown && (
+              <div className="absolute top-full left-0 right-0 z-20 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-40 overflow-y-auto mt-1">
+                {filteredCounts.length > 0 ? (
+                  filteredCounts.map((c, idx) => (
+                    <div
+                      key={`${c}-${idx}`}
+                      className="px-3 py-2 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 text-gray-900 dark:text-white"
+                      onMouseDown={() => {
+                        setFormData(prev => ({ ...prev, count: c }));
+                        setShowCountDropdown(false);
+                      }}
+                    >
+                      {c}
+                    </div>
+                  ))
+                ) : (
+                  (formData.count || '').trim() && (
+                    <div
+                      className="px-3 py-2 cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400 flex items-center font-medium"
+                      onMouseDown={() => {
+                        setShowCountDropdown(false);
+                      }}
+                    >
+                      Use "{formData.count.trim()}"
+                    </div>
+                  )
+                )}
+              </div>
+            )}
             {errors.count && (
               <p className="text-xs text-red-500">{errors.count}</p>
             )}
@@ -846,10 +936,10 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
             )}
           </div>
 
-          {/* Party Name */}
+          {/* Party/Middleman */}
           <div className="space-y-1">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block">
-              Party Name
+              Party/Middleman
             </label>
             <input
               type="text"
@@ -857,7 +947,7 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
               value={formData.partyName || ""}
               onChange={handleInputChange}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors"
-              placeholder="Enter party name (optional)"
+              placeholder="Enter party/middleman name (optional)"
             />
           </div>
         </div>

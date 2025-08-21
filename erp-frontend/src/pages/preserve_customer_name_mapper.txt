@@ -1,0 +1,37 @@
+// ================= MAPPING FUNCTION =================
+  const mapToSimplifiedDisplay = (record: DyeingRecord): SimplifiedDyeingDisplayRecord => {
+    console.log('🔄 Mapping record to simplified display:', record.id);
+    console.log('📋 Raw record data:', record);
+    
+    const trackingInfo = parseTrackingInfo(record.remarks);
+    
+    // PRESERVE USER INPUT FIX: Always use exactly what the user entered
+    // Do not modify customer name at all - show exactly what was saved
+    
+    const mappedRecord = {
+      id: record.id,
+      quantity: trackingInfo.originalQuantity || record.quantity, // Use original quantity if available, otherwise use record quantity
+      customerName: record.customerName || "", // Always use exactly what was entered, even if empty
+      count: record.count || "Standard", // Add count field from dyeing record
+      sentToDye: record.quantity || 0, // This is what was actually sent (stored as main quantity in DB)
+      sentDate: record.sentDate,
+      received: trackingInfo.received || 0,
+      receivedDate: trackingInfo.receivedDate,
+      dispatch: trackingInfo.dispatch || 0,
+      dispatchDate: trackingInfo.dispatchDate,
+      partyNameMiddleman: trackingInfo.partyNameMiddleman,
+      dyeingFirm: record.dyeingFirm,
+      remarks: trackingInfo.originalRemarks || record.remarks
+    };
+    
+    console.log('✅ Mapped simplified record:', mappedRecord);
+    console.log('✅ Customer name preserved as:', record.customerName);
+    console.log('✅ Mapped quantity (original):', mappedRecord.quantity);
+    console.log('✅ Mapped sentToDye (actual sent):', mappedRecord.sentToDye);
+    console.log('✅ Mapped received value:', mappedRecord.received);
+    console.log('✅ Mapped dispatch value:', mappedRecord.dispatch);
+    console.log('✅ Original record remarks:', record.remarks);
+    return mappedRecord;
+  };
+
+  // ================= COUNT PRODUCT MAPPING FUNCTION =================

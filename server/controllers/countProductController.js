@@ -9,6 +9,24 @@ const getAllCountProducts = asyncHandler(async (req, res) => {
       order: [['createdAt', 'DESC']],
     });
 
+    console.log('\n🔥 AGGRESSIVE DEBUG - GET ALL COUNT PRODUCTS');
+    console.log(`📊 Retrieved ${countProducts.length} count products`);
+    
+    // Log first few records to see actual data
+    countProducts.slice(0, 3).forEach((product, index) => {
+      console.log(`\n📋 Record ${index + 1} (ID: ${product.id}):`);
+      console.log(`   Customer Name: "${product.customerName}"`);
+      console.log(`   Party Name: "${product.partyName}"`);
+      console.log(`   Quantity: ${product.quantity}`);
+      
+      if (product.customerName === product.partyName) {
+        console.log(`   ⚠️  ISSUE: Customer name equals party name!`);
+      } else {
+        console.log(`   ✅ GOOD: Names are different`);
+      }
+    });
+    console.log('🔥 GET ALL DEBUG COMPLETE\n');
+
     res.status(200).json({
       success: true,
       data: countProducts,
@@ -112,6 +130,10 @@ const updateCountProduct = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   try {
+    console.log('\n� UPDATE COUNT PRODUCT');
+    console.log('📥 Request ID:', id);
+    console.log('📥 Request Body:', JSON.stringify(req.body, null, 2));
+    
     const countProduct = await CountProduct.findByPk(id);
 
     if (!countProduct) {
@@ -121,7 +143,17 @@ const updateCountProduct = asyncHandler(async (req, res) => {
       });
     }
 
+    console.log('📋 BEFORE UPDATE:');
+    console.log('   Customer Name:', countProduct.customerName);
+    console.log('   Party Name:', countProduct.partyName);
+    
+    // PRESERVE USER INPUT: Update with exactly what user provided
     await countProduct.update(req.body);
+    
+    console.log('📋 AFTER UPDATE:');
+    console.log('   Customer Name:', countProduct.customerName);
+    console.log('   Party Name:', countProduct.partyName);
+    console.log('� UPDATE COMPLETE\n');
 
     res.status(200).json({
       success: true,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "../components/ui/Button";
 import { ChevronDown, Check, X, Calendar, Package, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -26,6 +26,7 @@ interface HorizontalAddOrderFormProps {
   onCancel: () => void;
   editMode?: boolean;
   productToEdit?: CountProduct;
+  existingFirms?: string[]; // optional page-provided list of firms to restrict suggestions
 }
 
 interface FormData {
@@ -39,6 +40,7 @@ interface FormData {
   dispatch: string;
   dispatchDate: string;
   partyName: string;
+  middleman: string; // Add middleman field to FormData interface
   dyeingFirm: string;
   remarks: string; // new
 }
@@ -51,7 +53,8 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
   onSuccess,
   onCancel,
   editMode = false,
-  productToEdit
+  productToEdit,
+  existingFirms = []
 }) => {
   // Helper function to get initial form data
   const getInitialFormData = (): FormData => {
@@ -67,6 +70,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
         dispatch: productToEdit.dispatchQuantity ? productToEdit.dispatchQuantity.toString() : "",
         dispatchDate: productToEdit.dispatchDate ? new Date(productToEdit.dispatchDate).toISOString().split('T')[0] : "",
         partyName: productToEdit.partyName || "",
+        middleman: productToEdit.middleman || "", // Add middleman field
         dyeingFirm: productToEdit.dyeingFirm || "",
         remarks: (productToEdit as any).remarks || "" // populate remarks if present
       };
@@ -82,6 +86,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
       dispatch: "",
       dispatchDate: "",
       partyName: "",
+      middleman: "", // Add middleman field with empty default
       dyeingFirm: "",
       remarks: ""
     };
@@ -98,49 +103,53 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
   const [showFirmDropdown, setShowFirmDropdown] = useState(false);
   
   // Data state
-  const [dyeingFirms, setDyeingFirms] = useState<DyeingFirm[]>([]);
+  const [dyeingFirms, setDyeingFirms] = useState<DyeingFirm[]>(existingFirms.map((name, idx) => ({ id: idx + 1, name })) as DyeingFirm[]);
   const [partyOptions, setPartyOptions] = useState<string[]>([]);
   // Track selected existing firm for potential rename
   const [selectedFirmId, setSelectedFirmId] = useState<number | null>(null);
   const [selectedFirmOriginalName, setSelectedFirmOriginalName] = useState<string>("");
 
-  // Fetch both dyeing firms and parties on mount
+  // Count suggestions
+  const [liveCounts, setLiveCounts] = useState<string[]>([]);
+  const [showCountDropdown, setShowCountDropdown] = useState(false);
+  const countDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Fetch both dyeing firms and parties on mount (but skip loading firms if page-provided list exists)
   useEffect(() => {
     const fetchInitialData = async () => {
       setIsLoadingData(true);
       
       // Fetch dyeing firms
       try {
-        console.log('🔄 Fetching dyeing firms...');
-        let firms: DyeingFirm[] = [];
-        
-        try {
-          firms = await getAllDyeingFirms();
-          console.log('✅ Fetched dyeing firms from API:', firms);
-          
-          // Save to localStorage for persistence
-          localStorage.setItem('dyeingFirms', JSON.stringify(firms));
-        } catch (apiError) {
-          console.warn('⚠️ API failed, trying localStorage backup:', apiError);
-          
-          // Try localStorage backup
-          const savedFirms = localStorage.getItem('dyeingFirms');
-          if (savedFirms) {
-            try {
-              firms = JSON.parse(savedFirms);
-              console.log('📋 Loaded dyeing firms from localStorage backup:', firms);
-            } catch (parseError) {
-              console.error('Failed to parse saved firms:', parseError);
-              firms = [];
+        if (existingFirms.length === 0) {
+          console.log('🔄 Fetching dyeing firms...');
+          let firms: DyeingFirm[] = [];
+          try {
+            firms = await getAllDyeingFirms();
+            console.log('✅ Fetched dyeing firms from API:', firms);
+            localStorage.setItem('dyeingFirms', JSON.stringify(firms));
+          } catch (apiError) {
+            console.warn('⚠️ API failed, trying localStorage backup:', apiError);
+            const savedFirms = localStorage.getItem('dyeingFirms');
+            if (savedFirms) {
+              try {
+                firms = JSON.parse(savedFirms);
+                console.log('📋 Loaded dyeing firms from localStorage backup:', firms);
+              } catch (parseError) {
+                console.error('Failed to parse saved firms:', parseError);
+                firms = [];
+              }
             }
           }
-        }
-        
-        if (Array.isArray(firms) && firms.length > 0) {
-          const validFirms = firms.filter(firm => firm && firm.name);
-          setDyeingFirms(validFirms);
+          if (Array.isArray(firms) && firms.length > 0) {
+            const validFirms = firms.filter(firm => firm && firm.name);
+            setDyeingFirms(validFirms);
+          } else {
+            setDyeingFirms([]);
+          }
         } else {
-          throw new Error('No valid dyeing firms available');
+          // Use page-provided firms only
+          setDyeingFirms(existingFirms.map((name, idx) => ({ id: idx + 1, name })) as DyeingFirm[]);
         }
       } catch (error) {
         console.error("Failed to fetch dyeing firms:", error);
@@ -179,10 +188,71 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
     };
 
     fetchInitialData();
+  }, [existingFirms]);
+
+  // Build unique counts from count products (localStorage) and dyeing records (store)
+  useEffect(() => {
+    let unsub: (() => void) | null = null;
+    const collect = (records: any[]) => {
+      let cpCounts: string[] = [];
+      try {
+        const raw = localStorage.getItem('countProducts');
+        if (raw) {
+          const cps = JSON.parse(raw);
+          cpCounts = Array.from(new Set((cps || []).map((p: any) => (p?.count || '').toString().trim()).filter(Boolean)));
+        }
+      } catch {}
+      const recCounts = Array.from(new Set((records || []).map(r => (r?.count || '').toString().trim()).filter(Boolean)));
+      const merged = Array.from(new Set([...cpCounts, ...recCounts])).sort();
+      setLiveCounts(merged);
+    };
+    const setup = async () => {
+      try {
+        unsub = await dyeingDataStore.subscribeRecords((records) => collect(records as any[]));
+      } catch {
+        collect([]);
+      }
+    };
+    setup();
+    return () => { if (unsub) unsub(); };
   }, []);
 
-  // Subscribe to centralized firm updates so new firms from other pages appear live
+  // Reset form when productToEdit changes in edit mode
   useEffect(() => {
+    if (editMode && productToEdit) {
+      console.log('🔄 [HorizontalAddOrderForm] Resetting form for product edit:', productToEdit.id);
+      console.log('🔍 [HorizontalAddOrderForm] Original product values:', {
+        originalCustomerName: productToEdit.customerName,
+        originalPartyName: productToEdit.partyName,
+        originalMiddleman: productToEdit.middleman
+      });
+      const resetFormData = {
+        quantity: productToEdit.quantity.toString(),
+        customerName: productToEdit.customerName || "",
+        count: (productToEdit as any).count || "", // Empty by default, no pre-filled value
+        sentToDye: productToEdit.quantity.toString(),
+        sentDate: productToEdit.sentDate ? new Date(productToEdit.sentDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        received: productToEdit.receivedQuantity ? productToEdit.receivedQuantity.toString() : "",
+        receivedDate: productToEdit.receivedDate ? new Date(productToEdit.receivedDate).toISOString().split('T')[0] : "",
+        dispatch: productToEdit.dispatchQuantity ? productToEdit.dispatchQuantity.toString() : "",
+        dispatchDate: productToEdit.dispatchDate ? new Date(productToEdit.dispatchDate).toISOString().split('T')[0] : "",
+        partyName: productToEdit.partyName || "",
+        middleman: productToEdit.middleman || "", // Add middleman field to form data
+        dyeingFirm: productToEdit.dyeingFirm || "",
+        remarks: (productToEdit as any).remarks || "" // populate remarks if present
+      };
+      console.log('🔄 [HorizontalAddOrderForm] Reset form data:', {
+        resetCustomerName: resetFormData.customerName,
+        resetPartyName: resetFormData.partyName
+      });
+      setFormData(resetFormData);
+      setErrors({});
+    }
+  }, [editMode, productToEdit]);
+
+  // Subscribe to centralized firm updates only when not restricted by page-provided list
+  useEffect(() => {
+    if (existingFirms.length > 0) return; // lock to page-provided list
     let unsubscribe: (() => void) | null = null;
     
     const setupSubscription = async () => {
@@ -204,7 +274,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
         unsubscribe();
       }
     };
-  }, []);
+  }, [existingFirms.length]);
 
   // Validation
   const validateForm = (): boolean => {
@@ -344,7 +414,16 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
     
     console.log('🚀 Starting form submission...');
     console.log('📝 Form data:', formData);
-    console.log('🔍 Form validation check...');
+    console.log('� Edit mode:', editMode);
+    if (editMode && productToEdit) {
+      console.log('📋 Original product data:', {
+        id: productToEdit.id,
+        customerName: productToEdit.customerName,
+        partyName: productToEdit.partyName,
+        quantity: productToEdit.quantity
+      });
+    }
+    console.log('�🔍 Form validation check...');
     
     if (!validateForm()) {
       console.log('❌ Validation failed, errors:', errors);
@@ -368,6 +447,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
         const updateData = {
           partyName: formData.partyName || "Direct",
           dyeingFirm: formData.dyeingFirm,
+          count: formData.count || "Standard",
           quantity: parseFloat(formData.quantity),
           customerName: formData.customerName,
           sentDate: formData.sentDate,
@@ -377,14 +457,40 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
           dispatchQuantity: formData.dispatch ? parseFloat(formData.dispatch) : 0,
           dispatch: formData.dispatch ? parseFloat(formData.dispatch) > 0 : false,
           dispatchDate: formData.dispatchDate || undefined,
-          middleman: formData.partyName || "Direct",
+          middleman: formData.middleman || "Direct", // Fix: Use middleman field instead of partyName
           remarks: formData.remarks?.trim() || ''
         };
         
+        console.log('\n🔥 PREPARING UPDATE DATA');
+        console.log('📦 Update data object:', updateData);
+        console.log('🔍 FIELD CHECK:');
+        console.log(`   updateData.customerName: "${updateData.customerName}"`);
+        console.log(`   updateData.partyName: "${updateData.partyName}"`);
+        console.log(`   updateData.middleman: "${updateData.middleman}"`);
+        
+        console.log('🔍 Form data source verification:');
+        console.log(`   formData.customerName: "${formData.customerName}"`);
+        console.log(`   formData.partyName: "${formData.partyName}"`);
+        console.log('🔥 SENDING TO API...\n');
+        
         console.log('📦 Updating count product with data:', updateData);
+        console.log('🔍 Key fields being updated:', {
+          customerName: updateData.customerName,
+          partyName: updateData.partyName,
+          quantity: updateData.quantity
+        });
+        console.log('🔍 Form data values:', {
+          formDataCustomerName: formData.customerName,
+          formDataPartyName: formData.partyName
+        });
         
         const updatedProduct = await updateCountProduct(productToEdit.id, updateData);
         console.log('✅ Count product updated successfully:', updatedProduct);
+        console.log('🔍 API response details:', {
+          returnedCustomerName: updatedProduct.customerName,
+          returnedPartyName: updatedProduct.partyName,
+          returnedMiddleman: updatedProduct.middleman
+        });
         
         // Call success callback with enhanced data including dyeing firm
         const successData = {
@@ -419,7 +525,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
           dispatch: formData.dispatch ? parseFloat(formData.dispatch) > 0 : false,
           dispatchDate: formData.dispatchDate || undefined,
           dispatchQuantity: formData.dispatch ? parseFloat(formData.dispatch) : 0,
-          middleman: formData.partyName || "Direct"
+          middleman: formData.middleman || "Direct" // Fix: Use middleman field instead of partyName
         };
 
         console.log('📦 Creating count product with data:', newCountProductData);
@@ -452,6 +558,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
           dispatch: "",
           dispatchDate: "",
           partyName: "",
+          middleman: "",
           dyeingFirm: "",
           remarks: ""
         });
@@ -488,11 +595,16 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
             dispatchQuantity: formData.dispatch ? parseFloat(formData.dispatch) : 0,
             dispatch: formData.dispatch ? parseFloat(formData.dispatch) > 0 : false,
             dispatchDate: formData.dispatchDate || "",
-            middleman: formData.partyName || "Direct",
+            middleman: formData.middleman || "Direct", // Fix: Use middleman field instead of partyName
             remarks: formData.remarks?.trim() || ''
           };
           
           console.log('📞 Calling success callback with demo updated product:', mockUpdatedProduct);
+          console.log('🔍 Demo mode product details:', {
+            demoCustomerName: mockUpdatedProduct.customerName,
+            demoPartyName: mockUpdatedProduct.partyName,
+            demoMiddleman: mockUpdatedProduct.middleman
+          });
           onSuccess(mockUpdatedProduct);
           toast.success("Dyeing order updated successfully! (Demo mode - database not connected)");
           
@@ -521,7 +633,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
             dispatch: formData.dispatch ? parseFloat(formData.dispatch) > 0 : false,
             dispatchDate: formData.dispatchDate || "",
             dispatchQuantity: formData.dispatch ? parseFloat(formData.dispatch) : 0,
-            middleman: formData.partyName || "Direct"
+            middleman: formData.middleman || "Direct" // Fix: Use middleman field instead of partyName
           };
           
           console.log('📞 Calling success callback with demo product:', mockProduct);
@@ -544,6 +656,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
             dispatch: "",
             dispatchDate: "",
             partyName: "",
+            middleman: "",
             dyeingFirm: "",
             remarks: ""
           });
@@ -579,6 +692,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
       dispatch: "",
       dispatchDate: "",
       partyName: "",
+  middleman: "",
       dyeingFirm: "",
       remarks: ""
     });
@@ -611,6 +725,11 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
       return [];
     }
   }, [dyeingFirms, formData.dyeingFirm]);
+
+  const filteredCounts = React.useMemo(() => {
+    const q = (formData.count || '').toLowerCase();
+    return liveCounts.filter(c => c.toLowerCase().includes(q));
+  }, [liveCounts, formData.count]);
 
   return (
     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-2 border-blue-200 dark:border-blue-700 rounded-xl p-6 mb-6 shadow-sm">
@@ -661,28 +780,46 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
             <input
               type="text"
               value={formData.customerName}
-              onChange={(e) => handleInputChange('customerName', e.target.value)}
+              onChange={(e) => {
+                // Special handling to ensure customer name is always different from party name
+                const newCustomerName = e.target.value;
+                handleInputChange('customerName', newCustomerName);
+                
+                // Add warning if values are the same
+                if (newCustomerName && newCustomerName === formData.partyName) {
+                  console.warn('⚠️ [HorizontalAddOrderForm] Warning: Customer name and party name are the same!');
+                }
+              }}
               className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors ${
                 errors.customerName 
                   ? 'border-red-500 focus:ring-red-500' 
-                  : 'border-gray-300 dark:border-gray-600'
+                  : formData.customerName && formData.customerName === formData.partyName
+                    ? 'border-yellow-500 focus:ring-yellow-500' // Warning indicator
+                    : 'border-gray-300 dark:border-gray-600'
               }`}
               placeholder="Enter customer name"
             />
             {errors.customerName && (
               <p className="text-xs text-red-500">{errors.customerName}</p>
             )}
+            {formData.customerName && formData.customerName === formData.partyName && (
+              <p className="text-xs text-yellow-600">
+                ⚠️ Warning: Customer name is the same as Party name. These should typically be different.
+              </p>
+            )}
           </div>
 
-          {/* Count */}
-          <div className="space-y-1">
+          {/* Count with suggestions */}
+          <div className="space-y-1 relative" ref={countDropdownRef}>
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block">
               Count *
             </label>
             <input
               type="text"
               value={formData.count}
-              onChange={(e) => handleInputChange('count', e.target.value)}
+              onChange={(e) => { handleInputChange('count', e.target.value); setShowCountDropdown(true); }}
+              onFocus={() => setShowCountDropdown(true)}
+              onBlur={() => setTimeout(() => setShowCountDropdown(false), 180)}
               className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors ${
                 errors.count 
                   ? 'border-red-500 focus:ring-red-500' 
@@ -690,6 +827,33 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
               }`}
               placeholder="e.g. 20s, 30s, Standard"
             />
+            {showCountDropdown && (
+              <div className="absolute top-full left-0 right-0 z-20 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-40 overflow-y-auto mt-1">
+                {filteredCounts.length > 0 ? (
+                  filteredCounts.map((c, idx) => (
+                    <div
+                      key={`${c}-${idx}`}
+                      className="px-3 py-2 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 text-gray-900 dark:text-white"
+                      onMouseDown={() => {
+                        handleInputChange('count', c);
+                        setShowCountDropdown(false);
+                      }}
+                    >
+                      {c}
+                    </div>
+                  ))
+                ) : (
+                  (formData.count || '').trim() && (
+                    <div
+                      className="px-3 py-2 cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400 flex items-center font-medium"
+                      onMouseDown={() => setShowCountDropdown(false)}
+                    >
+                      Use "{formData.count.trim()}"
+                    </div>
+                  )
+                )}
+              </div>
+            )}
             {errors.count && (
               <p className="text-xs text-red-500">{errors.count}</p>
             )}
@@ -886,10 +1050,10 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
             )}
           </div>
 
-          {/* Party Name / Middleman */}
+          {/* Party/Middleman - Merged field */}
           <div className="space-y-1 relative">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block">
-              Party Name / Middleman
+              Party/Middleman
             </label>
             <div className="relative">
               <input
@@ -897,12 +1061,14 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
                 value={formData.partyName}
                 onChange={(e) => {
                   handleInputChange('partyName', e.target.value);
+                  // Also update middleman to keep them in sync
+                  handleInputChange('middleman', e.target.value);
                   setShowPartyDropdown(true);
                 }}
                 onFocus={() => setShowPartyDropdown(true)}
                 onBlur={() => setTimeout(() => setShowPartyDropdown(false), 200)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors pr-8"
-                placeholder="Enter or select party name"
+                placeholder="Enter party/middleman name"
               />
               <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
               
@@ -915,6 +1081,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
                         className="px-3 py-2 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 text-gray-900 dark:text-white"
                         onMouseDown={() => {
                           handleInputChange('partyName', party);
+                          handleInputChange('middleman', party); // Keep both fields in sync
                           setShowPartyDropdown(false);
                         }}
                       >
@@ -953,14 +1120,14 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
                   <div
                     className="px-3 py-2 cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400 border-t border-gray-200 dark:border-gray-600 flex items-center font-medium"
                     onMouseDown={() => {
-                      const partyName = prompt("Enter new party name:");
+                      const partyName = prompt("Enter new party/middleman name:");
                       if (partyName && partyName.trim()) {
                         handleCreateParty(partyName.trim());
                       }
                     }}
                   >
                     <Plus className="w-4 h-4 mr-2" />
-                    Add New Party
+                    Add New Party/Middleman
                   </div>
                 </div>
               )}

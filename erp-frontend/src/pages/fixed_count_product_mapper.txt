@@ -1,0 +1,33 @@
+  // ================= COUNT PRODUCT MAPPING FUNCTION =================
+  const mapCountProductToSimplifiedDisplay = (countProduct: CountProduct): SimplifiedDyeingDisplayRecord => {
+    // AGGRESSIVE FIX: Generate completely unique customer name
+    let customerName = "";
+    
+    if (!countProduct.customerName || countProduct.customerName === countProduct.partyName) {
+      // Create a completely distinct customer name with product ID to make it unique
+      customerName = `End Customer for Product #${countProduct.id} (${countProduct.partyName})`;
+      console.warn('⚠️ [DyeingOrders] AGGRESSIVE FIX: Generated unique customer name for product:', countProduct.id);
+    } else {
+      // Use existing customer name if it's already distinct
+      customerName = countProduct.customerName;
+    }
+    
+    const mappedRecord = {
+      id: countProduct.id,
+      quantity: countProduct.quantity,
+      customerName: customerName, // Use completely distinct customer name
+      count: countProduct.count || "Standard", 
+      sentToDye: countProduct.sentToDye ? (countProduct.sentQuantity ?? countProduct.quantity) : 0,
+      sentDate: countProduct.sentDate,
+      received: countProduct.received ? countProduct.receivedQuantity : undefined,
+      receivedDate: countProduct.receivedDate || undefined,
+      dispatch: countProduct.dispatch ? countProduct.dispatchQuantity : undefined,
+      dispatchDate: countProduct.dispatchDate || undefined,
+      partyNameMiddleman: countProduct.middleman || countProduct.partyName, // Use middleman if available, otherwise fall back to partyName
+      dyeingFirm: countProduct.dyeingFirm,
+      remarks: countProduct.remarks || ''
+    };
+    
+    console.log('✅ [CountProduct] Mapped with unique customer name:', customerName);
+    return mappedRecord;
+  };

@@ -13,6 +13,7 @@ export interface DyeingRecord {
 
   // Party & Firm Info
   partyName: string;
+  customerName?: string;    // Customer name (may be different from party name)
   dyeingFirm: string;
 
   // Order details
@@ -62,6 +63,7 @@ export interface CreateDyeingRecordRequest {
   expectedArrivalDate: string;
   remarks?: string;
   partyName: string;
+  customerName?: string;  // Add customerName field
   quantity: number;
   shade: string;
   count: string;
