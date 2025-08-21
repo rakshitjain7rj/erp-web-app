@@ -41,7 +41,15 @@ const PartyDetailsModal: React.FC<PartyDetailsModalProps> = ({
     setError(null);
     try {
       const data = await getPartyDetails(partyName);
-      setDetails(data);
+      // Normalize to a flat details object for rendering
+      const profile = (data && (data.party || {})) as { address?: string; contact?: string; dyeingFirm?: string; name?: string };
+      setDetails({
+        partyName: data.summary?.partyName || profile.name || partyName,
+        phone: profile.contact || data.phone,
+        address: profile.address || data.address,
+        dyeingFirm: profile.dyeingFirm || data.dyeingFirm,
+        orders: data.orders || [],
+      });
     } catch (err) {
       console.error('Error fetching party details:', err);
       setError('Failed to load party details');

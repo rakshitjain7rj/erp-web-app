@@ -577,17 +577,30 @@ const CountProductOverview: React.FC = () => {
     return acc;
   }, {} as Record<string, DyeingRecord[]>);
 
-  // Create complete firm listing - automatically remove firms with 0 products AND 0 dyeing records
-  const completeFirmListing = centralizedDyeingFirms
-    .map(firm => ({
-      name: firm.name,
-      products: groupedByFirm[firm.name] || [],
-      dyeingRecords: groupedDyeingRecords[firm.name] || [],
-      id: firm.id
-    }))
-    // AUTOMATICALLY remove firms with 0 products AND 0 dyeing records
+  // Create complete firm listing using UNION of centralized firms and any firms found in data
+  const completeFirmListing = React.useMemo(() => {
+    // Build union of firm names from: centralized list + filtered products + dyeing records
+    const unionFirmNames = new Set<string>();
+    centralizedDyeingFirms.forEach(f => f?.name && unionFirmNames.add(f.name));
+    Object.keys(groupedByFirm).forEach(name => name && unionFirmNames.add(name));
+    Object.keys(groupedDyeingRecords).forEach(name => name && unionFirmNames.add(name));
+
+    // Create listing entries for all union firms
+    const listing = Array.from(unionFirmNames).map((name) => {
+      const firmMeta = centralizedDyeingFirms.find(f => f.name === name);
+      return {
+        name,
+        products: groupedByFirm[name] || [],
+        dyeingRecords: groupedDyeingRecords[name] || [],
+        id: firmMeta?.id
+      };
+    })
+    // Remove empty groups (no products and no dyeing records)
     .filter(firm => firm.products.length > 0 || firm.dyeingRecords.length > 0)
     .sort((a, b) => a.name.localeCompare(b.name));
+
+    return listing;
+  }, [centralizedDyeingFirms, groupedByFirm, groupedDyeingRecords]);
 
   // Debug logging
   console.log('🔍 [CountProductOverview] Complete firm listing:', completeFirmListing);

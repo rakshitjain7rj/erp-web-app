@@ -32,6 +32,7 @@ const PartyFloatingActionDropdown: React.FC<PartyActionDropdownProps> = ({
 }) => {
   const {
     isOpen,
+  setIsOpen,
     refs,
     floatingStyles,
     getReferenceProps,
@@ -47,7 +48,14 @@ const PartyFloatingActionDropdown: React.FC<PartyActionDropdownProps> = ({
   const dropdownOpen = controlledOpen !== undefined ? controlledOpen : isOpen;
 
   const handleActionClick = (action: () => void) => {
+    // Invoke action first
     action();
+    // Then close the dropdown (works for both controlled and uncontrolled)
+    if (onOpenChange) {
+      onOpenChange(false);
+    } else {
+      setIsOpen(false);
+    }
   };
 
   const actions = [

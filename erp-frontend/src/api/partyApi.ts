@@ -68,6 +68,11 @@ export const updateParty = async (partyName: string, partyData: {
   dyeingFirm?: string;
   address?: string;
   contact?: string;
+  totalOrders?: number;
+  totalYarn?: number;
+  pendingYarn?: number;
+  reprocessingYarn?: number;
+  arrivedYarn?: number;
 }) => {
   const response = await partyApi.put(`/${encodeURIComponent(partyName)}`, partyData);
   return response.data;

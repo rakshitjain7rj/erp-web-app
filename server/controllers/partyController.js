@@ -11,7 +11,7 @@ const getAllPartiesSummary = asyncHandler(async (req, res) => {
   console.log('📅 Date filters:', { startDate, endDate, includeArchived });
   
   // Base query filters
-  let whereClause = 'WHERE "partyName" IS NOT NULL AND "partyName" != \'\'';
+    let whereClause = 'WHERE dr."partyName" IS NOT NULL AND dr."partyName" != \'\'';  
   
   // 🚫 CRITICAL: Always exclude archived parties unless explicitly requested
   if (!includeArchived || includeArchived === 'false') {
@@ -34,24 +34,62 @@ const getAllPartiesSummary = asyncHandler(async (req, res) => {
   }
   
   console.log('🔍 Final WHERE clause:', whereClause);
-  
+
+  // Build a where clause for CountProducts (date filter on completedDate if provided)
+  let countWhere = `WHERE cp."partyName" IS NOT NULL AND cp."partyName" != ''`;
+  if (startDate && endDate) {
+    countWhere += ` AND cp."completedDate" BETWEEN '${startDate}' AND '${endDate}'`;
+  } else if (startDate) {
+    countWhere += ` AND cp."completedDate" >= '${startDate}'`;
+  } else if (endDate) {
+    countWhere += ` AND cp."completedDate" <= '${endDate}'`;
+  }
+
   const [results] = await sequelize.query(`
+    WITH s AS (
+      SELECT
+        INITCAP(TRIM(dr."partyName")) AS "partyName",
+        COUNT(*) AS "totalOrders",
+        SUM(CASE WHEN dr."arrivalDate" IS NULL AND dr."isReprocessing" = false THEN 1 ELSE 0 END) AS "pendingOrders",
+        SUM(dr."quantity") AS "totalYarn",
+        SUM(CASE 
+          WHEN dr."arrivalDate" IS NULL AND dr."isReprocessing" = false THEN dr."quantity"
+          ELSE 0 
+        END) AS "pendingYarn",
+        SUM(CASE WHEN dr."isReprocessing" = true THEN dr."quantity" ELSE 0 END) AS "reprocessingYarn",
+        SUM(CASE WHEN dr."arrivalDate" IS NOT NULL AND dr."isReprocessing" = false THEN dr."quantity" ELSE 0 END) AS "arrivedYarn",
+        MAX(dr."sentDate") AS "lastOrderDate",
+        MIN(dr."sentDate") AS "firstOrderDate"
+      FROM "DyeingRecords" dr
+      ${whereClause}
+      GROUP BY INITCAP(TRIM(dr."partyName"))
+    ),
+    u AS (
+      SELECT DISTINCT INITCAP(TRIM(dr."partyName")) AS "partyName"
+      FROM "DyeingRecords" dr
+      ${whereClause}
+      UNION
+      SELECT DISTINCT INITCAP(TRIM(cp."partyName")) AS "partyName"
+      FROM "CountProducts" cp
+      ${countWhere}
+    )
     SELECT
-      INITCAP(TRIM("partyName")) AS "partyName",
-      COUNT(*) AS "totalOrders",
-      SUM(CASE WHEN "arrivalDate" IS NULL AND "isReprocessing" = false THEN 1 ELSE 0 END) AS "pendingOrders",
-      SUM("quantity") AS "totalYarn",
-      SUM(CASE 
-        WHEN "arrivalDate" IS NULL AND "isReprocessing" = false THEN "quantity"
-        ELSE 0 
-      END) AS "pendingYarn",
-      SUM(CASE WHEN "isReprocessing" = true THEN "quantity" ELSE 0 END) AS "reprocessingYarn",
-      SUM(CASE WHEN "arrivalDate" IS NOT NULL AND "isReprocessing" = false THEN "quantity" ELSE 0 END) AS "arrivedYarn",
-      MAX("sentDate") AS "lastOrderDate",
-      MIN("sentDate") AS "firstOrderDate"
-    FROM "DyeingRecords"
-    ${whereClause}
-    GROUP BY INITCAP(TRIM("partyName"))
+      u."partyName",
+      COALESCE(NULLIF(p."totalOrders", 0), s."totalOrders", 0) AS "totalOrders",
+      COALESCE(s."pendingOrders", 0) AS "pendingOrders",
+      COALESCE(NULLIF(p."totalYarn", 0), s."totalYarn", 0) AS "totalYarn",
+      COALESCE(NULLIF(p."pendingYarn", 0), s."pendingYarn", 0) AS "pendingYarn",
+      COALESCE(NULLIF(p."reprocessingYarn", 0), s."reprocessingYarn", 0) AS "reprocessingYarn",
+      COALESCE(NULLIF(p."arrivedYarn", 0), s."arrivedYarn", 0) AS "arrivedYarn",
+      s."lastOrderDate",
+      s."firstOrderDate"
+    FROM u
+    LEFT JOIN s ON u."partyName" = s."partyName"
+    LEFT JOIN "Parties" p
+      ON UPPER(TRIM(p."name")) = UPPER(TRIM(u."partyName")) AND (p."isArchived" = false OR p."isArchived" IS NULL)
+    WHERE UPPER(TRIM(u."partyName")) NOT IN (
+      SELECT UPPER(TRIM("name")) FROM "Parties" WHERE "isArchived" = true
+    )
     ORDER BY "pendingOrders" DESC, "totalOrders" DESC;
   `);
 
@@ -79,37 +117,88 @@ const getArchivedPartiesSummary = asyncHandler(async (req, res) => {
       order: [['archivedAt', 'DESC']]
     });
 
-    // For each archived party, get their historical data from DyeingRecords
+    // For each archived party, get their historical data from DyeingRecords and include profile
     const archivedSummary = await Promise.all(
       archivedParties.map(async (party) => {
-        const [results] = await sequelize.query(`
-          SELECT
-            INITCAP(TRIM("partyName")) AS "partyName",
-            COUNT(*) AS "totalOrders",
-            SUM("quantity") AS "totalYarn",
-            SUM(CASE 
-              WHEN "arrivalDate" IS NULL AND "isReprocessing" = false THEN "quantity"
-              ELSE 0 
-            END) AS "pendingYarn",
-            SUM(CASE WHEN "isReprocessing" = true THEN "quantity" ELSE 0 END) AS "reprocessingYarn",
-            SUM(CASE WHEN "arrivalDate" IS NOT NULL AND "isReprocessing" = false THEN "quantity" ELSE 0 END) AS "arrivedYarn",
-            MAX("sentDate") AS "lastOrderDate",
-            MIN("sentDate") AS "firstOrderDate"
-          FROM "DyeingRecords"
-          WHERE "partyName" ILIKE '%${party.name}%'
-          GROUP BY INITCAP(TRIM("partyName"))
-        `);
+        const name = party.name || '';
 
-        return results[0] || {
-          partyName: party.name,
-          totalOrders: 0,
-          totalYarn: 0,
-          pendingYarn: 0,
-          reprocessingYarn: 0,
-          arrivedYarn: 0,
-          lastOrderDate: null,
-          firstOrderDate: null,
-          archivedAt: party.archivedAt
+        // 1) Totals from DyeingRecords by exact normalized name
+        const [totalsRows] = await sequelize.query(`
+          SELECT
+            INITCAP(TRIM(dr."partyName")) AS "partyName",
+            COUNT(*) AS "totalOrders",
+            COALESCE(SUM(dr."quantity"), 0) AS "totalYarn",
+            COALESCE(SUM(CASE 
+              WHEN dr."arrivalDate" IS NULL AND dr."isReprocessing" = false THEN dr."quantity"
+              ELSE 0 
+            END), 0) AS "pendingYarn",
+            COALESCE(SUM(CASE WHEN dr."isReprocessing" = true THEN dr."quantity" ELSE 0 END), 0) AS "reprocessingYarn",
+            COALESCE(SUM(CASE WHEN dr."arrivalDate" IS NOT NULL AND dr."isReprocessing" = false THEN dr."quantity" ELSE 0 END), 0) AS "arrivedYarn",
+            MAX(dr."sentDate") AS "lastOrderDate",
+            MIN(dr."sentDate") AS "firstOrderDate"
+          FROM "DyeingRecords" dr
+          WHERE UPPER(TRIM(dr."partyName")) = UPPER(TRIM(:name))
+          GROUP BY INITCAP(TRIM(dr."partyName"))
+        `, { replacements: { name } });
+
+        const recordTotals = totalsRows[0] || null;
+
+        // 2) Dyeing firms from both DyeingRecords and CountProducts (exact OR partial normalized match)
+        const [firmsRows] = await sequelize.query(`
+          SELECT ARRAY(
+            SELECT DISTINCT INITCAP(TRIM(x."dyeingFirm")) FROM (
+              SELECT dr2."dyeingFirm"
+              FROM "DyeingRecords" dr2
+              WHERE dr2."dyeingFirm" IS NOT NULL AND dr2."dyeingFirm" != ''
+                AND (
+                  UPPER(TRIM(dr2."partyName")) = UPPER(TRIM(:name)) OR
+                  UPPER(TRIM(dr2."partyName")) LIKE '%' || UPPER(TRIM(:name)) || '%'
+                )
+              UNION
+              SELECT cp."dyeingFirm"
+              FROM "CountProducts" cp
+              WHERE cp."dyeingFirm" IS NOT NULL AND cp."dyeingFirm" != ''
+                AND (
+                  UPPER(TRIM(cp."partyName")) = UPPER(TRIM(:name)) OR
+                  UPPER(TRIM(cp."partyName")) LIKE '%' || UPPER(TRIM(:name)) || '%'
+                  OR UPPER(TRIM(cp."middleman")) = UPPER(TRIM(:name)) OR
+                     UPPER(TRIM(cp."middleman")) LIKE '%' || UPPER(TRIM(:name)) || '%'
+                )
+            ) x
+          ) AS "dyeingFirms";
+        `, { replacements: { name } });
+
+        const dyeingFirms = firmsRows?.[0]?.dyeingFirms || [];
+
+        // Merge dyeing record totals with saved overrides in Parties table
+        const merged = {
+          partyName: (recordTotals && recordTotals.partyName) || party.name,
+          totalOrders: Number(
+            (party.totalOrders ?? 0) || (recordTotals ? recordTotals.totalOrders : 0)
+          ),
+          totalYarn: Number(
+            (party.totalYarn != null ? party.totalYarn : null) ?? (recordTotals ? recordTotals.totalYarn : 0)
+          ),
+          pendingYarn: Number(
+            (party.pendingYarn != null ? party.pendingYarn : null) ?? (recordTotals ? recordTotals.pendingYarn : 0)
+          ),
+          reprocessingYarn: Number(
+            (party.reprocessingYarn != null ? party.reprocessingYarn : null) ?? (recordTotals ? recordTotals.reprocessingYarn : 0)
+          ),
+          arrivedYarn: Number(
+            (party.arrivedYarn != null ? party.arrivedYarn : null) ?? (recordTotals ? recordTotals.arrivedYarn : 0)
+          ),
+          lastOrderDate: recordTotals ? recordTotals.lastOrderDate : null,
+          firstOrderDate: recordTotals ? recordTotals.firstOrderDate : null,
+          dyeingFirms,
+        };
+
+        return {
+          ...merged,
+          archivedAt: party.archivedAt,
+          address: party.address || null,
+          contact: party.contact || null,
+          dyeingFirm: party.dyeingFirm || (Array.isArray(merged.dyeingFirms) && merged.dyeingFirms.length ? merged.dyeingFirms[0] : null),
         };
       })
     );
@@ -127,7 +216,7 @@ const getArchivedPartiesSummary = asyncHandler(async (req, res) => {
   }
 });
 
-// ✅ Get individual party details
+// ✅ Get individual party details (fallback to Party overrides if no dyeing records)
 const getPartyDetails = asyncHandler(async (req, res) => {
   const { partyName } = req.params;
 
@@ -144,9 +233,37 @@ const getPartyDetails = asyncHandler(async (req, res) => {
     order: [['sentDate', 'DESC']]
   });
 
+  // If no dyeing records, try to return details from Parties table (overrides)
   if (orders.length === 0) {
-    res.status(404);
-    throw new Error("Party not found");
+    const partyRow = await Party.findOne({
+      where: sequelize.where(
+        sequelize.fn('UPPER', sequelize.fn('TRIM', sequelize.col('name'))),
+        partyName.toUpperCase().trim()
+      )
+    });
+    if (!partyRow) {
+      // No records and no party row
+      return res.status(404).json({ message: 'Party not found' });
+    }
+    return res.status(200).json({
+      summary: {
+        partyName: partyRow.name,
+        totalOrders: partyRow.totalOrders ?? 0,
+        totalYarn: Number(partyRow.totalYarn ?? 0),
+        pendingYarn: Number(partyRow.pendingYarn ?? 0),
+        reprocessingYarn: Number(partyRow.reprocessingYarn ?? 0),
+        arrivedYarn: Number(partyRow.arrivedYarn ?? 0),
+        firstOrderDate: null,
+        lastOrderDate: null,
+      },
+      orders: [],
+      party: {
+        name: partyRow.name,
+        address: partyRow.address,
+        contact: partyRow.contact,
+        dyeingFirm: partyRow.dyeingFirm,
+      }
+    });
   }
 
   const summary = {
@@ -166,9 +283,23 @@ const getPartyDetails = asyncHandler(async (req, res) => {
     lastOrderDate: orders[0].sentDate
   };
 
+  // Also fetch profile info from Parties table
+  const partyRow = await Party.findOne({
+    where: sequelize.where(
+      sequelize.fn('UPPER', sequelize.fn('TRIM', sequelize.col('name'))),
+      partyName.toUpperCase().trim()
+    )
+  });
+
   res.status(200).json({
     summary,
-    orders
+    orders,
+    party: partyRow ? {
+      name: partyRow.name,
+      address: partyRow.address,
+      contact: partyRow.contact,
+      dyeingFirm: partyRow.dyeingFirm,
+    } : undefined,
   });
 });
 
@@ -240,7 +371,7 @@ const createParty = asyncHandler(async (req, res) => {
   });
 });
 
-// 🆕 Update an existing party
+// 🆕 Update an existing party (case-insensitive; create if missing)
 const updateParty = asyncHandler(async (req, res) => {
   const { partyName } = req.params;
   const {
@@ -248,6 +379,11 @@ const updateParty = asyncHandler(async (req, res) => {
     address,
     contact,
     dyeingFirm,
+  totalOrders,
+  totalYarn,
+  pendingYarn,
+  reprocessingYarn,
+  arrivedYarn,
   } = req.body;
 
   if (!partyName) {
@@ -255,10 +391,28 @@ const updateParty = asyncHandler(async (req, res) => {
     throw new Error("Party name is required");
   }
 
-  const existingParty = await Party.findOne({ where: { name: partyName } });
+  // Case-insensitive lookup
+  let existingParty = await Party.findOne({
+    where: sequelize.where(
+      sequelize.fn('UPPER', sequelize.fn('TRIM', sequelize.col('name'))),
+      partyName.toUpperCase().trim()
+    )
+  });
+
   if (!existingParty) {
-    res.status(404);
-    throw new Error("Party not found");
+    // Create if missing
+    const created = await Party.create({
+      name: (name || partyName).trim(),
+      address: address?.trim() || null,
+      contact: contact?.trim() || null,
+      dyeingFirm: dyeingFirm?.trim() || null,
+      totalOrders: typeof totalOrders === 'number' ? totalOrders : null,
+      totalYarn: typeof totalYarn === 'number' ? totalYarn : null,
+      pendingYarn: typeof pendingYarn === 'number' ? pendingYarn : null,
+      reprocessingYarn: typeof reprocessingYarn === 'number' ? reprocessingYarn : null,
+      arrivedYarn: typeof arrivedYarn === 'number' ? arrivedYarn : null,
+    });
+    return res.status(200).json({ message: 'Party updated successfully', party: created });
   }
 
   const updatedParty = await existingParty.update({
@@ -266,6 +420,12 @@ const updateParty = asyncHandler(async (req, res) => {
     address: address?.trim() || existingParty.address,
     contact: contact?.trim() || existingParty.contact,
     dyeingFirm: dyeingFirm?.trim() || existingParty.dyeingFirm,
+    // Optional editable totals; use provided values if not undefined/null
+    totalOrders: typeof totalOrders === 'number' ? totalOrders : existingParty.totalOrders,
+    totalYarn: typeof totalYarn === 'number' ? totalYarn : existingParty.totalYarn,
+    pendingYarn: typeof pendingYarn === 'number' ? pendingYarn : existingParty.pendingYarn,
+    reprocessingYarn: typeof reprocessingYarn === 'number' ? reprocessingYarn : existingParty.reprocessingYarn,
+    arrivedYarn: typeof arrivedYarn === 'number' ? arrivedYarn : existingParty.arrivedYarn,
   });
 
   res.status(200).json({

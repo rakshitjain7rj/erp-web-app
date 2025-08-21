@@ -28,6 +28,10 @@ type PartySummary = {
   arrivedYarn: number;
   lastOrderDate?: string;
   firstOrderDate?: string;
+  dyeingFirms?: string[];
+  dyeingFirm?: string; // saved profile field, if any
+  address?: string; // saved profile field
+  contact?: string; // saved profile field
 };
 
 type PartyStatistics = {
@@ -91,6 +95,10 @@ const ArchivedParties: React.FC = () => {
         arrivedYarn: Number(party.arrivedYarn) || 0,
         lastOrderDate: party.lastOrderDate,
         firstOrderDate: party.firstOrderDate,
+        dyeingFirms: party.dyeingFirms,
+        dyeingFirm: party.dyeingFirm,
+        address: party.address,
+        contact: party.contact,
         archivedAt: party.archivedAt || new Date().toISOString()
       })) : [];
       
@@ -546,6 +554,9 @@ const ArchivedParties: React.FC = () => {
                       <span className="text-xs">{getSortIcon('partyName')}</span>
                     </div>
                   </th>
+                  <th className="px-4 py-4 text-xs font-medium tracking-wider text-left text-gray-500 uppercase dark:text-gray-300 whitespace-nowrap">
+                    Dyeing Firm
+                  </th>
                   <th 
                     onClick={() => handleSort('totalOrders')}
                     className="px-6 py-4 text-xs font-medium tracking-wider text-center text-gray-500 uppercase cursor-pointer hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600"
@@ -565,7 +576,13 @@ const ArchivedParties: React.FC = () => {
                     </div>
                   </th>
                   <th className="px-6 py-4 text-xs font-medium tracking-wider text-center text-gray-500 uppercase dark:text-gray-300">
-                    Last Order
+                    Pending
+                  </th>
+                  <th className="px-6 py-4 text-xs font-medium tracking-wider text-center text-gray-500 uppercase dark:text-gray-300">
+                    Reprocessing
+                  </th>
+                  <th className="px-6 py-4 text-xs font-medium tracking-wider text-center text-gray-500 uppercase dark:text-gray-300">
+                    Completed
                   </th>
                   <th className="px-6 py-4 text-xs font-medium tracking-wider text-center text-gray-500 uppercase dark:text-gray-300">
                     Actions
@@ -612,6 +629,26 @@ const ArchivedParties: React.FC = () => {
                           </div>
                         </div>
                       </td>
+                      <td className="px-4 py-4 text-xs max-w-[220px]">
+                        <div
+                          className="text-gray-700 dark:text-gray-300 truncate"
+                          title={(() => {
+                            const firms = Array.from(new Set([
+                              ...(party.dyeingFirm ? [party.dyeingFirm] : []),
+                              ...((party.dyeingFirms as string[] | undefined) || [])
+                            ]));
+                            return firms.join(', ');
+                          })()}
+                        >
+                          {(() => {
+                            const firms = Array.from(new Set([
+                              ...(party.dyeingFirm ? [party.dyeingFirm] : []),
+                              ...((party.dyeingFirms as string[] | undefined) || [])
+                            ]));
+                            return firms.length ? firms.join(', ') : '-';
+                          })()}
+                        </div>
+                      </td>
                       <td className="px-6 py-4 text-sm text-center">
                         <span className="inline-flex items-center px-3 py-1 text-xs font-medium text-blue-800 bg-blue-100 rounded-full dark:bg-blue-900/30 dark:text-blue-400">
                           {party.totalOrders}
@@ -620,8 +657,20 @@ const ArchivedParties: React.FC = () => {
                       <td className="px-6 py-4 text-sm font-medium text-center text-gray-900 dark:text-white">
                         {formatNumber(party.totalYarn)} kg
                       </td>
-                      <td className="px-6 py-4 text-sm text-center text-gray-500 dark:text-gray-400">
-                        {party.lastOrderDate ? new Date(party.lastOrderDate).toLocaleDateString() : 'N/A'}
+                      <td className="px-6 py-4 text-sm text-center">
+                        <span className="inline-flex items-center px-3 py-1 text-xs font-medium text-yellow-800 bg-yellow-100 rounded-full dark:bg-yellow-900/30 dark:text-yellow-400">
+                          {formatNumber(party.pendingYarn)} kg
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-center">
+                        <span className="inline-flex items-center px-3 py-1 text-xs font-medium text-orange-800 bg-orange-100 rounded-full dark:bg-orange-900/30 dark:text-orange-400">
+                          {formatNumber(party.reprocessingYarn)} kg
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-center">
+                        <span className="inline-flex items-center px-3 py-1 text-xs font-medium text-green-800 bg-green-100 rounded-full dark:bg-green-900/30 dark:text-green-400">
+                          {formatNumber(party.arrivedYarn)} kg
+                        </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-center">
                         <div className="flex items-center justify-center gap-2">

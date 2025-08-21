@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Users, Package, Clock, RotateCcw, CheckCircle, Search, Edit3, Eye, MoreVertical, Plus, Archive } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getAllPartiesSummary, getPartyStatistics, deleteParty, archiveParty, downloadPartyAsJSON } from '../api/partyApi';
+import { getAllPartiesSummary, getPartyStatistics, deleteParty, archiveParty, downloadPartyAsJSON, getAllPartyNames, getPartyDetails } from '../api/partyApi';
+import { getAllCountProducts } from '../api/countProductApi';
+import { getAllDyeingRecords } from '../api/dyeingApi';
 import AddPartyForm from '../components/AddPartyForm';
 import PartyFloatingActionDropdown from '../components/PartyFloatingActionDropdown';
 import PartyDetailsModal from '../components/PartyDetailsModal';
@@ -18,6 +20,7 @@ type PartySummary = {
   arrivedYarn: number;
   lastOrderDate?: string;
   firstOrderDate?: string;
+  dyeingFirms?: string[]; // Added: firms associated with this party from pages
 };
 
 type PartyStatistics = {
@@ -97,42 +100,37 @@ const PartyMaster = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
 
-  const [debugInfo, setDebugInfo] = useState<string>('Starting...');useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);      try {
-        console.log('🔍 Fetching party data...');
-        console.log('🌐 API BASE URL:', import.meta.env.VITE_API_URL || 'http://localhost:5000/api');
-        setDebugInfo('Fetching party data...');
-        
-        // Test direct fetch first
-        console.log('🧪 Testing direct fetch...');
-        setDebugInfo('Testing direct fetch to /api/parties/summary...');
-        const directResponse = await fetch('http://localhost:5000/api/parties/summary');
-        console.log('📡 Direct fetch status:', directResponse.status);
-        setDebugInfo(`Direct fetch status: ${directResponse.status}`);
-        
-        if (!directResponse.ok) {
-          throw new Error(`Direct fetch failed: ${directResponse.status}`);
-        }
-        
-        const directData = await directResponse.json();
-        console.log('✅ Direct fetch data:', directData);
-        setDebugInfo(`Direct fetch success: ${directData.length} parties`);
-        
-        // Now test through API functions
-        const [summaryData, statsData] = await Promise.all([
-          getAllPartiesSummary(),
-          getPartyStatistics()
-        ]);
-        
-        console.log('✅ Party Summary Data:', summaryData);
-        console.log('✅ Party Statistics:', statsData);
-        console.log('📊 Summary Array Length:', Array.isArray(summaryData) ? summaryData.length : 'Not an array');
-        setDebugInfo(`API calls success: ${Array.isArray(summaryData) ? summaryData.length : 0} parties`);
-        
-        // Validate and normalize the data
-        const normalizedData = Array.isArray(summaryData) ? summaryData.map(party => ({
-          partyName: party.partyName || 'Unknown Party',
+  const [debugInfo, setDebugInfo] = useState<string>('Starting...');
+
+  // Normalize a party name for map keys (trim + uppercase)
+  const normalizeKey = (name: string | undefined | null): string => {
+    return (name || '').toString().trim().toUpperCase();
+  };
+
+  // Display format: simple Title Case for readability
+  const toTitle = (name: string): string => {
+    return name
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
+  };
+
+  // Helper: normalize and merge party names with summary (fill zeros when missing)
+  const buildNormalizedSummary = (
+    summaryData: any[] | undefined,
+    _partyNamesFromApi: string[] | undefined,
+    unionNamesFromPages: string[] | undefined,
+    firmsByParty?: Map<string, Set<string>>
+  ): PartySummary[] => {
+    const map = new Map<string, PartySummary>();
+    if (Array.isArray(summaryData)) {
+      for (const party of summaryData) {
+        const displayName: string = party.partyName || 'Unknown Party';
+        const key = normalizeKey(displayName);
+        const entry: PartySummary = {
+          partyName: toTitle(displayName),
           totalOrders: Number(party.totalOrders) || 0,
           totalYarn: Number(party.totalYarn) || 0,
           pendingYarn: Number(party.pendingYarn) || 0,
@@ -140,24 +138,189 @@ const PartyMaster = () => {
           arrivedYarn: Number(party.arrivedYarn) || 0,
           lastOrderDate: party.lastOrderDate,
           firstOrderDate: party.firstOrderDate,
-        })) : [];        setSummary(normalizedData);
+          dyeingFirms: undefined,
+        };
+        map.set(key, entry);
+      }
+    }
+    // Only include page-derived union names to restrict listing source
+    const allNames: string[] = [
+      ...(Array.isArray(unionNamesFromPages) ? unionNamesFromPages : []),
+    ];
+    if (allNames.length) {
+      for (const name of allNames) {
+        const key = normalizeKey(name);
+        if (!map.has(key)) {
+          map.set(key, {
+            partyName: toTitle(name),
+            totalOrders: 0,
+            totalYarn: 0,
+            pendingYarn: 0,
+            reprocessingYarn: 0,
+            arrivedYarn: 0,
+            dyeingFirms: undefined,
+          });
+        }
+      }
+    }
+    // Attach dyeing firms if provided
+    if (firmsByParty) {
+      for (const [key, entry] of map.entries()) {
+        const set = firmsByParty.get(key);
+        if (set && set.size) {
+          entry.dyeingFirms = Array.from(set).sort();
+        }
+      }
+    }
+    return Array.from(map.values());
+  };
+
+  // Fallback aggregator using Count Products and Dyeing Orders when summary API is unavailable
+  const aggregateFromPages = async (): Promise<PartySummary[]> => {
+    try {
+      const [dyeingRecords, countProducts] = await Promise.all([
+        getAllDyeingRecords(),
+        getAllCountProducts(),
+      ]);
+
+  const map = new Map<string, PartySummary & { first?: string; last?: string }>();
+  const firmsByParty = new Map<string, Set<string>>();
+
+      // Aggregate from dyeing records (primary source for statuses)
+      for (const rec of dyeingRecords) {
+        const key = normalizeKey(rec.partyName || 'Unknown Party');
+        if (rec.dyeingFirm) {
+          const set = firmsByParty.get(key) || new Set<string>();
+          set.add(rec.dyeingFirm);
+          firmsByParty.set(key, set);
+        }
+        const cur = map.get(key) || {
+          partyName: toTitle(rec.partyName || 'Unknown Party'),
+          totalOrders: 0,
+          totalYarn: 0,
+          pendingYarn: 0,
+          reprocessingYarn: 0,
+          arrivedYarn: 0,
+        };
+        cur.totalOrders += 1;
+        cur.totalYarn += Number(rec.quantity) || 0;
+        if (rec.arrivalDate) cur.arrivedYarn += Number(rec.quantity) || 0;
+        else if (rec.isReprocessing) cur.reprocessingYarn += Number(rec.quantity) || 0;
+        else cur.pendingYarn += Number(rec.quantity) || 0;
+        // Track date range by sentDate
+        const date = rec.sentDate;
+        cur.first = !cur.first || (date && date < cur.first) ? date : cur.first;
+        cur.last = !cur.last || (date && date > cur.last) ? date : cur.last;
+        map.set(key, cur);
+      }
+
+      // Ensure parties present in Count Product Overview (partyName + middleman) also appear
+      for (const cp of countProducts) {
+        const names = [cp.partyName, cp.middleman].filter(Boolean) as string[];
+        // Collect firms
+        if (cp.dyeingFirm) {
+          for (const nm of names) {
+            const k = normalizeKey(nm);
+            const set = firmsByParty.get(k) || new Set<string>();
+            set.add(cp.dyeingFirm);
+            firmsByParty.set(k, set);
+          }
+        }
+        for (const nm of names) {
+          const k = normalizeKey(nm || 'Unknown Party');
+          if (!map.has(k)) {
+            map.set(k, {
+              partyName: toTitle(nm || 'Unknown Party'),
+              totalOrders: 0,
+              totalYarn: 0,
+              pendingYarn: 0,
+              reprocessingYarn: 0,
+              arrivedYarn: 0,
+            });
+          }
+        }
+      }
+
+      return Array.from(map.values()).map(p => ({
+        ...p,
+        firstOrderDate: (p as any).first,
+        lastOrderDate: (p as any).last,
+        dyeingFirms: (() => {
+          const set = firmsByParty.get(normalizeKey(p.partyName));
+          return set ? Array.from(set).sort() : undefined;
+        })()
+      }));
+    } catch (e) {
+      console.error('Fallback aggregation failed:', e);
+      return [];
+    }
+  };
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        setDebugInfo('Loading party data...');
+
+  const [summaryData, statsData, dyeingRecords, countProducts] = await Promise.all([
+          getAllPartiesSummary(),
+          getPartyStatistics(),
+          getAllDyeingRecords().catch(() => []),
+          getAllCountProducts().catch(() => []),
+        ]);
+
+        // Build union of names from pages: dyeing party names + count product partyName + middleman
+        const unionNames = Array.from(new Set<string>([
+          ...(Array.isArray(dyeingRecords) ? dyeingRecords.map((r: any) => r.partyName).filter(Boolean) : []),
+          ...(Array.isArray(countProducts) ? countProducts.flatMap((cp: any) => [cp.partyName, cp.middleman]).filter(Boolean) : []),
+        ]));
+
+        // Map: party -> dyeing firms
+        const firmsByParty = new Map<string, Set<string>>();
+        if (Array.isArray(dyeingRecords)) {
+          for (const rec of dyeingRecords) {
+            if (rec?.partyName && rec?.dyeingFirm) {
+              const k = normalizeKey(rec.partyName);
+              const set = firmsByParty.get(k) || new Set<string>();
+              set.add(rec.dyeingFirm);
+              firmsByParty.set(k, set);
+            }
+          }
+        }
+        if (Array.isArray(countProducts)) {
+          for (const cp of countProducts) {
+            const names = [cp?.partyName, cp?.middleman].filter(Boolean) as string[];
+            if (cp?.dyeingFirm) {
+              for (const nm of names) {
+                const k = normalizeKey(nm);
+                const set = firmsByParty.get(k) || new Set<string>();
+                set.add(cp.dyeingFirm);
+                firmsByParty.set(k, set);
+              }
+            }
+          }
+        }
+
+  // Use backend summary as source of truth for which parties to list.
+  // Do not re-add unionNames here, to avoid re-including archived parties filtered by backend.
+  const normalizedData = buildNormalizedSummary(summaryData, [], undefined, firmsByParty);
+        setSummary(normalizedData);
         setFilteredSummary(normalizedData);
         setStatistics(statsData);
-        
-        console.log('✅ Final state set - Summary length:', normalizedData.length);
-        console.log('✅ Filtered summary length:', normalizedData.length);
-        setDebugInfo(`SUCCESS: Loaded ${normalizedData.length} parties from API`);
-        
-        toast.success("Party Master data loaded successfully");      } catch (error) {
-        console.error('❌ Error fetching party data:', error);
-        if (error instanceof Error) {
-          console.error('❌ Error details:', error.message);
-          setDebugInfo(`Error: ${error.message}`);
-        }
-        toast.error("Failed to load party data");
-        setSummary([]);
-        setFilteredSummary([]);
+        setDebugInfo(`Loaded ${normalizedData.length} parties`);
+        toast.success('Party Master data loaded');
+      } catch (error) {
+        console.warn('Summary API failed, using fallback aggregation from pages...', error);
+        setDebugInfo('Summary API failed; aggregating from pages...');
+
+  const [fallback] = await Promise.all([
+          aggregateFromPages(),
+        ]);
+  const normalizedData = buildNormalizedSummary(fallback, [], [], undefined);
+        setSummary(normalizedData);
+        setFilteredSummary(normalizedData);
         setStatistics(null);
+        toast.info('Showing aggregated party data');
       } finally {
         setLoading(false);
       }
@@ -385,28 +548,64 @@ const PartyMaster = () => {
   const refreshData = async () => {
     setRefreshing(true);
     try {
-      const [summaryData, statsData] = await Promise.all([
+      const [summaryData, statsData, dyeingRecords, countProducts] = await Promise.all([
         getAllPartiesSummary(),
-        getPartyStatistics()
+        getPartyStatistics(),
+        getAllDyeingRecords().catch(() => []),
+        getAllCountProducts().catch(() => []),
       ]);
-      
-      const normalizedData = Array.isArray(summaryData) ? summaryData.map(party => ({
-        partyName: party.partyName || 'Unknown Party',
-        totalOrders: Number(party.totalOrders) || 0,
-        totalYarn: Number(party.totalYarn) || 0,
-        pendingYarn: Number(party.pendingYarn) || 0,
-        reprocessingYarn: Number(party.reprocessingYarn) || 0,
-        arrivedYarn: Number(party.arrivedYarn) || 0,
-        lastOrderDate: party.lastOrderDate,
-        firstOrderDate: party.firstOrderDate,
-      })) : [];
-      
-      setSummary(normalizedData);
-      setFilteredSummary(normalizedData);
+
+      const unionNames = Array.from(new Set<string>([
+        ...(Array.isArray(dyeingRecords) ? dyeingRecords.map((r: any) => r.partyName).filter(Boolean) : []),
+        ...(Array.isArray(countProducts) ? countProducts.flatMap((cp: any) => [cp.partyName, cp.middleman]).filter(Boolean) : []),
+      ]));
+
+      // Map: party -> dyeing firms
+      const firmsByParty = new Map<string, Set<string>>();
+      if (Array.isArray(dyeingRecords)) {
+        for (const rec of dyeingRecords) {
+          if (rec?.partyName && rec?.dyeingFirm) {
+            const k = normalizeKey(rec.partyName);
+            const set = firmsByParty.get(k) || new Set<string>();
+            set.add(rec.dyeingFirm);
+            firmsByParty.set(k, set);
+          }
+        }
+      }
+      if (Array.isArray(countProducts)) {
+        for (const cp of countProducts) {
+          const names = [cp?.partyName, cp?.middleman].filter(Boolean) as string[];
+          if (cp?.dyeingFirm) {
+            for (const nm of names) {
+              const k = normalizeKey(nm);
+              const set = firmsByParty.get(k) || new Set<string>();
+              set.add(cp.dyeingFirm);
+              firmsByParty.set(k, set);
+            }
+          }
+        }
+      }
+
+  // Respect backend filtering (e.g., exclude archived) and only attach dyeing firms
+  const normalizedData = buildNormalizedSummary(summaryData, [], undefined, firmsByParty);
+  setSummary(normalizedData);
+  setFilteredSummary(normalizedData);
       setStatistics(statsData);
     } catch (error) {
       console.error('Error refreshing data:', error);
-      toast.error('Failed to refresh data');
+      try {
+        // Fallback refresh using on-page aggregation
+  const [fallback] = await Promise.all([
+          aggregateFromPages(),
+        ]);
+  const normalizedData = buildNormalizedSummary(fallback, [], [], undefined);
+        setSummary(normalizedData);
+        setFilteredSummary(normalizedData);
+        setStatistics(null);
+        toast.info('Refreshed with aggregated data');
+      } catch {
+        toast.error('Failed to refresh data');
+      }
     } finally {
       setRefreshing(false);
     }
@@ -451,6 +650,7 @@ const PartyMaster = () => {
                       getPartyStatistics()
                     ]);
                     
+                    // Keep backend as source of truth; don't add union names here.
                     const normalizedData = Array.isArray(summaryData) ? summaryData.map(party => ({
                       partyName: party.partyName || 'Unknown Party',
                       totalOrders: Number(party.totalOrders) || 0,
@@ -687,6 +887,9 @@ const PartyMaster = () => {
                       <span className="text-xs">{getSortIcon('partyName')}</span>
                     </div>
                   </th>
+                  <th className="px-4 py-4 text-xs font-medium tracking-wider text-left text-gray-500 uppercase dark:text-gray-300 whitespace-nowrap">
+                    Dyeing Firm
+                  </th>
                   <th 
                     onClick={() => handleSort('totalOrders')}
                     className="px-6 py-4 text-xs font-medium tracking-wider text-center text-gray-500 uppercase cursor-pointer hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600"
@@ -719,10 +922,11 @@ const PartyMaster = () => {
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-800 dark:divide-gray-700">                {filteredSummary.length === 0 ? (
-                  loading ? (
+  <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-800 dark:divide-gray-700">
+    {filteredSummary.length === 0 ? (
+          loading ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center">
+            <td colSpan={8} className="px-6 py-12 text-center">
                         <div className="flex items-center justify-center gap-3">
                           <div className="w-8 h-8 border-b-2 border-blue-500 rounded-full animate-spin"></div>
                           <span className="text-lg">Loading parties...</span>
@@ -731,7 +935,7 @@ const PartyMaster = () => {
                     </tr>
                   ) : (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center">
+            <td colSpan={8} className="px-6 py-12 text-center">
                         <div className="flex flex-col items-center gap-3">
                           <div className="p-4 rounded-full bg-gradient-to-br from-purple-100 to-blue-100 dark:from-purple-900/30 dark:to-blue-900/30">
                             <Users className="w-12 h-12 text-purple-600 dark:text-purple-400" />
@@ -803,6 +1007,11 @@ const PartyMaster = () => {
                           </div>
                         </div>
                       </td>
+                      <td className="px-4 py-4 text-xs max-w-[180px]">
+                        <div className="text-gray-700 dark:text-gray-300 truncate" title={(party.dyeingFirms || []).join(', ')}>
+                          {party.dyeingFirms && party.dyeingFirms.length > 0 ? party.dyeingFirms.join(', ') : '-'}
+                        </div>
+                      </td>
                       <td className="px-6 py-4 text-sm text-center">
                         <span className="inline-flex items-center px-3 py-1 text-xs font-medium text-blue-800 bg-blue-100 rounded-full dark:bg-blue-900/30 dark:text-blue-400">
                           {party.totalOrders}
@@ -867,6 +1076,7 @@ const PartyMaster = () => {
             setSelectedParty(null);
           }}
           partyName={selectedParty.partyName}
+          dyeingFirms={selectedParty.dyeingFirms}
           onSuccess={() => {
             setShowEditModal(false);
             setSelectedParty(null);

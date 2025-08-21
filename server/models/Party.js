@@ -50,6 +50,27 @@ const Party = sequelize.define('Party', {
       }
     },
   },
+  // Editable metrics (optional overrides)
+  totalOrders: {
+    type: DataTypes.INTEGER,
+  allowNull: true,
+  },
+  totalYarn: {
+    type: DataTypes.DECIMAL(12, 2),
+  allowNull: true,
+  },
+  pendingYarn: {
+    type: DataTypes.DECIMAL(12, 2),
+  allowNull: true,
+  },
+  reprocessingYarn: {
+    type: DataTypes.DECIMAL(12, 2),
+  allowNull: true,
+  },
+  arrivedYarn: {
+    type: DataTypes.DECIMAL(12, 2),
+  allowNull: true,
+  },
   isArchived: {
     type: DataTypes.BOOLEAN,
     allowNull: false,

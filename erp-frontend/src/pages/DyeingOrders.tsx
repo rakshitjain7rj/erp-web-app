@@ -461,6 +461,9 @@ const DyeingOrders: React.FC = () => {
     };
   }, []);
 
+  // Normalize comparison: trim + case-insensitive
+  const nk = (s: string) => (s || '').toString().trim().toUpperCase();
+
   const filteredRecords = records.filter((r) => {
     const query = searchQuery.toLowerCase();
     const matchesSearch =
@@ -472,10 +475,34 @@ const DyeingOrders: React.FC = () => {
       r.count.toLowerCase().includes(query);
 
   const matchesStatus = true;
-    const matchesFirm = firmFilter ? r.dyeingFirm === firmFilter : true;
-    const matchesParty = partyFilter ? r.partyName === partyFilter : true;
+    const matchesFirm = firmFilter ? nk(r.dyeingFirm) === nk(firmFilter) : true;
+    const matchesParty = partyFilter ? nk(r.partyName) === nk(partyFilter) : true;
 
     return matchesSearch && matchesStatus && matchesFirm && matchesParty;
+  });
+
+  // Apply the SAME filters to Count Products so UI behaves consistently
+  const filteredCountProducts = countProducts.filter((p) => {
+    const query = searchQuery.toLowerCase();
+    const haystack = [
+      p.partyName,
+      p.middleman,
+      p.customerName,
+      p.dyeingFirm,
+      p.yarnType,
+      p.shade,
+      (p as any).count,
+      (p as any).lotNumber,
+    ].map((v) => (v || '').toString().toLowerCase());
+
+    const matchesSearch = query ? haystack.some((h) => h.includes(query)) : true;
+    const matchesFirm = firmFilter ? nk(p.dyeingFirm as any) === nk(firmFilter) : true;
+    // Party filter matches either partyName or middleman for CountProducts
+    const matchesParty = partyFilter
+      ? nk(p.partyName as any) === nk(partyFilter) || nk(p.middleman as any) === nk(partyFilter)
+      : true;
+
+    return matchesSearch && matchesFirm && matchesParty;
   });
 
   // Status filter removed
@@ -491,8 +518,11 @@ const DyeingOrders: React.FC = () => {
     const partySet = new Set<string>();
     records.forEach(r => r?.partyName && partySet.add(r.partyName));
     countProducts.forEach(p => p?.partyName && partySet.add(p.partyName as any));
-    return Array.from(partySet).sort((a, b) => a.localeCompare(b));
-  }, [records, countProducts]);
+    const arr = Array.from(partySet).sort((a, b) => a.localeCompare(b));
+    // Ensure current selected party stays in options even if not present in records (e.g., archived/no current orders)
+    if (partyFilter && !arr.some(n => nk(n) === nk(partyFilter))) arr.unshift(partyFilter);
+    return arr;
+  }, [records, countProducts, partyFilter]);
 
   // Helpers: normalize and display count values consistently
   const normalizeCount = (value?: string) => {
@@ -524,7 +554,7 @@ const DyeingOrders: React.FC = () => {
   const completeCountListing = React.useMemo(() => {
     console.log('🔄 [DyeingOrders] Recalculating completeCountListing with countProducts:', countProducts.length);
     
-    const groupedCountProductsByCount = countProducts.reduce((acc, product) => {
+    const groupedCountProductsByCount = filteredCountProducts.reduce((acc, product) => {
       const key = normalizeCount(product.count || 'Standard');
       if (!acc[key]) acc[key] = [];
       acc[key].push(product);
@@ -532,7 +562,7 @@ const DyeingOrders: React.FC = () => {
     }, {} as Record<string, CountProduct[]>);
     // Display names from count products (fallbacks if none from records)
     const countDisplayNameFromProducts: Record<string, string> = {};
-    countProducts.forEach((p) => {
+  filteredCountProducts.forEach((p) => {
       const key = normalizeCount(p.count || 'Standard');
       if (!countDisplayNameFromProducts[key]) {
         countDisplayNameFromProducts[key] = getDisplayCount(p.count);
@@ -574,7 +604,7 @@ const DyeingOrders: React.FC = () => {
         if (bIsStd && !aIsStd) return -1;
         return a.name.localeCompare(b.name);
       });
-  }, [countProducts, groupedByCount, refreshKey]);
+  }, [filteredCountProducts, groupedByCount, refreshKey]);
 
   // Debug: Log count group listing construction
   console.log('🔍 [DyeingOrders] completeCountListing constructed:', {
