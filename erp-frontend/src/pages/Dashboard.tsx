@@ -1,6 +1,6 @@
 import React from "react";
 import LayoutWrapper from "../components/LayoutWrapper";
-import TotalASUUnit1YarnSummary from "../components/dashboard";
+import TotalASUUnit1YarnSummary from "../components/dashboard/TotalASUUnit1YarnSummary";
 
 function Dashboard() {
 
