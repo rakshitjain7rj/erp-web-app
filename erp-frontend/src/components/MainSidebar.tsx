@@ -43,13 +43,6 @@ const MainSidebar: React.FC = () => {
       description: 'Count product tracking'
     },
     { 
-      id: 'reports', 
-      label: 'Reports', 
-      path: '/reports', 
-      icon: <TrendingUp className="w-5 h-5" />,
-      description: 'Analytics'
-    },
-    { 
       id: 'settings', 
       label: 'Settings', 
       path: '/settings', 

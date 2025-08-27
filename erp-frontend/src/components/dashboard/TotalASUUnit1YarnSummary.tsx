@@ -9,7 +9,7 @@ import { useAuth } from "../../context/AuthContext";
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-export interface TotalASUUnit1YarnSummaryProps { days?: number; showRefreshButton?: boolean; }
+export interface TotalASUUnit1YarnSummaryProps { days?: number; showRefreshButton?: boolean; compact?: boolean; }
 
 // Minimal local types for fetched entries
 interface ProductionEntry { id?: number; yarnType?: string; machine?: { yarnType?: string }; actualProduction?: number | string; shift?: string; date?: string; }
@@ -19,7 +19,7 @@ const CardDescription: React.FC<React.PropsWithChildren<{ className?: string }>>
 	<p className={`text-sm text-gray-500 dark:text-gray-300 ${className || ''}`}>{children}</p>
 );
 
-const TotalASUUnit1YarnSummary: React.FC<TotalASUUnit1YarnSummaryProps> = ({ days = 31, showRefreshButton = false }) => {
+const TotalASUUnit1YarnSummary: React.FC<TotalASUUnit1YarnSummaryProps> = ({ days = 31, showRefreshButton = false, compact = true }) => {
 	const { user } = useAuth();
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -89,9 +89,10 @@ const TotalASUUnit1YarnSummary: React.FC<TotalASUUnit1YarnSummaryProps> = ({ day
 
 	if (error && yarnTypeBreakdown.length === 0) return <Card className="w-full border border-red-300 dark:border-red-700"><CardHeader><CardTitle>ASU Unit 1 Yarn Production</CardTitle><CardDescription className="text-red-500">{error}</CardDescription></CardHeader><CardContent>No data.</CardContent></Card>;
 
+	const density = compact ? 'py-1.5 px-3 text-xs' : 'py-2 px-4 text-sm';
 	return (
-		<Card className="w-full">
-			<CardHeader>
+		<Card className="w-full bg-gray-50/70 dark:bg-gray-950/60 border-gray-200 dark:border-gray-700">
+			<CardHeader className="pb-3">
 				<div className="flex items-center justify-between gap-4 flex-wrap">
 					<div>
 						<CardTitle className="text-xl font-bold">ASU Unit 1 Yarn Production</CardTitle>
@@ -104,45 +105,57 @@ const TotalASUUnit1YarnSummary: React.FC<TotalASUUnit1YarnSummaryProps> = ({ day
 				<div className="flex items-end gap-3 flex-wrap mt-4">
 					<div>
 						<div className="text-xs mb-1">From</div>
-						<input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="border rounded px-2 py-1 text-sm" />
+						<input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white/90 dark:bg-gray-900/70 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
 					</div>
 						<div>
 						<div className="text-xs mb-1">To</div>
-						<input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="border rounded px-2 py-1 text-sm" />
+						<input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white/90 dark:bg-gray-900/70 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
 					</div>
 					<div className="flex gap-2">
-						<button onClick={fetchData} className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm">Apply</button>
-						<button onClick={() => { setDateFrom(startOfMonthIso()); setDateTo(todayIso()); setTimeout(fetchData, 0); }} className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 rounded text-sm">This Month</button>
+						<button onClick={fetchData} className="px-3 py-1.5 rounded text-sm bg-blue-600 hover:bg-blue-500 text-white transition-colors">Apply</button>
+						<button onClick={() => { setDateFrom(startOfMonthIso()); setDateTo(todayIso()); setTimeout(fetchData, 0); }} className="px-3 py-1.5 rounded text-sm bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100 transition-colors">This Month</button>
 					</div>
 				</div>
 			</CardHeader>
-			<CardContent>
-				<div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 text-sm">
-					<div className="p-3 rounded bg-gray-50 dark:bg-gray-700"><div className="text-gray-500">Total</div><div className="text-lg font-semibold">{totalProduction.toLocaleString()} kg</div></div>
-					<div className="p-3 rounded bg-gray-50 dark:bg-gray-700"><div className="text-gray-500">Yarn Types</div><div className="text-lg font-semibold">{yarnTypeBreakdown.length}</div></div>
-					<div className="p-3 rounded bg-gray-50 dark:bg-gray-700"><div className="text-gray-500">Top</div><div className="text-sm font-semibold truncate">{yarnTypeBreakdown[0]?.type || '—'}</div></div>
-					<div className="p-3 rounded bg-gray-50 dark:bg-gray-700"><div className="text-gray-500">Avg/Day</div><div className="text-lg font-semibold">{days ? Math.round(totalProduction / days) : 0} kg</div></div>
+			<CardContent className="pt-0 space-y-4">
+				{/* Compact stats bar */}
+				<div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs md:text-sm">
+					<div className="p-3 border border-gray-200 dark:border-gray-700 rounded bg-gray-100/70 dark:bg-gray-800/40"><div className="text-gray-600 dark:text-gray-400 text-[11px] uppercase tracking-wide">Total</div><div className="mt-0.5 font-semibold text-gray-900 dark:text-gray-100 text-sm md:text-base">{totalProduction.toLocaleString()} kg</div></div>
+					<div className="p-3 border border-gray-200 dark:border-gray-700 rounded bg-gray-100/70 dark:bg-gray-800/40"><div className="text-gray-600 dark:text-gray-400 text-[11px] uppercase tracking-wide">Types</div><div className="mt-0.5 font-semibold text-gray-900 dark:text-gray-100 text-sm md:text-base">{yarnTypeBreakdown.length}</div></div>
+					<div className="p-3 border border-gray-200 dark:border-gray-700 rounded bg-gray-100/70 dark:bg-gray-800/40"><div className="text-gray-600 dark:text-gray-400 text-[11px] uppercase tracking-wide">Top</div><div className="mt-0.5 font-medium truncate text-gray-900 dark:text-gray-100 text-xs md:text-sm" title={yarnTypeBreakdown[0]?.type}>{yarnTypeBreakdown[0]?.type || '—'}</div></div>
+					<div className="p-3 border border-gray-200 dark:border-gray-700 rounded bg-gray-100/70 dark:bg-gray-800/40"><div className="text-gray-600 dark:text-gray-400 text-[11px] uppercase tracking-wide">Avg/Day</div><div className="mt-0.5 font-semibold text-gray-900 dark:text-gray-100 text-sm md:text-base">{days ? Math.round(totalProduction / days) : 0} kg</div></div>
 				</div>
-				<div className="border rounded overflow-hidden">
-					<table className="w-full text-sm">
-						<thead className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
-							<tr><th className="text-left px-3 py-2">Yarn Type</th><th className="text-right px-3 py-2">Total (kg)</th><th className="text-right px-3 py-2">Share</th></tr>
+
+				{/* Scrollable table wrapper */}
+				<div className={`border border-gray-200 dark:border-gray-700 rounded ${compact ? 'shadow-sm' : ''} max-h-80 overflow-auto bg-gray-50/70 dark:bg-gray-900/30`}> 
+					<table className={`w-full ${compact ? 'text-[11px] md:text-xs' : 'text-sm'} border-collapse`}> 
+						<thead className="sticky top-0 z-10 bg-gray-200/80 dark:bg-gray-800/80 backdrop-blur text-gray-800 dark:text-gray-200 shadow-sm">
+							<tr><th className={`${density} text-left font-medium w-1/2`}>Yarn Type</th><th className={`${density} text-right font-medium whitespace-nowrap`}>Total (kg)</th><th className={`${density} text-right font-medium`}>Share</th></tr>
 						</thead>
-						<tbody>
-							{(showAllYarns ? yarnTypeBreakdown : yarnTypeBreakdown.slice(0, 12)).map(item => {
-								const pct = totalProduction ? Math.round((item.total / totalProduction) * 100) : 0;
-								return <tr key={item.type} className="border-t border-gray-200 dark:border-gray-600"><td className="px-3 py-2">{item.type}</td><td className="px-3 py-2 text-right">{item.total.toFixed(2)}</td><td className="px-3 py-2 text-right">{pct}%</td></tr>;
+						<tbody className="bg-gray-50/40 dark:bg-gray-900/10">
+							{(showAllYarns ? yarnTypeBreakdown : yarnTypeBreakdown.slice(0, 50)).map((item, idx) => {
+								const pct = totalProduction ? (item.total / totalProduction) * 100 : 0;
+								return (
+									<tr key={item.type} className={`border-t border-gray-100 dark:border-gray-800 ${idx % 2 ? 'bg-gray-100/60 dark:bg-gray-800/30' : ''} hover:bg-gray-200/80 dark:hover:bg-gray-800/60 transition-colors`}>
+										<td className={`${density} pr-4 font-medium text-gray-800 dark:text-gray-100`}>{item.type}</td>
+										<td className={`${density} text-right tabular-nums text-gray-900 dark:text-gray-100`}>{item.total.toFixed(2)}</td>
+										<td className={`${density} text-right text-gray-600 dark:text-gray-300 tabular-nums`}>{Math.round(pct)}%</td>
+									</tr>
+								);
 							})}
-							{!yarnTypeBreakdown.length && <tr><td colSpan={3} className="px-3 py-6 text-center text-gray-500">No data</td></tr>}
+							{!yarnTypeBreakdown.length && <tr><td colSpan={3} className="px-3 py-8 text-center text-gray-500 dark:text-gray-400">No data</td></tr>}
 						</tbody>
 					</table>
+				</div>
+
+				{/* Toggle & info row */}
+				<div className="flex items-center justify-between pt-1">
 					{yarnTypeBreakdown.length > 12 && (
-						<div className="px-3 py-2 bg-gray-50 dark:bg-gray-700 text-right">
-							<button onClick={() => setShowAllYarns(v => !v)} className="text-xs px-2 py-1 border rounded">
-								{showAllYarns ? 'Show less' : `Show all (${yarnTypeBreakdown.length})`}
-							</button>
-						</div>
+						<button onClick={() => setShowAllYarns(v => !v)} className="text-xs px-2 py-1 border rounded hover:bg-white dark:hover:bg-gray-700 transition-colors">
+							{showAllYarns ? 'Show fewer' : `Show all (${yarnTypeBreakdown.length})`}
+						</button>
 					)}
+					<span className="text-[10px] md:text-xs text-gray-400 dark:text-gray-500 ml-auto">Showing {Math.min(yarnTypeBreakdown.length, showAllYarns ? yarnTypeBreakdown.length : 50)} of {yarnTypeBreakdown.length}</span>
 				</div>
 			</CardContent>
 		</Card>

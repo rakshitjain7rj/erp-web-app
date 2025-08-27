@@ -71,13 +71,6 @@ const Sidebar: React.FC = () => {
       description: 'Business intelligence and reporting'
     },
     { 
-      id: 'reports', 
-      label: 'Reports', 
-      path: '/reports', 
-      icon: <BarChart className="w-5 h-5" />,
-      description: 'Generate custom reports'
-    },
-    { 
       id: 'settings', 
       label: 'Settings', 
       path: '/settings', 

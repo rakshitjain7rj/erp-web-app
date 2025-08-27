@@ -42,7 +42,7 @@ const ASUUnit1Page: React.FC = () => {
   }, [activeTab]);
 
   return (
-    <div className="container mx-auto p-4 max-w-7xl">
+    <div className="w-full px-4 md:px-6 py-4">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">ASU Unit 1 Management</h1>
         <div className="flex space-x-1">
@@ -102,10 +102,12 @@ const ASUUnit1Page: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+  <div className="bg-white/90 dark:bg-gray-900/60 rounded-lg shadow p-4 md:p-6 border border-gray-200 dark:border-gray-700">
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
-            <TotalASUUnit1YarnSummary days={31} showRefreshButton={true} />
+            <div className="w-full">
+              <TotalASUUnit1YarnSummary days={31} showRefreshButton={true} />
+            </div>
           </div>
         )}
         {activeTab === 'production' && <DailyProduction />}
