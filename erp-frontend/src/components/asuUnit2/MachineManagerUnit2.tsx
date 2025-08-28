@@ -8,6 +8,8 @@ import { Plus, Edit, Save, Trash2, X, RotateCcw } from 'lucide-react';
 import type { ASUMachine } from '../../api/asuUnit1Api';
 import { asuUnit2Api } from '../../api/asuUnit2Api';
 import MachineFormModal from '../asuUnit1/MachineFormModal';
+// Re‑use Unit1 history component & types for consistency
+import { MachineConfigurationHistory, MachineConfiguration } from '../asuUnit1/MachineConfigurationHistory';
 
 interface EditingMachine {
   id: number;
@@ -26,7 +28,9 @@ const yarnTypes = ['Cotton', 'PC', 'CVC', 'Tencel', 'Polyester', 'Viscose', 'Cot
 
 const MachineManagerUnit2: React.FC = () => {
   const [machines, setMachines] = useState<ASUMachine[]>([]);
+  const [configurations, setConfigurations] = useState<MachineConfiguration[]>([]);
   const [selectedMachine, setSelectedMachine] = useState<ASUMachine | null>(null);
+  const [hasProductionEntries, setHasProductionEntries] = useState(false);
   const [loading, setLoading] = useState(false);
   const [editingMachine, setEditingMachine] = useState<EditingMachine | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -45,6 +49,57 @@ const MachineManagerUnit2: React.FC = () => {
   }, []);
 
   useEffect(() => { loadMachines(); }, [loadMachines]);
+
+  // Load configuration history (always show snapshots if exist; inject current state)
+  const loadConfigurations = useCallback(async () => {
+    if (!selectedMachine) { setConfigurations([]); setHasProductionEntries(false); return; }
+    try {
+      setLoading(true);
+      let hasEntries = false;
+      try {
+        const resp = await asuUnit2Api.getProductionEntries({ machineId: selectedMachine.id, limit: 2 } as any);
+        if (Array.isArray(resp)) hasEntries = resp.length > 0; else if (resp?.entries) hasEntries = resp.entries.length > 0; else if (resp?.data) hasEntries = resp.data.length > 0;
+      } catch { /* ignore */ }
+      setHasProductionEntries(hasEntries);
+      const historyKey = `machine_config_history_unit2_${selectedMachine.id}`;
+      const historyRaw = localStorage.getItem(historyKey);
+      const history: any[] = historyRaw ? JSON.parse(historyRaw) : [];
+      const configs: MachineConfiguration[] = history.map((item, idx) => ({
+        id: item.id || idx,
+        machineId: selectedMachine.id,
+        count: item.count ?? 0,
+        spindles: item.spindles ?? 0,
+        speed: item.speed ?? 0,
+        yarnType: item.yarnType || '',
+        productionAt100: item.productionAt100 ?? 0,
+        machineName: item.machineName || selectedMachine.machineName || '',
+        createdAt: item.savedAt || item.createdAt || item.updatedAt || new Date().toISOString(),
+        updatedAt: item.updatedAt || item.createdAt || item.savedAt || new Date().toISOString(),
+        savedAt: item.savedAt
+      }));
+      const currentEntry: MachineConfiguration = {
+        id: Date.now(),
+        machineId: selectedMachine.id,
+        count: selectedMachine.count ?? 0,
+        spindles: selectedMachine.spindles ?? 0,
+        speed: selectedMachine.speed ?? 0,
+        yarnType: selectedMachine.yarnType || '',
+        productionAt100: selectedMachine.productionAt100 ?? 0,
+        machineName: selectedMachine.machineName || '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        savedAt: new Date().toISOString(),
+        isActive: true
+      } as any;
+      if (configs.length === 0 || ['count','yarnType','spindles','speed','productionAt100'].some(k => String((configs[0] as any)[k]) !== String((currentEntry as any)[k]))) {
+        configs.unshift(currentEntry);
+      }
+      configs.sort((a,b)=> new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setConfigurations(configs);
+    } finally { setLoading(false); }
+  }, [selectedMachine]);
+
+  useEffect(() => { if (selectedMachine) loadConfigurations(); }, [selectedMachine, loadConfigurations]);
 
   const handleMachineCreate = async (formData: any) => {
     const existing = machines.find(m => Number(m.machineNo) === Number(formData.machineNo));
@@ -76,10 +131,26 @@ const MachineManagerUnit2: React.FC = () => {
     setEditingMachine({ id: machine.id, machineNo: Number(machine.machineNo) || 0, machineName: machine.machineName || '', count: numericCount, countDisplay: String(machine.count || numericCount), spindles: machine.spindles || 0, speed: Number(machine.speed) || 0, yarnType: machine.yarnType || 'Cotton', isActive: machine.isActive || false, productionAt100: Number(machine.productionAt100) || 0 });
   };
 
+  // Snapshot helpers
+  const saveSnapshot = (machine: ASUMachine) => {
+    try {
+      const historyKey = `machine_config_history_unit2_${machine.id}`;
+      const history: any[] = JSON.parse(localStorage.getItem(historyKey) || '[]');
+      history.push({ ...machine, savedAt: new Date().toISOString() });
+      localStorage.setItem(historyKey, JSON.stringify(history));
+    } catch {}
+  };
+  const configsDiffer = (a: ASUMachine, b: EditingMachine) => ['count','yarnType','spindles','speed','productionAt100','machineName','machineNo'].some(k => String((a as any)[k]) !== String((b as any)[k]));
+
   const handleSaveEdit = async () => {
     if (!editingMachine) return;
     try {
       setLoading(true);
+      let previousMachine: ASUMachine | null = null;
+      if (selectedMachine && selectedMachine.id === editingMachine.id && configsDiffer(selectedMachine, editingMachine)) {
+        previousMachine = { ...selectedMachine };
+        saveSnapshot(selectedMachine); // before update
+      }
       await asuUnit2Api.updateMachine(editingMachine.id, {
         machineNo: editingMachine.machineNo,
         machine_name: editingMachine.machineName,
@@ -95,8 +166,12 @@ const MachineManagerUnit2: React.FC = () => {
       if (selectedMachine && selectedMachine.id === editingMachine.id) {
         const updatedMachine = { ...selectedMachine, ...editingMachine };
         setSelectedMachine(updatedMachine);
+        if (previousMachine && configsDiffer(previousMachine, editingMachine)) {
+          saveSnapshot(updatedMachine as ASUMachine); // after update
+        }
       }
       await loadMachines();
+      if (selectedMachine && selectedMachine.id === editingMachine.id) await loadConfigurations();
     } catch (error: any) {
       console.error('Error updating Unit 2 machine:', error);
       toast.error(error?.response?.data?.error || error.message || 'Failed to update machine');
@@ -128,7 +203,7 @@ const MachineManagerUnit2: React.FC = () => {
         title="Add New Machine (Unit 2)"
       />
 
-      <div className="overflow-hidden bg-white border border-gray-200 shadow-sm dark:bg-gray-800 dark:border-gray-700 rounded-lg">
+  <div className="overflow-hidden bg-white border border-gray-200 shadow-sm dark:bg-gray-800 dark:border-gray-700 rounded-lg">
         <div className="px-4 py-3 border-b border-gray-200 bg-green-50 dark:bg-green-900/20 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-medium text-green-800 dark:text-green-200">Machine List (Unit 2)</h2>
@@ -272,6 +347,17 @@ const MachineManagerUnit2: React.FC = () => {
           )}
         </div>
       </div>
+      {/* Configuration History Section */}
+      {selectedMachine && (
+        <div className="mt-6">
+          <MachineConfigurationHistory
+            machine={selectedMachine as any}
+            configurations={configurations}
+            loading={loading}
+            hasProductionEntries={hasProductionEntries}
+          />
+        </div>
+      )}
     </>
   );
 };

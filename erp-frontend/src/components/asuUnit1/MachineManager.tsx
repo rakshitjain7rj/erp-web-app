@@ -52,14 +52,28 @@ const MachineManager: React.FC = () => {
   // Load configuration history for the selected machine
   const loadConfigurations = useCallback(async () => {
     if (!selectedMachine) return;
+    
     try {
       setLoading(true);
-      // We no longer gate history behind production entries but still record whether any exist (for UI messaging elsewhere)
-      const hasEntries = await asuUnit1Api.checkMachineHasProductionEntries(selectedMachine.id).catch(() => false);
+      
+      // First check if the machine has any production entries
+      const hasEntries = await asuUnit1Api.checkMachineHasProductionEntries(selectedMachine.id);
       setHasProductionEntries(hasEntries);
+      
+      // If there are no production entries, don't show any configuration history
+      if (!hasEntries) {
+        console.log('No production entries for this machine, clearing configuration history');
+        setConfigurations([]);
+        setLoading(false);
+        return;
+      }
+      
+      // Load the configuration history
       const history = await asuUnit1Api.getMachineConfigHistory(selectedMachine.id);
-      const configs: MachineConfiguration[] = history.map((item: any, index: number) => ({
-        id: item.id || index,
+      
+      // Convert history items to MachineConfiguration format
+      const configs: MachineConfiguration[] = history.map((item, index) => ({
+        id: index,
         machineId: selectedMachine.id,
         count: item.count || 0,
         spindles: item.spindles || 0,
@@ -67,18 +81,23 @@ const MachineManager: React.FC = () => {
         yarnType: item.yarnType || '',
         productionAt100: item.productionAt100 || 0,
         machineName: item.machineName || '',
-        createdAt: item.savedAt || item.createdAt || new Date().toISOString(),
-        updatedAt: item.updatedAt || item.savedAt || ''
+        createdAt: item.savedAt || new Date(item.updated_at || item.createdAt || '').toISOString(),
+        updatedAt: item.updated_at || item.updatedAt || ''
       }));
+      
+      // Sort configurations in reverse chronological order (newest first)
       configs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      
       setConfigurations(configs);
     } catch (error) {
       console.error('Error loading machine configurations:', error);
       toast.error('Failed to load machine configuration history');
+      setHasProductionEntries(false);
+      setConfigurations([]);
     } finally {
       setLoading(false);
     }
-  }, [selectedMachine?.id]);
+  }, [selectedMachine]);
 
   // Initial data loading
   useEffect(() => {
@@ -87,12 +106,10 @@ const MachineManager: React.FC = () => {
 
   // Load configurations when a machine is selected
   useEffect(() => {
-    if (selectedMachine?.id) {
+    if (selectedMachine) {
       loadConfigurations();
-    } else {
-      setConfigurations([]);
     }
-  }, [selectedMachine?.id, loadConfigurations]);
+  }, [selectedMachine, loadConfigurations]);
 
   const handleMachineSelect = async (machineId: string) => {
     if (!machineId || machineId === "no-machines") {
@@ -273,7 +290,7 @@ const MachineManager: React.FC = () => {
       
       // Also reload configurations if we modified the selected machine
       if (selectedMachine && selectedMachine.id === editingMachine.id) {
-        await loadConfigurations(); // refresh merged history
+        await loadConfigurations();
       }
     } catch (error) {
       console.error('Error updating machine:', error);
