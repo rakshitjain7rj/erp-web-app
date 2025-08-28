@@ -89,7 +89,8 @@ const TotalASUUnit1YarnSummary: React.FC<TotalASUUnit1YarnSummaryProps> = ({ day
 
 	if (error && yarnTypeBreakdown.length === 0) return <Card className="w-full border border-red-300 dark:border-red-700"><CardHeader><CardTitle>ASU Unit 1 Yarn Production</CardTitle><CardDescription className="text-red-500">{error}</CardDescription></CardHeader><CardContent>No data.</CardContent></Card>;
 
-	const density = compact ? 'py-1.5 px-3 text-xs' : 'py-2 px-4 text-sm';
+	// Adjusted density for balanced compactness (optimize vertical space)
+	const density = compact ? 'py-2.5 px-2 text-sm md:text-base' : 'py-3 px-3 text-base';
 	return (
 		<Card className="w-full bg-gray-50/70 dark:bg-gray-950/60 border-gray-200 dark:border-gray-700">
 			<CardHeader className="pb-3">
@@ -127,7 +128,7 @@ const TotalASUUnit1YarnSummary: React.FC<TotalASUUnit1YarnSummaryProps> = ({ day
 				</div>
 
 				{/* Scrollable table wrapper */}
-				<div className={`border border-gray-200 dark:border-gray-700 rounded ${compact ? 'shadow-sm' : ''} max-h-80 overflow-auto bg-gray-50/70 dark:bg-gray-900/30`}> 
+				<div className={`border border-gray-200 dark:border-gray-700 rounded ${compact ? 'shadow-sm' : ''} max-h-[520px] overflow-auto bg-gray-50/70 dark:bg-gray-900/30`}> 
 					<table className={`w-full ${compact ? 'text-[11px] md:text-xs' : 'text-sm'} border-collapse`}> 
 						<thead className="sticky top-0 z-10 bg-gray-200/80 dark:bg-gray-800/80 backdrop-blur text-gray-800 dark:text-gray-200 shadow-sm">
 							<tr><th className={`${density} text-left font-medium w-1/2`}>Yarn Type</th><th className={`${density} text-right font-medium whitespace-nowrap`}>Total (kg)</th><th className={`${density} text-right font-medium`}>Share</th></tr>
@@ -136,10 +137,14 @@ const TotalASUUnit1YarnSummary: React.FC<TotalASUUnit1YarnSummaryProps> = ({ day
 							{(showAllYarns ? yarnTypeBreakdown : yarnTypeBreakdown.slice(0, 50)).map((item, idx) => {
 								const pct = totalProduction ? (item.total / totalProduction) * 100 : 0;
 								return (
-									<tr key={item.type} className={`border-t border-gray-100 dark:border-gray-800 ${idx % 2 ? 'bg-gray-100/60 dark:bg-gray-800/30' : ''} hover:bg-gray-200/80 dark:hover:bg-gray-800/60 transition-colors`}>
-										<td className={`${density} pr-4 font-medium text-gray-800 dark:text-gray-100`}>{item.type}</td>
-										<td className={`${density} text-right tabular-nums text-gray-900 dark:text-gray-100`}>{item.total.toFixed(2)}</td>
-										<td className={`${density} text-right text-gray-600 dark:text-gray-300 tabular-nums`}>{Math.round(pct)}%</td>
+									<tr
+										key={item.type}
+										className={`border-t border-gray-100 dark:border-gray-800 ${idx % 2 ? 'bg-gray-100/60 dark:bg-gray-800/30' : ''} hover:bg-gray-200/80 dark:hover:bg-gray-800/60 transition-colors`}
+										style={{ height: '3.2rem' }}
+									>
+										<td className={`${density} pr-2 font-medium text-gray-800 dark:text-gray-100 whitespace-nowrap`}>{item.type}</td>
+										<td className={`${density} pl-2 pr-2 text-right tabular-nums text-gray-900 dark:text-gray-100 whitespace-nowrap`} style={{ minWidth: '80px' }}>{item.total.toFixed(2)}</td>
+										<td className={`${density} pl-2 text-right text-gray-600 dark:text-gray-300 tabular-nums whitespace-nowrap`} style={{ minWidth: '60px' }}>{Math.round(pct)}%</td>
 									</tr>
 								);
 							})}
