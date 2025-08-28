@@ -1121,47 +1121,55 @@ export const asuUnit1Api = {
   // Update machine with all fields using /machines/:id endpoint
   // Get machine configuration history from both localStorage and server
   getMachineConfigHistory: async (machineId: number): Promise<any[]> => {
-    // For now, we're using localStorage for storing machine configuration history
-    // But we also try to fetch from the server if available
+    // Always attempt to return whatever history we have (local and/or server) –
+    // do NOT gate history behind production entries. Users expect to see past
+    // configuration changes even before production starts.
     const historyKey = `machine_config_history_${machineId}`;
+    const localHistoryRaw = localStorage.getItem(historyKey);
+    const localHistory: any[] = localHistoryRaw ? (() => { try { return JSON.parse(localHistoryRaw); } catch { return []; } })() : [];
+
+    // Normalise shape (older entries may have nested / different keys)
+    const normalize = (item: any) => {
+      if (!item) return null;
+      return {
+        id: item.id || item.machineId || undefined,
+        machineId: machineId,
+        count: item.count ?? 0,
+        spindles: item.spindles ?? 0,
+        speed: item.speed ?? 0,
+        yarnType: item.yarnType || 'Cotton',
+        productionAt100: item.productionAt100 ?? item.efficiencyAt100Percent ?? 0,
+        machineName: item.machineName || item.machine_name || '',
+        savedAt: item.savedAt || item.createdAt || item.updatedAt || new Date().toISOString(),
+        createdAt: item.createdAt || item.savedAt || item.updatedAt || new Date().toISOString(),
+        updatedAt: item.updatedAt || item.createdAt || item.savedAt || '',
+        isActive: item.isActive ?? item.status === 'active'
+      };
+    };
+
+    let serverHistory: any[] = [];
     try {
-      // First check if this machine has any production entries
-      const hasProductionEntries = await asuUnit1Api.checkMachineHasProductionEntries(machineId);
-      
-      // If there are no production entries, don't return any history
-      if (!hasProductionEntries) {
-        console.log(`No production entries for machine ${machineId}, returning empty history`);
-        return [];
+      console.log(`Attempting server fetch for machine configuration history machineId=${machineId}`);
+      const response = await api.get(`/machine-configurations/${machineId}`);
+      if (response.data?.success && Array.isArray(response.data.data)) {
+        serverHistory = response.data.data.map(normalize).filter(Boolean);
       }
-      
-      // Try to get data from localStorage first
-      const localHistory = JSON.parse(localStorage.getItem(historyKey) || '[]');
-      
-      try {
-        // Also try to get data from the server (if the API endpoint exists)
-        console.log(`Trying to fetch machine configuration history from server for machine ${machineId}`);
-        const response = await api.get(`/machine-configurations/${machineId}`);
-        
-        if (response.data.success) {
-          console.log(`Retrieved configuration history from server for machine ${machineId}`);
-          const serverHistory = response.data.data;
-          
-          // If we got data from the server, return it
-          if (Array.isArray(serverHistory) && serverHistory.length > 0) {
-            return serverHistory;
-          }
-        }
-      } catch (serverError) {
-        // If server request fails, just log and continue using localStorage
-        console.log(`No server-side configuration history available for machine ${machineId}, using localStorage`);
-      }
-      
-      // If server fetch failed or returned empty, fall back to localStorage
-      return localHistory;
-    } catch (error) {
-      console.error('Error retrieving machine configuration history:', error);
-      return [];
+    } catch (e) {
+      console.log('Server history fetch failed or endpoint unavailable – falling back to local only');
     }
+
+    const localNormalized = localHistory.map(normalize).filter(Boolean);
+
+    // Merge by (savedAt + core fields) to avoid duplicates
+    const dedupeKey = (c: any) => `${c.savedAt}-${c.count}-${c.spindles}-${c.speed}-${c.yarnType}-${c.productionAt100}`;
+    const mergedMap = new Map<string, any>();
+    [...serverHistory, ...localNormalized].forEach(c => {
+      mergedMap.set(dedupeKey(c), c);
+    });
+    const merged = Array.from(mergedMap.values())
+      .sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime());
+
+    return merged;
   },
   
   // Check if a machine has any production entries
