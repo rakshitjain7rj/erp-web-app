@@ -19,7 +19,6 @@ import DyeingOrders from "./pages/DyeingOrders";
 import Product from "./pages/Product";
 // Removed: Users
 // Removed: Settings
-import DyeingSummary from "./pages/DyeingSummary";
 import PartyMaster from "./pages/PartyMaster";
 import ArchivedParties from "./pages/ArchivedParties";
 import ASUUnit1Page from "./pages/ASUUnit1Page";
@@ -129,14 +128,6 @@ const App = () => {
                   element={
                     <PrivateRoute roles={["admin", "manager"]}>
                       <DyeingOrders />
-                    </PrivateRoute>
-                  }
-                />
-                <Route
-                  path="/dyeing-summary"
-                  element={
-                    <PrivateRoute roles={["admin", "manager"]}>
-                      <DyeingSummary />
                     </PrivateRoute>
                   }
                 />

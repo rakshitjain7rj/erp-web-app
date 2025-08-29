@@ -6,7 +6,6 @@ import {
   CreateDyeingRecordRequest,
   UpdateArrivalRequest,
   CreateFollowUpRequest,
-  DyeingSummary,
 } from "../types/dyeing";
 
 const API_BASE_URL = "http://localhost:5000/api/dyeing";
@@ -123,14 +122,14 @@ export const deleteDyeingRecord = async (id: number): Promise<void> => {
 };
 
 // ==================== SUMMARY & ALERTS ====================
+// Removed dedicated getDyeingSummary consumer page; retaining API call (typed as any) for backward compatibility
 export const getDyeingSummary = async (
   startDate?: string,
   endDate?: string
-): Promise<DyeingSummary> => {
+): Promise<any> => {
   const params: any = {};
   if (startDate) params.startDate = startDate;
   if (endDate) params.endDate = endDate;
-
   const response = await api.get("/summary", { params });
   return response.data.data || response.data;
 };

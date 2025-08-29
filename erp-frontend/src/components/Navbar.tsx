@@ -85,7 +85,6 @@ const Navbar = () => {
     if (["admin", "manager", "storekeeper"].includes(role)) links.push({ to: "/count-product-overview", label: "Count/Product Overview", icon: <FaClipboardList /> });
   // BOM / Work Orders / Costing / Reports removed as per cleanup
     if (["admin", "manager"].includes(role)) links.push({ to: "/dyeing-orders", label: "Dyeing Orders", icon: <FaClipboardList /> });
-    if (["admin", "manager"].includes(role)) links.push({ to: "/dyeing-summary", label: "Dyeing Summary", icon: <FaClipboardList /> });
   if (["admin", "manager"].includes(role)) links.push({ to: "/party-master", label: "Party Master", icon: <FaUsers /> });
     
     // Production Module
