@@ -21,7 +21,11 @@ const ApiTest = () => {
       setResult(JSON.stringify(data, null, 2));
     } catch (error) {
       console.error('❌ Direct fetch error:', error);
-      setResult(`Error: ${error.message}`);
+      if (error instanceof Error) {
+        setResult(`Error: ${error.message}`);
+      } else {
+        setResult('Error: Unknown error');
+      }
     } finally {
       setLoading(false);
     }
@@ -39,7 +43,11 @@ const ApiTest = () => {
       setResult(JSON.stringify(data, null, 2));
     } catch (error) {
       console.error('❌ Party API error:', error);
-      setResult(`Party API Error: ${error.message}`);
+      if (error instanceof Error) {
+        setResult(`Party API Error: ${error.message}`);
+      } else {
+        setResult('Party API Error: Unknown error');
+      }
     } finally {
       setLoading(false);
     }

@@ -141,10 +141,10 @@ export const InlineAddDyeingOrderForm: React.FC<InlineAddDyeingOrderFormProps> =
         sentToDye: true,
         sentDate: formData.sentDate,
         received: formData.received > 0,
-        receivedDate: formData.receivedDate || null,
+  receivedDate: formData.receivedDate || undefined,
         receivedQuantity: formData.received,
         dispatch: formData.dispatch > 0,
-        dispatchDate: formData.dispatchDate || null,
+  dispatchDate: formData.dispatchDate || undefined,
         dispatchQuantity: formData.dispatch,
         middleman: formData.partyName || "Direct"
       };
