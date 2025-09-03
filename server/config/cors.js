@@ -55,8 +55,10 @@ function applyCors(app) {
   // Ensure caches differentiate per Origin
   app.use((req, res, next) => { res.header('Vary', 'Origin'); next(); });
   app.use(cors(corsOptions));
-  // Explicit global preflight
-  app.options('*', cors(corsOptions));
+  // Express 5 (path-to-regexp v6) no longer accepts '*' as a valid path pattern.
+  // The cors middleware already handles preflight (OPTIONS) requests for matched routes.
+  // If you still want an explicit catch-all, use a regex instead of '*':
+  // app.options(/.*/, cors(corsOptions));
 }
 
 module.exports = { corsOptions, allowedOrigins, applyCors };
