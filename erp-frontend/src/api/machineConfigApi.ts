@@ -1,10 +1,5 @@
-import axios from 'axios';
-import { API_BASE_URL } from '../config/api';
-
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  withCredentials: false
-});
+import apiClient from './httpClient';
+const api = apiClient; // baseURL already set; endpoints below are root-relative
 
 // Types for machine configuration
 export interface MachineConfiguration {

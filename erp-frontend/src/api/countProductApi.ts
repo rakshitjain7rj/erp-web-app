@@ -1,39 +1,7 @@
 // api/countProductApi.ts
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
-// Create axios instance for count product APIs
-const api = axios.create({
-  baseURL: `${API_BASE_URL}/count-products`,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Add auth token interceptor
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-// Add response interceptor for debugging
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    console.error('Count Product API Error:', {
-      url: error.config?.url,
-      method: error.config?.method,
-      status: error.response?.status,
-      data: error.response?.data,
-      message: error.message
-    });
-    return Promise.reject(error);
-  }
-);
+import apiClient from './httpClient';
+const api = apiClient;
+const basePath = '/count-products';
 
 // ==================== COUNT PRODUCT INTERFACES ====================
 export interface CountProduct {
@@ -90,17 +58,17 @@ export interface CreateCountProductRequest {
 
 // ==================== COUNT PRODUCT API FUNCTIONS ====================
 export const getAllCountProducts = async (): Promise<CountProduct[]> => {
-  const response = await api.get('/');
+  const response = await api.get(`${basePath}/`);
   return response.data.data || response.data;
 };
 
 export const getCountProductById = async (id: number): Promise<CountProduct> => {
-  const response = await api.get(`/${id}`);
+  const response = await api.get(`${basePath}/${id}`);
   return response.data.data || response.data;
 };
 
 export const createCountProduct = async (data: CreateCountProductRequest): Promise<CountProduct> => {
-  const response = await api.post('/', data);
+  const response = await api.post(`${basePath}/`, data);
   return response.data.data || response.data;
 };
 
@@ -112,7 +80,7 @@ export const updateCountProduct = async (id: number, data: Partial<CreateCountPr
   console.log(`   customerName: "${data.customerName}"`);
   console.log(`   partyName: "${data.partyName}"`);
   
-  const response = await api.put(`/${id}`, data);
+  const response = await api.put(`${basePath}/${id}`, data);
   
   console.log('📥 API response received:', JSON.stringify(response.data, null, 2));
   console.log('🔍 RESPONSE CRITICAL FIELDS:');
@@ -125,11 +93,11 @@ export const updateCountProduct = async (id: number, data: Partial<CreateCountPr
 };
 
 export const deleteCountProduct = async (id: number): Promise<void> => {
-  await api.delete(`/${id}`);
+  await api.delete(`${basePath}/${id}`);
 };
 
 export const getCountProductsByDyeingFirm = async (dyeingFirm: string): Promise<CountProduct[]> => {
-  const response = await api.get(`/dyeing-firm/${encodeURIComponent(dyeingFirm)}`);
+  const response = await api.get(`${basePath}/dyeing-firm/${encodeURIComponent(dyeingFirm)}`);
   return response.data.data || response.data;
 };
 
@@ -154,7 +122,7 @@ export interface CreateCountProductFollowUpRequest {
 export const getCountProductFollowUps = async (
   countProductId: number
 ): Promise<CountProductFollowUp[]> => {
-  const response = await api.get(`/${countProductId}/followups`);
+  const response = await api.get(`${basePath}/${countProductId}/followups`);
   return response.data.data || response.data;
 };
 
@@ -166,7 +134,7 @@ export const createCountProductFollowUp = async (
     ...data,
     followUpDate: data.followUpDate || new Date().toISOString(),
   };
-  const response = await api.post(`/${countProductId}/followups`, payload);
+  const response = await api.post(`${basePath}/${countProductId}/followups`, payload);
   return response.data.data || response.data;
 };
 
@@ -174,7 +142,7 @@ export const deleteCountProductFollowUp = async (
   countProductId: number,
   followUpId: number
 ): Promise<void> => {
-  await api.delete(`/${countProductId}/followups/${followUpId}`);
+  await api.delete(`${basePath}/${countProductId}/followups/${followUpId}`);
 };
 
 export default api;

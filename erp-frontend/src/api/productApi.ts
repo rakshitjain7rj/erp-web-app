@@ -1,20 +1,12 @@
-import axios from "axios";
+import apiClient from './httpClient';
 import { Product } from "../types/product"; // Optional: define Product interface here
 
-const BASE_URL = `${import.meta.env.VITE_API_URL}/api/products`;
-
-
-const api = axios.create({
-  baseURL: BASE_URL,
-  headers: {
-    "Content-Type": "application/json",
-  },
-});
+const basePath = '/products';
 
 // Fetch all products
 export const getProducts = async (): Promise<Product[]> => {
   try {
-    const res = await api.get("/");
+  const res = await apiClient.get(`${basePath}/`);
     return res.data;
   } catch (err) {
     console.error("Error fetching products:", err);
@@ -25,7 +17,7 @@ export const getProducts = async (): Promise<Product[]> => {
 // Create a new product
 export const createProduct = async (product: { name: string; description: string }): Promise<Product> => {
   try {
-    const res = await api.post("/", product);
+  const res = await apiClient.post(`${basePath}/`, product);
     return res.data;
   } catch (err) {
     console.error("Error creating product:", err);
@@ -36,7 +28,7 @@ export const createProduct = async (product: { name: string; description: string
 // Delete a product by ID
 export const deleteProduct = async (id: string): Promise<{ success: boolean }> => {
   try {
-    const res = await api.delete(`/${id}`);
+  const res = await apiClient.delete(`${basePath}/${id}`);
     return res.data;
   } catch (err) {
     console.error(`Error deleting product ${id}:`, err);
@@ -50,7 +42,7 @@ export const updateProduct = async (
   product: { name: string; description: string }
 ): Promise<Product> => {
   try {
-    const res = await api.put(`/${id}`, product);
+  const res = await apiClient.put(`${basePath}/${id}`, product);
     return res.data;
   } catch (err) {
     console.error(`Error updating product ${id}:`, err);

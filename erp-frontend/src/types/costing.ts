@@ -1,6 +1,5 @@
-import axios from "axios";
-
-const API = "http://localhost:5000/api/costing";
+import apiClient from '../api/httpClient';
+const API = '/costing';
 
 export const calculateCost = async (data: {
   workOrderId: string;
@@ -8,7 +7,7 @@ export const calculateCost = async (data: {
   laborCost: number;
 }) => {
   const token = localStorage.getItem("token");
-  const res = await axios.post(API, data, {
+  const res = await apiClient.post(API, data, {
     headers: { Authorization: `Bearer ${token}` },
   });
   return res.data;
@@ -16,7 +15,7 @@ export const calculateCost = async (data: {
 
 export const getCostByWorkOrder = async (workOrderId: string) => {
   const token = localStorage.getItem("token");
-  const res = await axios.get(`${API}/${workOrderId}`, {
+  const res = await apiClient.get(`${API}/${workOrderId}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   return res.data;

@@ -303,7 +303,7 @@ const DyeingOrders: React.FC = () => {
 // ================= FETCH COUNT PRODUCTS =================
   const fetchCountProducts = async () => {
     try {
-      const directResponse = await fetch('http://localhost:5000/api/count-products');
+  const directResponse = await fetch(`${import.meta.env.VITE_API_URL}/count-products`);
       
       if (directResponse.ok) {
         const directData = await directResponse.json();

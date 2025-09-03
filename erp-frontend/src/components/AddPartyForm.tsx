@@ -199,7 +199,7 @@ const AddPartyForm: React.FC<Props> = ({ onSuccess, onClose, existingParties = [
       };
       
       console.log('📦 Sanitized payload:', partyData);
-      console.log('🌐 Target API:', `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/parties`);
+  console.log('🌐 Target API:', `${import.meta.env.VITE_API_URL}/parties`);
       
       const response = await createParty(partyData);
       

@@ -1,7 +1,7 @@
-import axios from "axios";
+import apiClient from './httpClient';
 import { StockLog } from "../types/inventory";
 
-const API_BASE = `${import.meta.env.VITE_API_URL}/api/inventory`;
+const basePath = '/inventory';
 
 export interface StockInData {
   quantity: number;
@@ -27,7 +27,7 @@ export interface SpoilageData {
 // Get stock logs for an inventory item
 export const getStockLogs = async (inventoryId: string): Promise<StockLog[]> => {
   const token = localStorage.getItem("token");
-  const res = await axios.get(`${API_BASE}/${inventoryId}/logs`, {
+  const res = await apiClient.get(`${basePath}/${inventoryId}/logs`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   return res.data;
@@ -39,7 +39,7 @@ export const addStock = async (
   data: StockInData
 ): Promise<{ success: boolean; message: string; updatedItem?: any }> => {
   const token = localStorage.getItem("token");
-  const res = await axios.post(`${API_BASE}/${inventoryId}/stock-in`, data, {
+  const res = await apiClient.post(`${basePath}/${inventoryId}/stock-in`, data, {
     headers: { Authorization: `Bearer ${token}` },
   });
   return res.data;
@@ -51,7 +51,7 @@ export const removeStock = async (
   data: StockOutData
 ): Promise<{ success: boolean; message: string; updatedItem?: any }> => {
   const token = localStorage.getItem("token");
-  const res = await axios.post(`${API_BASE}/${inventoryId}/stock-out`, data, {
+  const res = await apiClient.post(`${basePath}/${inventoryId}/stock-out`, data, {
     headers: { Authorization: `Bearer ${token}` },
   });
   return res.data;
@@ -63,7 +63,7 @@ export const logSpoilage = async (
   data: SpoilageData
 ): Promise<{ success: boolean; message: string; updatedItem?: any }> => {
   const token = localStorage.getItem("token");
-  const res = await axios.post(`${API_BASE}/${inventoryId}/spoilage`, data, {
+  const res = await apiClient.post(`${basePath}/${inventoryId}/spoilage`, data, {
     headers: { Authorization: `Bearer ${token}` },
   });
   return res.data;
@@ -72,7 +72,7 @@ export const logSpoilage = async (
 // Get stock summary for an inventory item
 export const getStockSummary = async (inventoryId: string) => {
   const token = localStorage.getItem("token");
-  const res = await axios.get(`${API_BASE}/${inventoryId}/stock-summary`, {
+  const res = await apiClient.get(`${basePath}/${inventoryId}/stock-summary`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   return res.data;

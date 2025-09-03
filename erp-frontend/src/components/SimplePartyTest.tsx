@@ -8,7 +8,7 @@ const SimplePartyTest = () => {
     const test = async () => {
       try {
         setStatus('Fetching data...');
-        const response = await fetch('http://localhost:5000/api/parties/summary');
+  const response = await fetch(`${import.meta.env.VITE_API_URL}/parties/summary`);
         
         if (!response.ok) {
           setStatus(`ERROR: ${response.status} ${response.statusText}`);

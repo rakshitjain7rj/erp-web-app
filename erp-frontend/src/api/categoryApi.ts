@@ -1,8 +1,6 @@
-import axios from "axios";
-
-const API = import.meta.env.VITE_API_URL || "http://localhost:5000";
+import apiClient from './httpClient';
 
 export const getCategories = async () => {
-  const res = await axios.get(`${API}/categories`);
+  const res = await apiClient.get('/categories');
   return res.data;
 };

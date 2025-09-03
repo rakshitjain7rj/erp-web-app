@@ -1,43 +1,8 @@
 // src/api/yarnProductionApi.ts
 
-import axios from 'axios';
-
-const BASE_URL = import.meta.env.VITE_API_URL;
-const API_BASE_URL = `${BASE_URL}/yarn`;
-
-// Create axios instance with interceptors
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 30000, // Increased to 30 seconds
-  headers: { 'Content-Type': 'application/json' },
-});
-
-// Request interceptor to add token
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-// Response interceptor for error handling
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    console.error('Yarn Production API Error:', error.response?.data || error.message);
-    
-    // Handle 401 Unauthorized errors
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-    }
-    
-    return Promise.reject(error);
-  }
-);
+import apiClient from './httpClient';
+const api = apiClient;
+const basePath = '/yarn';
 
 export interface YarnProductionSummaryItem {
   id: number;
@@ -89,19 +54,19 @@ export const yarnProductionApi = {
     if (filters?.page) params.append('page', filters.page.toString());
     if (filters?.limit) params.append('limit', filters.limit.toString());
 
-    const response = await api.get(`/summary?${params.toString()}`);
+  const response = await api.get(`${basePath}/summary?${params.toString()}`);
     return response.data.success ? response.data.data : response.data;
   },
 
   // Get yarn types available in the system
   getYarnTypes: async (): Promise<string[]> => {
-    const response = await api.get('/types');
+  const response = await api.get(`${basePath}/types`);
     return response.data.success ? response.data.data : response.data;
   },
 
   // Get production trends over time
   getProductionTrends: async (days: number = 30): Promise<YarnProductionTrend[]> => {
-    const response = await api.get(`/trends?days=${days}`);
+  const response = await api.get(`${basePath}/trends?days=${days}`);
     return response.data.success ? response.data.data : response.data;
   },
 
@@ -115,7 +80,7 @@ export const yarnProductionApi = {
     if (filters?.yarnType) params.append('yarnType', filters.yarnType);
     if (filters?.minEfficiency) params.append('minEfficiency', filters.minEfficiency.toString());
 
-    const response = await api.get(`/export?${params.toString()}`, {
+  const response = await api.get(`${basePath}/export?${params.toString()}`, {
       responseType: 'blob'
     });
     

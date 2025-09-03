@@ -1,5 +1,5 @@
 // src/api/dyeingApi.ts
-import axios from "axios";
+import apiClient from './httpClient';
 import {
   DyeingRecord,
   DyeingFollowUp,
@@ -8,43 +8,14 @@ import {
   CreateFollowUpRequest,
 } from "../types/dyeing";
 
-//const API_BASE_URL = "http://localhost:5000/api/dyeing";
-const API_BASE_URL = import.meta.env.VITE_API_URL;
-
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 30000, // Increased to 30 seconds
-  headers: { "Content-Type": "application/json" },
-});
-
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem("token");
-    if (token) config.headers.Authorization = `Bearer ${token}`;
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-      console.error("API Timeout Error - Server may be overloaded:", error.message);
-    } else if (error.response?.status === 429) {
-      console.error("API Rate Limit Error - Too many requests:", error.response?.data);
-    } else {
-      console.error("API Error:", error.response?.data || error.message);
-    }
-    return Promise.reject(error);
-  }
-);
+const api = apiClient;
+const basePath = '/dyeing';
 
 // ==================== FOLLOW-UPS ====================
 export const getFollowUpsByRecordId = async (
   dyeingRecordId: number
 ): Promise<DyeingFollowUp[]> => {
-  const response = await api.get(`/${dyeingRecordId}/followups`);
+  const response = await api.get(`${basePath}/${dyeingRecordId}/followups`);
   return response.data.data || response.data;
 };
 
@@ -56,7 +27,7 @@ export const createFollowUp = async (
     ...data,
     followUpDate: data.followUpDate || new Date().toISOString(),
   };
-  const response = await api.post(`/${dyeingRecordId}/followups`, payload);
+  const response = await api.post(`${basePath}/${dyeingRecordId}/followups`, payload);
   return response.data.data || response.data;
 };
 
@@ -64,28 +35,28 @@ export const deleteFollowUp = async (
   dyeingRecordId: number,
   followUpId: number
 ): Promise<void> => {
-  await api.delete(`/${dyeingRecordId}/followups/${followUpId}`);
+  await api.delete(`${basePath}/${dyeingRecordId}/followups/${followUpId}`);
 };
 
 // ==================== DYEING RECORDS ====================
 export const getAllDyeingRecords = async (): Promise<DyeingRecord[]> => {
   // Add cache busting parameter to ensure fresh data
   const timestamp = Date.now();
-  const response = await api.get(`/?_t=${timestamp}`);
+  const response = await api.get(`${basePath}/?_t=${timestamp}`);
   return response.data.data || response.data;
 };
 
 export const getDyeingRecordById = async (
   id: number
 ): Promise<DyeingRecord> => {
-  const response = await api.get(`/${id}`);
+  const response = await api.get(`${basePath}/${id}`);
   return response.data.data || response.data;
 };
 
 export const createDyeingRecord = async (
   data: CreateDyeingRecordRequest
 ): Promise<DyeingRecord> => {
-  const response = await api.post("/", data);
+  const response = await api.post(`${basePath}/`, data);
   return response.data.data || response.data;
 };
 
@@ -93,7 +64,7 @@ export const updateDyeingRecord = async (
   id: number,
   data: CreateDyeingRecordRequest
 ): Promise<DyeingRecord> => {
-  const response = await api.put(`/${id}`, data);
+  const response = await api.put(`${basePath}/${id}`, data);
   return response.data.data || response.data;
 };
 
@@ -101,16 +72,16 @@ export const updateArrivalDate = async (
   id: number,
   data: UpdateArrivalRequest
 ): Promise<DyeingRecord> => {
-  const response = await api.put(`/${id}/arrival`, data);
+  const response = await api.put(`${basePath}/${id}/arrival`, data);
   return response.data.data || response.data;
 };
 
 export const deleteDyeingRecord = async (id: number): Promise<void> => {
   console.log('🗑️ API: deleteDyeingRecord called with ID:', id);
-  console.log('🌐 Making DELETE request to:', `${API_BASE_URL}/${id}`);
+  console.log('🌐 Making DELETE request to:', `${basePath}/${id}`);
   
   try {
-    const response = await api.delete(`/${id}`);
+  const response = await api.delete(`${basePath}/${id}`);
     console.log('✅ API: Delete response:', response);
     console.log('✅ API: Delete successful, status:', response.status);
   } catch (error: any) {
@@ -131,7 +102,7 @@ export const getDyeingSummary = async (
   const params: any = {};
   if (startDate) params.startDate = startDate;
   if (endDate) params.endDate = endDate;
-  const response = await api.get("/summary", { params });
+  const response = await api.get(`${basePath}/summary`, { params });
   return response.data.data || response.data;
 };
 
@@ -143,17 +114,17 @@ export const getDyeingSummaryByParty = async (
   if (startDate) params.startDate = startDate;
   if (endDate) params.endDate = endDate;
 
-  const response = await api.get("/summary-by-party", { params });
+  const response = await api.get(`${basePath}/summary-by-party`, { params });
   return response.data.data || response.data;
 };
 
 export const getDueAlerts = async (): Promise<DyeingRecord[]> => {
-  const response = await api.get("/alerts/due");
+  const response = await api.get(`${basePath}/alerts/due`);
   return response.data.data || response.data;
 };
 
 export const getOverdueDyeing = async (): Promise<DyeingRecord[]> => {
-  const response = await api.get("/alerts/overdue");
+  const response = await api.get(`${basePath}/alerts/overdue`);
   return response.data.data || response.data;
 };
 
@@ -167,7 +138,7 @@ export const markAsReprocessing = async (
   id: number,
   reason?: string
 ): Promise<DyeingRecord> => {
-  const response = await api.patch(`/${id}/reprocessing`, {
+  const response = await api.patch(`${basePath}/${id}/reprocessing`, {
     isReprocessing: true,
     reprocessingDate: new Date().toISOString(),
     reprocessingReason: reason || "",
@@ -178,7 +149,7 @@ export const markAsReprocessing = async (
 export const markReprocessingComplete = async (
   id: number
 ): Promise<DyeingRecord> => {
-  const response = await api.patch(`/${id}/reprocessing`, {
+  const response = await api.patch(`${basePath}/${id}/reprocessing`, {
     isReprocessing: false,
   });
   return response.data.data || response.data;
@@ -189,7 +160,7 @@ export const completeReprocessing = async (
   id: number,
   payload: { reprocessingReason: string }
 ): Promise<DyeingRecord> => {
-  const response = await api.patch(`/${id}/reprocessing`, {
+  const response = await api.patch(`${basePath}/${id}/reprocessing`, {
     isReprocessing: false,
     reprocessingReason: payload.reprocessingReason,
   });

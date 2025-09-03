@@ -1,46 +1,11 @@
 // src/api/asuUnit1Api.ts
 
-import axios from 'axios';
+import apiClient from './httpClient';
 import { PaginatedResponse } from '../types';
 
-const BASE_URL = import.meta.env.VITE_API_URL;
-const API_BASE_URL = `${BASE_URL}/asu-unit1`;
-
-// Create axios instance with interceptors (consistent with other API files)
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 30000, // Increased to 30 seconds
-  headers: { 'Content-Type': 'application/json' },
-});
-
-// Request interceptor to add token
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-// Response interceptor for error handling
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    console.error('ASU Unit 1 API Error:', error.response?.data || error.message);
-    
-    // Handle 401 Unauthorized errors
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      // Optionally redirect to login page
-      // window.location.href = '/login';
-    }
-    
-    return Promise.reject(error);
-  }
-);
+// Use shared api client; endpoints are relative to /asu-unit1
+const api = apiClient;
+const basePath = '/asu-unit1';
 
 // Helper function to get a valid machine number from a machine object
 const getMachineNumber = (machine: ASUMachine | undefined): number | null => {
@@ -231,7 +196,7 @@ export interface UpdateASUMachineData {
 export const asuUnit1Api = {
   // Get all ASU machines (always Unit 1)
   getMachines: async (): Promise<ASUMachine[]> => {
-    const response = await api.get('/machines');
+    const response = await api.get(`${basePath}/machines`);
     return response.data.success ? response.data.data : response.data;
   },
   
@@ -251,7 +216,7 @@ export const asuUnit1Api = {
     };
     
     console.log('Creating machine with sanitized data:', sanitizedData);
-    const response = await api.post('/machines', sanitizedData);
+  const response = await api.post(`${basePath}/machines`, sanitizedData);
     return response.data.success ? response.data.data : response.data;
   },
   
@@ -259,7 +224,7 @@ export const asuUnit1Api = {
   // This function uses the wrong endpoint (/machines/${id}) and should not be used
   // Left for backwards compatibility
   updateMachineOld: async (id: number, data: Partial<ASUMachine>): Promise<ASUMachine> => {
-    const response = await api.put(`/machines/${id}`, data);
+  const response = await api.put(`${basePath}/machines/${id}`, data);
     return response.data.success ? response.data.data : response.data;
   },
 
@@ -268,7 +233,7 @@ export const asuUnit1Api = {
     try {
       // First try the /asu-machines endpoint
       try {
-        const response = await api.get('/asu-machines');
+  const response = await api.get(`${basePath}/asu-machines`);
         console.log('API response for getAllMachines from /asu-machines:', response.data);
         
         // Properly handle various response formats
@@ -282,7 +247,7 @@ export const asuUnit1Api = {
       }
       
       // Fallback to the /machines endpoint if the first one fails or returns invalid data
-      const fallbackResponse = await api.get('/machines');
+  const fallbackResponse = await api.get(`${basePath}/machines`);
       console.log('Fallback API response from /machines:', fallbackResponse.data);
       
       if (fallbackResponse.data.success && Array.isArray(fallbackResponse.data.data)) {
@@ -303,7 +268,7 @@ export const asuUnit1Api = {
   
   // Update machine yarn type and count only using /asu-machines/:id endpoint
   updateMachineYarnTypeAndCount: async (id: number, data: UpdateASUMachineData): Promise<ASUMachine> => {
-    const response = await api.put(`/asu-machines/${id}`, data);
+  const response = await api.put(`${basePath}/asu-machines/${id}`, data);
     return response.data.success ? response.data.data : response.data;
   },
 
@@ -347,7 +312,7 @@ export const asuUnit1Api = {
     if (filters.limit) params.append('limit', filters.limit.toString());
 
     console.log(`Querying production entries with params: ${params.toString()}`);
-    const response = await api.get(`/production-entries?${params.toString()}`);
+  const response = await api.get(`${basePath}/production-entries?${params.toString()}`);
     
     // Log the raw response data for debugging
     console.log('Raw API response for production entries:', response.data);
@@ -783,7 +748,7 @@ export const asuUnit1Api = {
       for (const entry of entriesToCreate) {
         console.log(`Creating ${entry.shift} entry:`, entry);
         try {
-          const response = await api.post('/production-entries', entry);
+          const response = await api.post(`${basePath}/production-entries`, entry);
           console.log(`${entry.shift} entry created successfully:`, response.data);
           responses.push(response);
         } catch (error: any) {
@@ -872,7 +837,7 @@ export const asuUnit1Api = {
   ): Promise<ASUProductionEntry> => {
     try {
       // First, get the existing entry to determine its shift
-      const entryResponse = await api.get(`/production-entries/${id}`);
+  const entryResponse = await api.get(`${basePath}/production-entries/${id}`);
       if (!entryResponse.data.success) {
         throw new Error('Failed to find production entry');
       }
@@ -904,7 +869,7 @@ export const asuUnit1Api = {
       console.log('Sending update data to API:', updateData);
       
       // Update the entry
-      const response = await api.put(`/production-entries/${id}`, updateData);
+  const response = await api.put(`${basePath}/production-entries/${id}`, updateData);
       return response.data.success ? response.data.data : response.data;
     } catch (error) {
       // Check if this could be a localStorage entry by looking for entries with id matching
@@ -968,7 +933,7 @@ export const asuUnit1Api = {
       // If not found in localStorage, proceed with backend deletion
       if (!foundInLocalStorage) {
         // Get the original entries from the backend
-        const originalResponse = await api.get(`/production-entries?limit=300`);
+  const originalResponse = await api.get(`${basePath}/production-entries?limit=300`);
         const allEntries = originalResponse.data.data.items;
         
         console.log(`Found ${allEntries.length} entries in backend`);
@@ -982,7 +947,7 @@ export const asuUnit1Api = {
           console.warn(`Direct backend entry with ID ${id} not found, looking for day/night shift IDs`);
           
           // Get our frontend combined entries to find dayShiftId or nightShiftId
-          const entriesResponse = await api.get(`/production-entries?limit=300`);
+          const entriesResponse = await api.get(`${basePath}/production-entries?limit=300`);
           
           // Transform backend response to combined frontend entries
           const rawEntries = entriesResponse.data.data.items;
@@ -1025,7 +990,7 @@ export const asuUnit1Api = {
             if (combinedEntry.dayShiftId) {
               try {
                 console.log(`Deleting day shift with ID ${combinedEntry.dayShiftId}`);
-                await api.delete(`/production-entries/${combinedEntry.dayShiftId}`);
+                await api.delete(`${basePath}/production-entries/${combinedEntry.dayShiftId}`);
               } catch (e) {
                 console.error('Error deleting day shift:', e);
               }
@@ -1034,7 +999,7 @@ export const asuUnit1Api = {
             if (combinedEntry.nightShiftId) {
               try {
                 console.log(`Deleting night shift with ID ${combinedEntry.nightShiftId}`);
-                await api.delete(`/production-entries/${combinedEntry.nightShiftId}`);
+                await api.delete(`${basePath}/production-entries/${combinedEntry.nightShiftId}`);
               } catch (e) {
                 console.error('Error deleting night shift:', e);
               }
@@ -1050,7 +1015,7 @@ export const asuUnit1Api = {
         console.log('Found entry to delete:', entryToDelete);
         
         // Delete the specific entry we found
-        const deleteResponse = await api.delete(`/production-entries/${id}`);
+  const deleteResponse = await api.delete(`${basePath}/production-entries/${id}`);
         console.log('Delete response for ID', id, ':', deleteResponse.data);
         
         // Also delete any matching entry for the opposite shift
@@ -1065,7 +1030,7 @@ export const asuUnit1Api = {
           if (matchingEntry) {
             console.log(`Found matching ${oppositeShift} shift entry to delete:`, matchingEntry);
             try {
-              const deleteMatchingResponse = await api.delete(`/production-entries/${matchingEntry.id}`);
+              const deleteMatchingResponse = await api.delete(`${basePath}/production-entries/${matchingEntry.id}`);
               console.log(`Delete response for matching ${oppositeShift} shift:`, deleteMatchingResponse.data);
             } catch (matchingError) {
               console.error(`Error deleting matching ${oppositeShift} shift entry:`, matchingError);
@@ -1084,7 +1049,7 @@ export const asuUnit1Api = {
 
   // Get production statistics
   getProductionStats: async (): Promise<ProductionStats> => {
-    const response = await api.get('/stats');
+  const response = await api.get(`${basePath}/stats`);
     return response.data.success ? response.data.data : response.data;
   },
 
@@ -1114,7 +1079,7 @@ export const asuUnit1Api = {
     };
     
     console.log('Sending machine creation request with data:', apiData);
-    const response = await api.post('/asu-machines', apiData);
+  const response = await api.post(`${basePath}/asu-machines`, apiData);
     return response.data.success ? response.data.data : response.data;
   },
   
@@ -1140,7 +1105,7 @@ export const asuUnit1Api = {
       try {
         // Also try to get data from the server (if the API endpoint exists)
         console.log(`Trying to fetch machine configuration history from server for machine ${machineId}`);
-        const response = await api.get(`/machine-configurations/${machineId}`);
+  const response = await api.get(`${basePath}/machine-configurations/${machineId}`);
         
         if (response.data.success) {
           console.log(`Retrieved configuration history from server for machine ${machineId}`);
@@ -1189,7 +1154,7 @@ export const asuUnit1Api = {
       params.append('machineNumber', machineNumber.toString());
       params.append('limit', '1');
       
-      const response = await api.get(`/production-entries?${params.toString()}`);
+  const response = await api.get(`${basePath}/production-entries?${params.toString()}`);
       
       if (response.data.success) {
         const entries = response.data.data.items;
@@ -1207,7 +1172,7 @@ export const asuUnit1Api = {
   saveMachineConfiguration: async (machineId: number, configuration: any): Promise<any> => {
     try {
       console.log(`Saving configuration for machine ${machineId} to server:`, configuration);
-      const response = await api.post('/machine-configurations', {
+  const response = await api.post(`${basePath}/machine-configurations`, {
         machineId,
         configuration: {
           ...configuration,
@@ -1285,18 +1250,18 @@ export const asuUnit1Api = {
     };
     
     console.log(`Sending update to /machines/${id} with data:`, apiData);
-    const response = await api.put(`/machines/${id}`, apiData);
+  const response = await api.put(`${basePath}/machines/${id}`, apiData);
     console.log('Update response:', response.data);
     return response.data.success ? response.data.data : response.data;
   },
   
   deleteMachine: async (id: number, force: boolean = false): Promise<void> => {
-    await api.delete(`/machines/${id}${force ? '?force=true' : ''}`);
+  await api.delete(`${basePath}/machines/${id}${force ? '?force=true' : ''}`);
   },
   
   // Archive a machine instead of deleting it
   archiveMachine: async (id: number): Promise<void> => {
-    await api.post(`/machines/${id}/archive`);
+  await api.post(`${basePath}/machines/${id}/archive`);
   },
 };
 

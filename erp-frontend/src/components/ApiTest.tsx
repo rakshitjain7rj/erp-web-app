@@ -7,8 +7,9 @@ const ApiTest = () => {
   const testDirectFetch = async () => {
     setLoading(true);
     try {
-      console.log('🧪 Testing direct fetch to:', 'http://localhost:5000/api/parties/summary');
-      const response = await fetch('http://localhost:5000/api/parties/summary');
+  const url = `${import.meta.env.VITE_API_URL}/parties/summary`;
+  console.log('🧪 Testing direct fetch to:', url);
+  const response = await fetch(url);
       console.log('📡 Response status:', response.status);
       console.log('📡 Response headers:', response.headers);
       

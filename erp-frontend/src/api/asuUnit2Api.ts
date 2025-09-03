@@ -2,40 +2,26 @@
 // Minimal initial API wrapper for ASU Unit 2 to separate data from Unit 1.
 // We will expand with needed methods as components are parameterized.
 
-import axios from 'axios';
+import apiClient from './httpClient';
 import type { ASUMachine, ASUProductionEntry, CreateProductionEntryData, UpdateProductionEntryData, ProductionStats, ProductionEntriesFilter } from './asuUnit1Api';
 import { getMachineNumber as getMachineNumberFromUnit1 } from './asuUnit1Api';
 
-const BASE_URL = import.meta.env.VITE_API_URL;
-const API_BASE_URL = `${BASE_URL}/asu-unit2`;
-
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 10000,
-  headers: { 'Content-Type': 'application/json' },
-});
-
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
-
-api.interceptors.response.use(r => r, err => Promise.reject(err));
+const api = apiClient;
+const basePath = '/asu-unit2';
 
 export const asuUnit2Api = {
   // Machines
   getMachines: async (): Promise<ASUMachine[]> => {
-    const r = await api.get('/machines');
+  const r = await api.get(`${basePath}/machines`);
     return r.data.success ? r.data.data : r.data;
   },
   getAllMachines: async (): Promise<ASUMachine[]> => {
     try {
-      const r = await api.get('/asu-machines');
+  const r = await api.get(`${basePath}/asu-machines`);
       if (r.data.success && Array.isArray(r.data.data)) return r.data.data;
     } catch {}
     try {
-      const r2 = await api.get('/machines');
+  const r2 = await api.get(`${basePath}/machines`);
       if (r2.data.success && Array.isArray(r2.data.data)) return r2.data.data;
       if (Array.isArray(r2.data)) return r2.data;
     } catch {}
@@ -49,18 +35,18 @@ export const asuUnit2Api = {
       spindles: data.spindles !== null ? Number(data.spindles || 0) : 0,
       speed: data.speed !== null ? Number(data.speed || 0) : 0
     };
-    const r = await api.post('/machines', sanitized);
+  const r = await api.post(`${basePath}/machines`, sanitized);
     return r.data.success ? r.data.data : r.data;
   },
   updateMachine: async (id: number, data: Partial<ASUMachine>): Promise<ASUMachine> => {
-    const r = await api.put(`/machines/${id}`, data);
+  const r = await api.put(`${basePath}/machines/${id}`, data);
     return r.data.success ? r.data.data : r.data;
   },
   deleteMachine: async (id: number, force: boolean = false): Promise<void> => {
-    await api.delete(`/machines/${id}${force ? '?force=true' : ''}`);
+  await api.delete(`${basePath}/machines/${id}${force ? '?force=true' : ''}`);
   },
   archiveMachine: async (id: number): Promise<void> => {
-    await api.post(`/machines/${id}/archive`);
+  await api.post(`${basePath}/machines/${id}/archive`);
   },
 
   // Production entries
@@ -81,19 +67,19 @@ export const asuUnit2Api = {
     if (filters.dateTo) params.set('dateTo', filters.dateTo);
     if (filters.page) params.set('page', String(filters.page));
     if (filters.limit) params.set('limit', String(filters.limit));
-    const r = await api.get(`/production-entries?${params.toString()}`);
+  const r = await api.get(`${basePath}/production-entries?${params.toString()}`);
     return r.data.success ? r.data.data : r.data;
   },
   createProductionEntry: async (data: CreateProductionEntryData): Promise<ASUProductionEntry> => {
-    const r = await api.post('/production-entries', data);
+  const r = await api.post(`${basePath}/production-entries`, data);
     return r.data.success ? r.data.data : r.data;
   },
   updateProductionEntry: async (id: number, data: UpdateProductionEntryData): Promise<ASUProductionEntry> => {
-    const r = await api.put(`/production-entries/${id}`, data as any);
+  const r = await api.put(`${basePath}/production-entries/${id}`, data as any);
     return r.data.success ? r.data.data : r.data;
   },
   deleteProductionEntry: async (id: number): Promise<void> => {
-    await api.delete(`/production-entries/${id}`);
+  await api.delete(`${basePath}/production-entries/${id}`);
     return;
   },
 
@@ -103,7 +89,7 @@ export const asuUnit2Api = {
     if (filters.machineNumber) params.set('machineNumber', String(filters.machineNumber));
     if (filters.dateFrom) params.set('dateFrom', filters.dateFrom);
     if (filters.dateTo) params.set('dateTo', filters.dateTo);
-    const r = await api.get(`/stats?${params.toString()}`);
+  const r = await api.get(`${basePath}/stats?${params.toString()}`);
     return r.data.success ? r.data.data : r.data;
   },
 };

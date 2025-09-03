@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 const ApiTester = () => {
-  const [baseUrl, setBaseUrl] = useState('http://localhost:5000');
+  const [baseUrl, setBaseUrl] = useState(import.meta.env.VITE_API_URL?.replace(/\/api$/, '') || '');
   const [endpoint, setEndpoint] = useState('/api/test');
-  const [testUrl, setTestUrl] = useState('http://localhost:5000/api/test');
+  const [testUrl, setTestUrl] = useState(`${import.meta.env.VITE_API_URL}/test`);
   const [testResult, setTestResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +45,7 @@ const ApiTester = () => {
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
             className="flex-grow px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-            placeholder="http://localhost:5000"
+            placeholder="Base URL"
           />
         </div>
         <div className="flex">
@@ -112,13 +112,13 @@ const ApiTester = () => {
           <p className="text-sm mb-1 text-gray-600 dark:text-gray-400">Common Base URLs:</p>
           <div className="flex flex-wrap gap-2">
             <button
-              onClick={() => setBaseUrl('http://localhost:5000')}
+              onClick={() => setBaseUrl(import.meta.env.VITE_API_URL?.replace(/\/api$/, '') || '')}
               className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200"
             >
               localhost:5000
             </button>
             <button
-              onClick={() => setBaseUrl('http://localhost:5000/api')}
+              onClick={() => setBaseUrl(import.meta.env.VITE_API_URL)}
               className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200"
             >
               localhost:5000/api

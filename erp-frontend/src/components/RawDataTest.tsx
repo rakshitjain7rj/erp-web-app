@@ -8,7 +8,7 @@ const RawDataTest = () => {
     const fetchRawData = async () => {
       try {
         setStatus('Fetching...');
-        const response = await fetch('http://localhost:5000/api/parties/summary');
+  const response = await fetch(`${import.meta.env.VITE_API_URL}/parties/summary`);
         const text = await response.text();
         setRawData(text);
         setStatus(`SUCCESS: Got response (${text.length} chars)`);

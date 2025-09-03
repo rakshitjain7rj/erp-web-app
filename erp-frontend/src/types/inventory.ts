@@ -1,6 +1,5 @@
-import axios from "axios";
-
-const API = "http://localhost:5000/api/inventory";
+import apiClient from '../api/httpClient';
+const API = '/inventory';
 
 export interface InventoryItem {
   id: string;
@@ -51,7 +50,7 @@ export interface StockLog {
 
 export const getMaterials = async () => {
   const token = localStorage.getItem("token");
-  const res = await axios.get(API, {
+  const res = await apiClient.get(API, {
     headers: { Authorization: `Bearer ${token}` },
   });
   return res.data;
@@ -60,7 +59,7 @@ export const getMaterials = async () => {
 // Get all inventory items
 export const getInventory = async (): Promise<InventoryItem[]> => {
   const token = localStorage.getItem("token");
-  const res = await axios.get(API, {
+  const res = await apiClient.get(API, {
     headers: { Authorization: `Bearer ${token}` },
   });
   return res.data;
@@ -71,7 +70,7 @@ export const createInventoryItem = async (
   data: Omit<InventoryItem, "id">
 ): Promise<InventoryItem> => {
   const token = localStorage.getItem("token");
-  const res = await axios.post(API, data, {
+  const res = await apiClient.post(API, data, {
     headers: { Authorization: `Bearer ${token}` },
   });
   return res.data;
@@ -83,7 +82,7 @@ export const updateInventoryItem = async (
   data: Omit<InventoryItem, "id">
 ): Promise<InventoryItem> => {
   const token = localStorage.getItem("token");
-  const res = await axios.put(`${API}/${id}`, data, {
+  const res = await apiClient.put(`${API}/${id}`, data, {
     headers: { Authorization: `Bearer ${token}` },
   });
   return res.data;

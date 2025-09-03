@@ -1,13 +1,11 @@
-import axios from "axios";
+import apiClient from './httpClient';
 import { InventoryItem } from "../types/inventory";
 
-// Use relative URL so Vite proxy can handle it
-const API_BASE = "/api/inventory";
+// Base path relative to centralized /api base URL
+const API_BASE = "/inventory";
 
-// Create axios instance with better error handling
-const api = axios.create({
-  timeout: 30000, // Increased to 30 seconds
-});
+// Use shared client
+const api = apiClient;
 
 // Add response interceptor for better error handling
 api.interceptors.response.use(
