@@ -1,7 +1,8 @@
 import axios from "axios";
 import { Product } from "../types/product"; // Optional: define Product interface here
 
-const BASE_URL = "http://localhost:5000/api/products";
+const BASE_URL = `${import.meta.env.VITE_API_URL}/api/products`;
+
 
 const api = axios.create({
   baseURL: BASE_URL,
