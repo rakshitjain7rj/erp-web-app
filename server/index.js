@@ -1,6 +1,6 @@
 const express = require('express');
 const dotenv = require('dotenv');
-const cors = require('cors');
+const { corsOptions, allowedOrigins, applyCors } = require('./config/cors');
 const errorHandler = require('./middleware/errorHandler');
 const morgan = require('morgan');
 const helmet = require('helmet');
@@ -158,23 +158,11 @@ const app = express();
 // Set up global error handlers for the Node.js process
 setupProcessHandlers();
 
-console.log('🔧 CORS Origin:', process.env.CORS_ORIGIN || 'http://localhost:3000');
+console.log('🔧 Allowed CORS Origins:', allowedOrigins.join(', '));
 
 // ------------------- Middleware -------------------
-app.use(cors({
-  origin: [
-    process.env.CORS_ORIGIN || 'http://localhost:3000',
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:5175',
-    'http://localhost:5176',
-    'http://localhost:5177',
-    'http://localhost:5178',
-    'http://localhost:5179',
-    'http://localhost:5180'
-  ],
-  credentials: true,
-}));
+// Apply centralized CORS (must be early)
+applyCors(app);
 app.use(express.json());
 app.use(morgan('dev'));
 app.use(helmet());
@@ -355,7 +343,7 @@ connectPostgres()
       console.log(`📦 Inventory API: http://localhost:${PORT}/api/inventory`);
       console.log(`🏢 Party API: http://localhost:${PORT}/api/parties`);
       console.log(`🧪 Test API route: http://localhost:${PORT}/api/test`);
-      console.log(`🔧 CORS enabled for: http://localhost:5173, http://localhost:5174, http://localhost:5175, http://localhost:5176, http://localhost:5177, http://localhost:5178, http://localhost:5179, http://localhost:5180`);
+  console.log(`🔧 CORS enabled for: ${allowedOrigins.join(', ')}`);
     });
   })
   .catch((err) => {
@@ -367,6 +355,6 @@ connectPostgres()
       console.log(`🚀 Server running on port ${PORT} (without database)`);
       console.log(`📡 API endpoints available at http://localhost:${PORT}/api`);
       console.log(`🧪 Test API route: http://localhost:${PORT}/api/test`);
-      console.log(`🔧 CORS enabled for: http://localhost:5173, http://localhost:5174, http://localhost:5175, http://localhost:5176, http://localhost:5177, http://localhost:5178, http://localhost:5179, http://localhost:5180`);
+  console.log(`🔧 CORS enabled for: ${allowedOrigins.join(', ')}`);
     });
   });
