@@ -99,14 +99,27 @@ const authController = {
       });
     }
 
-    // Find user with password included using scope
-    const user = await User.scope('withPassword').findOne({ 
-      where: { email: email.toLowerCase().trim() } 
+    // Fetch user WITHOUT default scope so password is available for comparison.
+    // Using defaultScope (which excludes password) + bcrypt.compare(undefined) => 500 error.
+    let user = await User.unscoped().findOne({
+      where: { email: email.toLowerCase().trim() }
     });
-    
-    // Check user existence and password
-    const isValidUser = user && await bcrypt.compare(password, user.password);
-    
+
+    // Defensive: if user exists but password somehow missing, re-query directly (edge migration issues)
+    if (user && !user.password) {
+      user = await User.unscoped().findOne({ where: { id: user.id } });
+    }
+
+    // Validate credentials safely
+    let isValidUser = false;
+    if (user && user.password) {
+      try {
+        isValidUser = await bcrypt.compare(password, user.password);
+      } catch (compareErr) {
+        console.warn('⚠️ Password comparison failed:', compareErr.message);
+      }
+    }
+
     if (!isValidUser) {
       return res.status(401).json({
         success: false,
