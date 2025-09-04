@@ -1,5 +1,6 @@
 const express = require('express');
 const dotenv = require('dotenv');
+const path = require('path');
 const { corsOptions, allowedOrigins, applyCors } = require('./config/cors');
 const errorHandler = require('./middleware/errorHandler');
 const morgan = require('morgan');
@@ -93,7 +94,25 @@ COMMIT;`;
   }
 }
 
-dotenv.config();
+// ------------------- Environment Configuration -------------------
+// Load environment file explicitly based on NODE_ENV for clarity.
+// Priority: existing process env vars > .env.(NODE_ENV) > .env fallback.
+const NODE_ENV = process.env.NODE_ENV || 'development';
+const envFileSpecific = path.resolve(__dirname, `.env.${NODE_ENV}`);
+const envFileDefault = path.resolve(__dirname, '.env');
+
+let loadedPath = null;
+if (require('fs').existsSync(envFileSpecific)) {
+  dotenv.config({ path: envFileSpecific });
+  loadedPath = envFileSpecific;
+} else if (require('fs').existsSync(envFileDefault)) {
+  dotenv.config({ path: envFileDefault });
+  loadedPath = envFileDefault;
+} else {
+  dotenv.config(); // fallback to implicit search (unlikely needed)
+  loadedPath = 'process.env only (no .env file found)';
+}
+console.log(`🔧 Loaded environment (${NODE_ENV}) from: ${loadedPath}`);
 
 // ------------------- Load Models -------------------
 const DyeingRecord = require('./models/DyeingRecord');

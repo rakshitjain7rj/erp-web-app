@@ -40,10 +40,14 @@ const errorHandler = (err, req, res, next) => {
     ? 'Internal Server Error' 
     : err.message || 'Something went wrong';
   
-  res.status(statusCode).json({
+  const responsePayload = {
     message,
     stack: process.env.NODE_ENV === 'production' ? '🥞' : err.stack
-  });
+  };
+  if (statusCode === 500 && process.env.NODE_ENV !== 'production') {
+    responsePayload.debug = err.message;
+  }
+  res.status(statusCode).json(responsePayload);
 };
 
 module.exports = errorHandler;

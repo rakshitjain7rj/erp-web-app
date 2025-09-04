@@ -90,6 +90,7 @@ const authController = {
   // Login User
   login: asyncHandler(async (req, res) => {
     const { email, password } = req.body;
+  console.log('🔐 Login attempt', { email });
 
     // Input validation
     if (!email?.trim() || !password) {
@@ -104,10 +105,17 @@ const authController = {
     let user = await User.unscoped().findOne({
       where: { email: email.toLowerCase().trim() }
     });
+    if (!user) {
+      console.log('🔍 No user found for email', email);
+    } else {
+      console.log('👤 User fetched', { id: user.id, role: user.role, hasPassword: !!user.password });
+    }
 
     // Defensive: if user exists but password somehow missing, re-query directly (edge migration issues)
     if (user && !user.password) {
+      console.log('⚠️ Missing password field on fetched user, refetching by id');
       user = await User.unscoped().findOne({ where: { id: user.id } });
+      console.log('🔁 Refetch result has password?', !!(user && user.password));
     }
 
     // Validate credentials safely
@@ -121,6 +129,7 @@ const authController = {
     }
 
     if (!isValidUser) {
+      console.log('❌ Invalid credentials', { email });
       return res.status(401).json({
         success: false,
         message: 'Invalid email or password'
@@ -131,7 +140,8 @@ const authController = {
     const token = generateToken(user);
     const userResponse = createUserResponse(user);
 
-    res.status(200).json({
+  console.log('✅ Login successful', { userId: user.id, role: user.role });
+  res.status(200).json({
       success: true,
       message: 'Login successful',
       token,
