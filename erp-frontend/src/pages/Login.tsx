@@ -113,10 +113,18 @@ const Login = () => {
             🔐 Login
           </button>
         </form>
-
-        <p className="mt-4 text-xs text-center text-gray-500 dark:text-gray-400">
-          Don’t have an account? Please contact your admin.
-        </p>
+        <div className="mt-6 text-center">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            New here? Create an account to get started.
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate("/register")}
+            className="w-full py-2 text-sm font-semibold text-blue-600 transition bg-white border border-blue-600 rounded-lg shadow-sm hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:bg-gray-700 dark:border-blue-400 dark:text-blue-300 dark:hover:bg-gray-600"
+          >
+            ✨ Register
+          </button>
+        </div>
       </div>
     </div>
   );
