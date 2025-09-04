@@ -8,8 +8,14 @@
 
 const DEFAULT_ALLOWED = [
   'http://localhost:5173',
+  'http://localhost:5176', // Vite dev port currently used
   'https://asuerp.netlify.app'
 ];
+
+// Support singular env var fallback
+if (!process.env.CORS_ORIGINS && process.env.CORS_ORIGIN) {
+  process.env.CORS_ORIGINS = process.env.CORS_ORIGIN;
+}
 
 // Build a Set for O(1) lookups
 const allowedOriginsSet = new Set(DEFAULT_ALLOWED);
@@ -19,6 +25,13 @@ if (process.env.CORS_ORIGINS) {
     .map(o => o.trim())
     .filter(Boolean)
     .forEach(o => allowedOriginsSet.add(o));
+}
+
+// In non-production allow a small set of common Vite dev ports to reduce friction
+if (process.env.NODE_ENV !== 'production') {
+  ['5173','5174','5175','5176','5177'].forEach(p => {
+    allowedOriginsSet.add(`http://localhost:${p}`);
+  });
 }
 
 // Export as array for logging / inspection
