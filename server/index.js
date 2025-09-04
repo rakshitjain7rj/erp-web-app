@@ -187,7 +187,13 @@ app.use(morgan('dev'));
 app.use(helmet());
 // app.use(limiter); // Uncomment for production
 // Routes must be before errorHandler
+// Primary auth route mount
 app.use('/api/auth', authRoutes);
+// Defensive alias: if frontend accidentally calls without /api prefix (legacy bundle / mis-set VITE_API_URL), still serve.
+app.use('/auth', (req, res, next) => {
+  console.warn('⚠️ Received auth request without /api prefix. Consider fixing frontend base URL. Path:', req.path);
+  next();
+}, authRoutes);
 app.use('/api/dyeing', dyeingRoutes);
 
 // Debug party routes registration

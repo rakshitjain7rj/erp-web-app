@@ -3,16 +3,31 @@
 // All API modules should import { apiClient } from './httpClient';
 import axios, { AxiosError, AxiosInstance } from 'axios';
 
-const baseURL = import.meta.env.VITE_API_URL; // per requirement includes /api
+// Resolve base URL with safety:
+// 1. Use VITE_API_URL if provided.
+// 2. If missing, fall back to '/api' so relative calls still hit backend (prevents 404 /auth/*).
+// 3. Normalize to ensure it ends with /api (some deploys may set just domain root).
+const rawEnv = import.meta.env.VITE_API_URL as string | undefined;
+let resolvedBase = rawEnv && rawEnv.trim() ? rawEnv.trim() : '/api';
 
-if (!baseURL) {
-  // Fail fast so misconfiguration is obvious in development
+// If it doesn't already include /api segment at the end, append it.
+if (!/\/api\/?$/.test(resolvedBase)) {
+  resolvedBase = resolvedBase.replace(/\/$/, '') + '/api';
+}
+
+// Basic normalization (remove duplicate slashes except protocol)
+resolvedBase = resolvedBase.replace(/([^:]\/)\/+/g, '$1/');
+
+if (!rawEnv) {
   // eslint-disable-next-line no-console
-  console.warn('[httpClient] VITE_API_URL is not defined. API calls will likely fail.');
+  console.warn(`[httpClient] VITE_API_URL not set. Using fallback baseURL: ${resolvedBase}`);
+} else {
+  // eslint-disable-next-line no-console
+  console.log('[httpClient] Using API base URL:', resolvedBase);
 }
 
 export const apiClient: AxiosInstance = axios.create({
-  baseURL,
+  baseURL: resolvedBase,
   timeout: 30000,
   withCredentials: true,
   headers: {
