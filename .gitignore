@@ -21,3 +21,23 @@ Thumbs.db
 
 # TypeScript build info
 erp-frontend/tsconfig.tsbuildinfo
+
+# Environment / secret config (keep examples)
+.env.production
+.env.development
+.env.staging
+.env.test
+.env*.local
+server/.env.production
+server/.env.development
+server/.env.staging
+server/.env.test
+server/.env*.local
+server/.env*
+*.env.backup
+*.env.bak
+
+# Never ignore example/template env files
+!*.env.example
+!*.example
+!server/.env.example
