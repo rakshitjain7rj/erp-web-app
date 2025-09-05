@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+import axios from "axios"; // retained for potential future direct calls
 import toast from "react-hot-toast";
 import { API_ENDPOINTS } from "../config/api";
+import { registerUser } from "../api/auth";
 
 const Register = () => {
   const navigate = useNavigate();
@@ -52,7 +53,10 @@ const Register = () => {
 
     const loadingToast = toast.loading("🔄 Registering...");
     try {
-      await axios.post(API_ENDPOINTS.AUTH.REGISTER, form);
+      // Debug: show fully-resolved endpoint actually being called
+      // eslint-disable-next-line no-console
+      console.log('🛰 Register endpoint (resolved):', API_ENDPOINTS.AUTH.REGISTER);
+      await registerUser(form);
       toast.success("✅ Registration successful!", { id: loadingToast });
       navigate("/login");
     } catch (err) {
