@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import toast from "react-hot-toast";
@@ -12,6 +13,7 @@ const Register = () => {
     password: "",
     role: "",
   });
+  const [showPassword, setShowPassword] = useState(false);
 
   const [errors, setErrors] = useState({
     name: false,
@@ -96,18 +98,33 @@ const Register = () => {
           }`}
         />
 
-        <input
-          type="password"
-          name="password"
-          placeholder="Password"
-          value={form.password}
-          onChange={handleChange}
-          className={`w-full p-2 border rounded focus:outline-none focus:ring-2 bg-white dark:bg-gray-700 text-black dark:text-white placeholder-gray-500 dark:placeholder-gray-400 ${
-            errors.password
-              ? "border-red-500 focus:ring-red-400"
-              : "border-gray-300 focus:ring-green-400"
-          }`}
-        />
+        <div className="relative">
+          <input
+            type={showPassword ? "text" : "password"}
+            name="password"
+            placeholder="Password"
+            value={form.password}
+            onChange={handleChange}
+            className={`w-full p-2 pr-10 border rounded focus:outline-none focus:ring-2 bg-white dark:bg-gray-700 text-black dark:text-white placeholder-gray-500 dark:placeholder-gray-400 ${
+              errors.password
+                ? "border-red-500 focus:ring-red-400"
+                : "border-gray-300 focus:ring-green-400"
+            }`}
+          />
+          <button
+            type="button"
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            aria-pressed={showPassword}
+            onClick={() => setShowPassword((p) => !p)}
+            className="absolute inset-y-0 right-0 flex items-center justify-center px-2 text-blue-700 transition rounded-r focus:outline-none hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
+          >
+            {showPassword ? (
+              <EyeOff className="w-5 h-5 text-blue-700 dark:text-blue-300" strokeWidth={1.9} />
+            ) : (
+              <Eye className="w-5 h-5 text-blue-700 dark:text-blue-300" strokeWidth={1.9} />
+            )}
+          </button>
+        </div>
 
         <select
           name="role"
