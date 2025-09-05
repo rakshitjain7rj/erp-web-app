@@ -24,67 +24,69 @@ const createUserResponse = (user) => {
 const authController = {
   // Register User
   register: asyncHandler(async (req, res) => {
-    const { name, email, password, role } = req.body;
+    const { name, email, password } = req.body;
+    let { role } = req.body;
 
-    // Input validation
-    if (!name?.trim() || !email?.trim() || !password || !role) {
-      return res.status(400).json({
-        success: false,
-        message: 'All fields are required'
-      });
+    // Basic presence validation (role optional -> defaults below)
+    if (!name?.trim() || !email?.trim() || !password) {
+      return res.status(400).json({ success: false, message: 'Name, email and password are required' });
+    }
+
+    // Normalize / default role EARLY to avoid enum DB errors later
+    const allowedRoles = ['admin', 'manager', 'storekeeper'];
+    role = (role || 'storekeeper').toString().trim().toLowerCase();
+    if (!allowedRoles.includes(role)) {
+      return res.status(400).json({ success: false, message: `Invalid role. Allowed: ${allowedRoles.join(', ')}` });
     }
 
     // Email format validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide a valid email'
-      });
+      return res.status(400).json({ success: false, message: 'Please provide a valid email' });
     }
 
     // Password strength validation
     if (password.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: 'Password must be at least 6 characters long'
-      });
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters long' });
     }
 
     // Check if user already exists
-    const existingUser = await User.findOne({ 
-      where: { email: email.toLowerCase().trim() } 
-    });
-    
+    const normalizedEmail = email.toLowerCase().trim();
+    const existingUser = await User.findOne({ where: { email: normalizedEmail } });
     if (existingUser) {
-      return res.status(409).json({
-        success: false,
-        message: 'User already exists with this email'
-      });
+      return res.status(409).json({ success: false, message: 'User already exists with this email' });
     }
 
     // Hash password
     const saltRounds = 12;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-    // Create user
-    const user = await User.create({
-      name: name.trim(),
-      email: email.toLowerCase().trim(),
-      password: hashedPassword,
-      role,
-    });
+    let user;
+    try {
+      user = await User.create({
+        name: name.trim(),
+        email: normalizedEmail,
+        password: hashedPassword,
+        role
+      });
+    } catch (dbErr) {
+      // Handle enum / validation gracefully instead of generic 500
+      const msg = dbErr?.message || '';
+      if (/invalid input value for enum/i.test(msg) || /enum/i.test(msg)) {
+        return res.status(400).json({ success: false, message: 'Invalid role value' });
+      }
+      throw dbErr; // Let global handler log unexpected
+    }
 
-    // Generate token and response
+    // Ensure JWT secret configured
+    if (!process.env.JWT_SECRET) {
+      console.warn('⚠️ JWT_SECRET missing. Set it in environment to enable authentication.');
+      return res.status(500).json({ success: false, message: 'Server auth configuration error (missing JWT secret)' });
+    }
+
     const token = generateToken(user);
     const userResponse = createUserResponse(user);
-
-    res.status(201).json({
-      success: true,
-      message: 'User registered successfully',
-      token,
-      user: userResponse
-    });
+    res.status(201).json({ success: true, message: 'User registered successfully', token, user: userResponse });
   }),
 
   // Login User
