@@ -6,9 +6,31 @@ const errorHandler = require('./middleware/errorHandler');
 const morgan = require('morgan');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const { sequelize, connectPostgres } = require('./config/postgres');
 const { setupProcessHandlers } = require('./utils/errorHandlers');
-const { sequelize: sequelizeInstance } = require('./config/postgres');
+
+// ------------------- Environment Configuration (moved early) -------------------
+// Load environment file explicitly based on NODE_ENV before requiring DB config.
+const INIT_NODE_ENV = process.env.NODE_ENV || 'development';
+const envFileSpecificEarly = path.resolve(__dirname, `.env.${INIT_NODE_ENV}`);
+const envFileDefaultEarly = path.resolve(__dirname, '.env');
+let loadedPathEarly = null;
+if (require('fs').existsSync(envFileSpecificEarly)) {
+  dotenv.config({ path: envFileSpecificEarly });
+  loadedPathEarly = envFileSpecificEarly;
+} else if (require('fs').existsSync(envFileDefaultEarly)) {
+  dotenv.config({ path: envFileDefaultEarly });
+  loadedPathEarly = envFileDefaultEarly;
+} else {
+  dotenv.config();
+  loadedPathEarly = 'process.env only (no .env file found)';
+}
+console.log(`🔧 Loaded environment (${INIT_NODE_ENV}) from: ${loadedPathEarly}`);
+console.log('🌐 NODE_ENV:', INIT_NODE_ENV);
+
+// Now require database (will respect already-loaded env vars)
+let sequelize, connectPostgres, sequelizeInstance;
+({ sequelize, connectPostgres } = require('./config/postgres'));
+sequelizeInstance = sequelize;
 
 // Ensure ASU machines are unique per unit at DB level (idempotent)
 async function ensureASUMachineCompositeUnique() {
@@ -94,25 +116,7 @@ COMMIT;`;
   }
 }
 
-// ------------------- Environment Configuration -------------------
-// Load environment file explicitly based on NODE_ENV for clarity.
-// Priority: existing process env vars > .env.(NODE_ENV) > .env fallback.
-const NODE_ENV = process.env.NODE_ENV || 'development';
-const envFileSpecific = path.resolve(__dirname, `.env.${NODE_ENV}`);
-const envFileDefault = path.resolve(__dirname, '.env');
-
-let loadedPath = null;
-if (require('fs').existsSync(envFileSpecific)) {
-  dotenv.config({ path: envFileSpecific });
-  loadedPath = envFileSpecific;
-} else if (require('fs').existsSync(envFileDefault)) {
-  dotenv.config({ path: envFileDefault });
-  loadedPath = envFileDefault;
-} else {
-  dotenv.config(); // fallback to implicit search (unlikely needed)
-  loadedPath = 'process.env only (no .env file found)';
-}
-console.log(`🔧 Loaded environment (${NODE_ENV}) from: ${loadedPath}`);
+// (Environment loading moved to top)
 
 // ------------------- Load Models -------------------
 const DyeingRecord = require('./models/DyeingRecord');
