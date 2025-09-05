@@ -46,14 +46,21 @@ const ASUUnit1Page: React.FC = () => {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">ASU Unit 1 Management</h1>
         <div className="flex space-x-1">
+          {/** Shared tab styles to ensure consistent visibility in light & dark modes */}
+          {(() => {
+            const base =
+              'px-3 py-2 flex items-center space-x-1 rounded transition-colors ring-1 ring-inset focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500';
+            const active =
+              'bg-white text-black ring-primary-700 hover:bg-gray-50 dark:bg-black dark:text-gray-200 dark:ring-primary-400 dark:hover:bg-black';
+            const inactive =
+              'bg-gray-100 text-gray-800 hover:bg-gray-200 ring-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:ring-gray-700';
+            return (
+              <>
           <button
             onClick={() => setActiveTab('dashboard')}
-            className={`px-3 py-2 flex items-center space-x-1 rounded transition-colors ${
-              activeTab === 'dashboard'
-                ? 'bg-primary text-white'
-                : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700'
-            }`}
+            className={`${base} ${activeTab === 'dashboard' ? active : inactive}`}
             title="Dashboard (Ctrl+1)"
+            aria-current={activeTab === 'dashboard' ? 'page' : undefined}
           >
             <Gauge size={18} />
             <span>Dashboard</span>
@@ -61,12 +68,9 @@ const ASUUnit1Page: React.FC = () => {
           </button>
           <button
             onClick={() => setActiveTab('production')}
-            className={`px-3 py-2 flex items-center space-x-1 rounded transition-colors ${
-              activeTab === 'production'
-                ? 'bg-primary text-white'
-                : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700'
-            }`}
+            className={`${base} ${activeTab === 'production' ? active : inactive}`}
             title="Daily Production (Ctrl+2)"
+            aria-current={activeTab === 'production' ? 'page' : undefined}
           >
             <Activity size={18} />
             <span>Daily Production</span>
@@ -75,12 +79,9 @@ const ASUUnit1Page: React.FC = () => {
           </button>
           <button
             onClick={() => setActiveTab('summary')}
-            className={`px-3 py-2 flex items-center space-x-1 rounded transition-colors ${
-              activeTab === 'summary'
-                ? 'bg-primary text-white'
-                : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700'
-            }`}
+            className={`${base} ${activeTab === 'summary' ? active : inactive}`}
             title="Yarn Summary (Ctrl+3)"
+            aria-current={activeTab === 'summary' ? 'page' : undefined}
           >
             <Package size={18} />
             <span>Yarn Summary</span>
@@ -88,17 +89,17 @@ const ASUUnit1Page: React.FC = () => {
           </button>
           <button
             onClick={() => setActiveTab('machines')}
-            className={`px-3 py-2 flex items-center space-x-1 rounded transition-colors ${
-              activeTab === 'machines'
-                ? 'bg-primary text-white'
-                : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700'
-            }`}
+            className={`${base} ${activeTab === 'machines' ? active : inactive}`}
             title="Machine Manager (Ctrl+4)"
+            aria-current={activeTab === 'machines' ? 'page' : undefined}
           >
             <Settings size={18} />
             <span>Machine Manager</span>
             <span className="ml-2 text-xs opacity-70">(Ctrl+4)</span>
           </button>
+              </>
+            );
+          })()}
         </div>
       </div>
 

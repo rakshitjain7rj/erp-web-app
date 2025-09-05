@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { Menu } from "@headlessui/react";
 import { ChevronDown, LogOut, ShieldCheck } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
@@ -13,6 +14,7 @@ const defaultUser = {
 
 const UserProfile = () => {
   const { logout, user: authUser } = useAuth();
+  const navigate = useNavigate();
   const [role, setRole] = useState<Role>(
     (localStorage.getItem("userRole") as Role) || "Admin"
   );
@@ -32,7 +34,10 @@ const UserProfile = () => {
   };
 
   const handleLogout = () => {
+    const ok = window.confirm('Are you sure you want to logout?');
+    if (!ok) return;
     logout();
+    navigate('/login', { replace: true });
   };
 
   return (

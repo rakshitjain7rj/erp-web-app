@@ -69,28 +69,32 @@ const ASUUnit2Page: React.FC = () => {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">ASU Unit 2 Management</h1>
         <div className="flex space-x-1">
-          <button
-            onClick={() => setActiveTab('dashboard')}
-            className={`px-3 py-2 flex items-center space-x-1 rounded transition-colors ${
-              activeTab === 'dashboard'
-                ? 'bg-primary text-white'
-                : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700'
-            }`}
-            title="Dashboard (Ctrl+1)"
-          >
+          {(() => {
+            const base =
+              'px-3 py-2 flex items-center space-x-1 rounded transition-colors ring-1 ring-inset focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500';
+            const active =
+              'bg-white text-black ring-primary-700 hover:bg-gray-50 dark:bg-black dark:text-gray-200 dark:ring-primary-400 dark:hover:bg-black';
+            const inactive =
+              'bg-gray-100 text-gray-800 hover:bg-gray-200 ring-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:ring-gray-700';
+
+            return (
+              <>
+                <button
+                  onClick={() => setActiveTab('dashboard')}
+                  className={`${base} ${activeTab === 'dashboard' ? active : inactive}`}
+                  title="Dashboard (Ctrl+1)"
+                  aria-current={activeTab === 'dashboard' ? 'page' : undefined}
+                >
             <Gauge size={18} />
             <span>Dashboard</span>
             <span className="ml-2 text-xs opacity-70">(Ctrl+1)</span>
           </button>
-          <button
-            onClick={() => setActiveTab('production')}
-            className={`px-3 py-2 flex items-center space-x-1 rounded transition-colors ${
-              activeTab === 'production'
-                ? 'bg-primary text-white'
-                : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700'
-            }`}
-            title="Daily Production (Ctrl+2)"
-          >
+                <button
+                  onClick={() => setActiveTab('production')}
+                  className={`${base} ${activeTab === 'production' ? active : inactive}`}
+                  title="Daily Production (Ctrl+2)"
+                  aria-current={activeTab === 'production' ? 'page' : undefined}
+                >
             <Activity size={18} />
             <span>Daily Production</span>
             <Badge variant="outline" className="ml-1 text-xs py-0">
@@ -98,36 +102,33 @@ const ASUUnit2Page: React.FC = () => {
             </Badge>
             <span className="ml-2 text-xs opacity-70">(Ctrl+2)</span>
           </button>
-          <button
-            onClick={() => setActiveTab('summary')}
-            className={`px-3 py-2 flex items-center space-x-1 rounded transition-colors ${
-              activeTab === 'summary'
-                ? 'bg-primary text-white'
-                : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700'
-            }`}
-            title="Yarn Summary (Ctrl+3)"
-          >
+                <button
+                  onClick={() => setActiveTab('summary')}
+                  className={`${base} ${activeTab === 'summary' ? active : inactive}`}
+                  title="Yarn Summary (Ctrl+3)"
+                  aria-current={activeTab === 'summary' ? 'page' : undefined}
+                >
             <Package size={18} />
             <span>Yarn Summary</span>
             <span className="ml-2 text-xs opacity-70">(Ctrl+3)</span>
           </button>
-          <button
-            onClick={() => setActiveTab('machines')}
-            className={`px-3 py-2 flex items-center space-x-1 rounded transition-colors ${
-              activeTab === 'machines'
-                ? 'bg-primary text-white'
-                : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700'
-            }`}
-            title="Machine Manager (Ctrl+4)"
-          >
+                <button
+                  onClick={() => setActiveTab('machines')}
+                  className={`${base} ${activeTab === 'machines' ? active : inactive}`}
+                  title="Machine Manager (Ctrl+4)"
+                  aria-current={activeTab === 'machines' ? 'page' : undefined}
+                >
             <Settings size={18} />
             <span>Machine Manager</span>
             <span className="ml-2 text-xs opacity-70">(Ctrl+4)</span>
           </button>
+              </>
+            );
+          })()}
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+    <div className="bg-white/90 dark:bg-gray-900/60 rounded-lg shadow p-4 md:p-6 border border-gray-200 dark:border-gray-700">
   {activeTab === 'dashboard' && <DashboardUnit2 />}
   {activeTab === 'production' && <DailyProductionUnit2 />}
         {activeTab === 'summary' && <YarnSummaryUnit2 />}

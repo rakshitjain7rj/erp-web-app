@@ -204,9 +204,9 @@ const MachineManagerUnit2: React.FC = () => {
       />
 
   <div className="overflow-hidden bg-white border border-gray-200 shadow-sm dark:bg-gray-800 dark:border-gray-700 rounded-lg">
-        <div className="px-4 py-3 border-b border-gray-200 bg-green-50 dark:bg-green-900/20 dark:border-gray-700">
+        <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 dark:border-gray-700">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-medium text-green-800 dark:text-green-200">Machine List (Unit 2)</h2>
+            <h2 className="text-base font-medium text-gray-900 dark:text-gray-100">Machine List (Unit 2)</h2>
             <div className="flex items-center space-x-2">
               <Button variant="outline" size="sm" onClick={() => setIsAddModalOpen(true)} className="flex items-center text-xs bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100">
                 <Plus className="w-3 h-3 mr-1" />

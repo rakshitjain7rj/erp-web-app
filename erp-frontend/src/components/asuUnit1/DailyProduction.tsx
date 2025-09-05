@@ -947,10 +947,10 @@ const DailyProduction: React.FC = () => {
       {/* Machine Selection & Production Entry Form */}
       {/* Production Entry Form */}
       <div className="mb-6 overflow-hidden bg-white border border-gray-200 shadow-sm dark:bg-gray-800 dark:border-gray-700 rounded-lg">
-        <div className="px-4 py-3 border-b border-gray-200 bg-green-50 dark:bg-green-900/20 dark:border-gray-700 flex justify-between items-center">
-          <h2 className="text-base font-medium text-green-800 dark:text-green-200">Daily Production Entry</h2>
+        <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 dark:border-gray-700 flex justify-between items-center">
+          <h2 className="text-base font-medium text-gray-900 dark:text-gray-100">Daily Production Entry</h2>
           <div className="flex items-center gap-2">
-            <div className="text-xs text-green-600 dark:text-green-300">Record today's production</div>
+            <div className="text-xs text-gray-700 dark:text-gray-300">Record today's production</div>
             <label className={`px-2 py-1 rounded cursor-pointer ${importing ? 'bg-gray-300' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
               {importing ? 'Importing…' : 'Import CSV'}
               <input type="file" accept=".csv" className="hidden" onChange={(e) => e.target.files?.[0] && handleImportCSV(e.target.files[0])} disabled={importing || !selectedMachine} />
@@ -1131,13 +1131,13 @@ const DailyProduction: React.FC = () => {
 
       {/* Production Entries Table */}
       <div className="overflow-hidden bg-white border border-gray-200 shadow-sm rounded-lg dark:bg-gray-800 dark:border-gray-700">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-orange-50 dark:bg-orange-900/20 dark:border-gray-700">
-          <h2 className="text-base font-medium text-orange-800 dark:text-orange-200">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-orange-100 dark:bg-orange-900/20 dark:border-gray-700">
+          <h2 className="text-base font-medium text-orange-900 dark:text-orange-200">
             Production History
             {selectedMachine && ` - ${selectedMachine.machineName || `Machine ${selectedMachine.machineNo}`}`}
           </h2>
           {selectedMachine && (
-            <Badge variant="outline" className="text-xs px-1.5 py-0.5 rounded-sm border border-orange-200 bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:border-orange-800 dark:text-orange-300">
+            <Badge variant="outline" className="text-xs px-1.5 py-0.5 rounded-sm border border-orange-200 bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:border-orange-800 dark:text-orange-300">
               {selectedMachine.isActive ? 'Active' : 'Inactive'}
             </Badge>
           )}

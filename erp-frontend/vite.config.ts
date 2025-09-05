@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: 'localhost',              // Local binding
-    port: 5176,                     // Fixed dev port
+    port: 5173,                     // Fixed dev port
     strictPort: true,               // Do not change port automatically
     proxy: {
       '/api': {
@@ -19,7 +19,7 @@ export default defineConfig({
     hmr: {
       protocol: 'ws',
       host: 'localhost',
-      port: 5176,
+      port: 5173,
     }
   }
 })

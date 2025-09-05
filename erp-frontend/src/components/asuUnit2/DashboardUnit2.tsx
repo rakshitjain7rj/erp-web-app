@@ -112,7 +112,7 @@ const DashboardUnit2: React.FC = () => {
               setDateTo(todayISO());
               setTimeout(loadData, 0);
             }}
-            className="px-4 bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600"
+            className="px-4 bg-gray-300 text-gray-900 hover:bg-gray-400 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600"
           >
             This Month
           </Button>

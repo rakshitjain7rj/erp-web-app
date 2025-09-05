@@ -1,6 +1,7 @@
 import React from "react";
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
+import { Sun, Moon } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -127,9 +128,10 @@ const Navbar = () => {
       <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 shadow-md fixed top-0 left-0 w-full z-50">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setSidebarOpen(true)}
+            onClick={() => setSidebarOpen((open) => !open)}
             className="text-gray-700 dark:text-gray-200 text-xl"
-            title="Open Menu"
+            title="Toggle Menu"
+            aria-expanded={sidebarOpen}
           >
             <FaBars />
           </button>
@@ -137,8 +139,15 @@ const Navbar = () => {
         </div>
 
         <div className="flex items-center gap-4">
-          <button onClick={toggleTheme} title="Toggle Theme" className="text-xl">
-            {isDark ? "🌙" : "☀️"}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            aria-pressed={isDark}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
+          >
+            {isDark ? <Moon size={18} /> : <Sun size={18} />}
           </button>
           <div className="relative" ref={dropdownRef}>
             <button
@@ -170,7 +179,14 @@ const Navbar = () => {
                   </>
                 )}
                 <button
-                  onClick={logout}
+                  onClick={() => {
+                    const ok = window.confirm('Are you sure you want to logout?');
+                    if (!ok) return;
+                    logout();
+                    setMenuOpen(false);
+                    setSidebarOpen(false);
+                    navigate('/login', { replace: true });
+                  }}
                   className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900 flex items-center gap-2"
                 >
                   <FaSignOutAlt /> Logout

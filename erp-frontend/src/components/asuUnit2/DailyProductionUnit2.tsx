@@ -603,9 +603,9 @@ const DailyProductionUnit2: React.FC = () => {
       )}
 
       <div className="mb-6 overflow-hidden bg-white border border-gray-200 shadow-sm dark:bg-gray-800 dark:border-gray-700 rounded-lg">
-        <div className="px-4 py-3 border-b border-gray-200 bg-green-50 dark:bg-green-900/20 dark:border-gray-700 flex justify-between items-center">
-          <h2 className="text-base font-medium text-green-800 dark:text-green-200">Daily Production Entry (Unit 2)</h2>
-          <div className="flex items-center gap-2 text-xs text-green-700 dark:text-green-300">
+        <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 dark:border-gray-700 flex justify-between items-center">
+          <h2 className="text-base font-medium text-gray-900 dark:text-gray-100">Daily Production Entry (Unit 2)</h2>
+          <div className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300">
             <span>Includes mains readings & worker</span>
             <label className={`px-2 py-1 rounded cursor-pointer ${importing ? 'bg-gray-300' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
               {importing ? 'Importing…' : 'Import CSV'}
@@ -702,23 +702,23 @@ const DailyProductionUnit2: React.FC = () => {
                     </div>
 
                     <div className="lg:col-span-2">
-                      <div className="p-4 mb-5 border border-green-100 rounded-lg bg-gradient-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20 dark:border-green-800/30">
-                        <h4 className="mb-2 text-sm font-semibold text-green-800 dark:text-green-300">Production Summary</h4>
+                      <div className="p-4 mb-5 border border-green-200 rounded-lg bg-gradient-to-r from-green-100 to-teal-100 dark:from-green-900/30 dark:to-teal-900/30 dark:border-green-700/50">
+                        <h4 className="mb-2 text-sm font-semibold text-green-900 dark:text-green-200">Production Summary</h4>
                         <div className="grid grid-cols-2 gap-3 text-sm">
                           <div className="flex items-center gap-2">
-                            <span className="p-1 bg-green-100 rounded-full dark:bg-green-800/30">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-green-700 dark:text-green-300" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                            <span className="p-1 bg-green-200 rounded-full dark:bg-green-800/50">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-green-800 dark:text-green-200" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                             </span>
-                            <span className="font-medium text-gray-700 dark:text-gray-300">
-                              Total: <span className="font-bold text-green-700 dark:text-green-300">{calculateTotal(formData.dayShift, formData.nightShift).toFixed(2)} kg</span>
+                            <span className="font-medium text-gray-800 dark:text-gray-200">
+                              Total: <span className="font-bold text-green-800 dark:text-green-200">{calculateTotal(formData.dayShift, formData.nightShift).toFixed(2)} kg</span>
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className="p-1 bg-green-100 rounded-full dark:bg-green-800/30">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-green-700 dark:text-green-300" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd" /></svg>
+                            <span className="p-1 bg-green-200 rounded-full dark:bg-green-800/50">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-green-800 dark:text-green-200" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd" /></svg>
                             </span>
-                            <span className="font-medium text-gray-700 dark:text-gray-300">
-                              Efficiency: <span className="font-bold text-green-700 dark:text-green-300">{calculatePercentage(calculateTotal(formData.dayShift, formData.nightShift), Number(selectedMachine?.productionAt100) || 0).toFixed(1)}%</span>
+                            <span className="font-medium text-gray-800 dark:text-gray-200">
+                              Efficiency: <span className="font-bold text-green-800 dark:text-green-200">{calculatePercentage(calculateTotal(formData.dayShift, formData.nightShift), Number(selectedMachine?.productionAt100) || 0).toFixed(1)}%</span>
                             </span>
                           </div>
                         </div>
@@ -740,12 +740,12 @@ const DailyProductionUnit2: React.FC = () => {
       </div>
 
       <div className="overflow-hidden bg-white border border-gray-200 shadow-sm rounded-lg dark:bg-gray-800 dark:border-gray-700">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-orange-50 dark:bg-orange-900/20 dark:border-gray-700">
-          <h2 className="text-base font-medium text-orange-800 dark:text-orange-200">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-orange-100 dark:bg-orange-900/20 dark:border-gray-700">
+          <h2 className="text-base font-medium text-orange-900 dark:text-orange-200">
             Production History {selectedMachine && ` - ${selectedMachine.machineName || `Machine ${selectedMachine.machineNo}`}`}
           </h2>
           {selectedMachine && (
-            <Badge variant="outline" className="text-xs px-1.5 py-0.5 rounded-sm border border-orange-200 bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:border-orange-800 dark:text-orange-300">
+            <Badge variant="outline" className="text-xs px-1.5 py-0.5 rounded-sm border border-orange-200 bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:border-orange-800 dark:text-orange-300">
               {selectedMachine.isActive ? 'Active' : 'Inactive'}
             </Badge>
           )}

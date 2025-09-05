@@ -188,7 +188,12 @@ console.log('🔧 Allowed CORS Origins:', allowedOrigins.join(', '));
 applyCors(app);
 app.use(express.json());
 app.use(morgan('dev'));
-app.use(helmet());
+// Configure helmet for development (disable HTTPS enforcement)
+app.use(helmet({
+  contentSecurityPolicy: false, // Disable CSP for development
+  hsts: false, // Disable HSTS to prevent 426 errors
+  crossOriginEmbedderPolicy: false
+}));
 // app.use(limiter); // Uncomment for production
 // Routes must be before errorHandler
 // Primary auth route mount
