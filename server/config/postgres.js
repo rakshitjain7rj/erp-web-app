@@ -1,25 +1,12 @@
 const { Sequelize } = require('sequelize');
 
-// Helper to mask password in a Postgres URI
-function maskPostgresUri(uri) {
-  if (!uri || typeof uri !== 'string') return uri;
-  try {
-    return uri.replace(/(postgres(?:ql)?:\/\/[^:]+:)([^@]+)(@.*)/, '$1***$3');
-  } catch (_) {
-    return uri;
-  }
-}
-
 const NODE_ENV = process.env.NODE_ENV || 'development';
 let sequelize;
 let usingUri = false;
 
 if (NODE_ENV === 'production' && process.env.POSTGRES_URI) {
-  // Render Postgres typically requires SSL
+  // Azure Postgres requires SSL
   usingUri = true;
-  const masked = maskPostgresUri(process.env.POSTGRES_URI);
-  console.log('🔧 Using production POSTGRES_URI');
-  console.log('🔒 Database URI (masked):', masked);
   sequelize = new Sequelize(process.env.POSTGRES_URI, {
     dialect: 'postgres',
     logging: false,
@@ -43,15 +30,9 @@ if (NODE_ENV === 'production' && process.env.POSTGRES_URI) {
                       DB_HOST.includes('railway.app') ||
                       DB_HOST.includes('heroku') ||
                       NODE_ENV === 'production';
-
-  console.log('🔧 Using discrete DB config (not POSTGRES_URI)', {
-    env: NODE_ENV,
-    database: DB_NAME,
-    user: DB_USER,
-    host: DB_HOST,
-    port: DB_PORT,
-    ssl: requiresSSL
-  });
+  if (NODE_ENV === 'production' && !process.env.POSTGRES_URI) {
+    console.warn('[DB] Warning -> NODE_ENV=production but POSTGRES_URI is not set; falling back to discrete variables');
+  }
 
   sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASSWORD, {
     host: DB_HOST,
@@ -66,6 +47,11 @@ if (NODE_ENV === 'production' && process.env.POSTGRES_URI) {
     logging: false,
   });
 }
+
+// Startup summary log
+console.log(
+  `[DB] Startup -> NODE_ENV=${NODE_ENV} | using ${usingUri ? 'POSTGRES_URI' : 'discrete variables'} | dialect=postgres`
+);
 
 const connectPostgres = async () => {
   try {
