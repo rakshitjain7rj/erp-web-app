@@ -1,19 +1,23 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
-
 name: Build and deploy Node.js app to Azure Web App - erp-backend
 
 on:
   push:
     branches:
       - main
+    paths:
+      - 'server/**'
+      - '.github/workflows/**'
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read #This is required for actions/checkout
+      contents: read
+
+    defaults:
+      run:
+        working-directory: server   # 👈 all commands run inside server/
 
     steps:
       - uses: actions/checkout@v4
@@ -33,7 +37,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          path: .
+          path: server   # 👈 package server folder, not the entire repo
 
   deploy:
     runs-on: ubuntu-latest
@@ -51,5 +55,5 @@ jobs:
         with:
           app-name: 'erp-backend'
           slot-name: 'Production'
-          package: .
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_75B0CD4AAF1644CFB54679BB8B84A5E9 }}
+          package: .   # 👈 will now point to the unpacked server artifact
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}
