@@ -292,7 +292,16 @@ app.post('/api/parties-direct', (req, res) => {
 });
 
 // Replace simple /health with enhanced version and add /ready
-app._router.stack = app._router.stack.filter(m => !(m.route && m.route.path === '/health'));
+// Safely remove any existing /health route (Express 5 internal structure can differ during early init)
+try {
+  if (app && app._router && Array.isArray(app._router.stack)) {
+    app._router.stack = app._router.stack.filter(m => !(m.route && m.route.path === '/health'));
+  } else {
+    console.warn('⚠️ Skipping pre-existing /health route removal: router stack not initialized yet');
+  }
+} catch (e) {
+  console.warn('⚠️ Error while attempting to remove existing /health route (continuing):', e.message);
+}
 app.get('/health', (req, res) => {
   const uptimeSeconds = process.uptime();
   res.json({

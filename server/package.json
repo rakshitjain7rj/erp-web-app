@@ -32,7 +32,9 @@
   "migrate:core": "node scripts/migrations/run_migration.js",
   "migrate:inventory-fields": "node scripts/migrations/run_archive_fields_migration.js",
   "migrate:add-machine-config": "psql \"$POSTGRES_URL\" -f ./server/sql/migrations/add_machine_configurations_table.sql",
-  "sql:check-asu": "psql \"$POSTGRES_URL\" -f ./server/sql/diagnostics/check_asu_tables.sql"
+  "migrate:all": "npm run migrate:core && npm run migrate:inventory-fields && npm run migrate:add-machine-config",
+  "render-postbuild": "npm run migrate:all",
+  "sql:check-asu": "node scripts/diagnostics/check_asu_tables.js"
   },
   "keywords": [],
   "author": "",

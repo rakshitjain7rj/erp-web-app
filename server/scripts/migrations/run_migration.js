@@ -7,7 +7,13 @@ const path = require('path');
 function apply(file) {
   const abs = path.resolve(__dirname, '../../sql/migrations', file);
   console.log('Applying:', abs);
-  execSync(`psql "$POSTGRES_URL" -f "${abs}"`, { stdio: 'inherit' });
+  // Prefer POSTGRES_URI, fallback to legacy POSTGRES_URL for backward compatibility
+  const conn = process.env.POSTGRES_URI || process.env.POSTGRES_URL;
+  if (!conn) {
+    console.error('Missing POSTGRES_URI (or POSTGRES_URL) environment variable for migrations');
+    process.exit(1);
+  }
+  execSync(`psql "${conn}" -f "${abs}"`, { stdio: 'inherit' });
 }
 
 try {

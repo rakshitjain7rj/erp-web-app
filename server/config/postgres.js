@@ -34,6 +34,12 @@ if (POSTGRES_URI) {
         rejectUnauthorized: false,
       } : false,
     },
+    pool: {
+      max: 10,
+      min: 0,
+      idle: 10000,
+      acquire: 30000,
+    },
   });
 } else {
   // Fallback to discrete credentials (development / legacy)
@@ -63,6 +69,12 @@ if (POSTGRES_URI) {
       } : false,
     },
     logging: false,
+    pool: {
+      max: 10,
+      min: 0,
+      idle: 10000,
+      acquire: 30000,
+    },
   });
 }
 

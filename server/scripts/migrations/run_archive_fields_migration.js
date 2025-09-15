@@ -7,7 +7,12 @@ function run() {
   const file = require('path').resolve(__dirname, '../../sql/migrations/add_inventory_fields.sql');
   console.log('Applying migration:', file);
   try {
-    execSync(`psql "$POSTGRES_URL" -f "${file}"`, { stdio: 'inherit' });
+    const conn = process.env.POSTGRES_URI || process.env.POSTGRES_URL;
+    if (!conn) {
+      console.error('Missing POSTGRES_URI (or POSTGRES_URL) environment variable for migrations');
+      process.exit(1);
+    }
+    execSync(`psql "${conn}" -f "${file}"`, { stdio: 'inherit' });
     console.log('Migration applied successfully.');
   } catch (err) {
     console.error('Migration failed:', err.message);
