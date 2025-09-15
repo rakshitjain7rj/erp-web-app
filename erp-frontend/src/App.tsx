@@ -4,6 +4,11 @@ import { ThemeProvider } from "./context/ThemeContext";
 import PrivateRoute from "./components/PrivateRoute";
 import LoadingSpinner from "./components/LoadingSpinner";
 
+// PWA Components
+import PWAInstallPrompt from "./components/PWAInstallPrompt";
+import PWAInstallBanner from "./components/PWAInstallBanner";
+import OfflineIndicator from "./components/OfflineIndicator";
+
 // Auth Pages
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -180,6 +185,11 @@ const App = () => {
             </div>
           </>
         )}
+        
+        {/* PWA Components - always available */}
+        <PWAInstallBanner />
+        <PWAInstallPrompt />
+        <OfflineIndicator />
       </div>
     </ThemeProvider>
   );

@@ -1,0 +1,23 @@
+User-agent: *
+Allow: /
+
+# PWA and app-specific files
+Allow: /manifest.json
+Allow: /sw.js
+Allow: /favicon.ico
+Allow: /icons/
+
+# Sitemap
+Sitemap: https://your-domain.com/sitemap.xml
+
+# Block development and test files
+Disallow: /test/
+Disallow: /debug/
+Disallow: /.well-known/
+Disallow: /api/
+
+# Allow all for PWA functionality
+Allow: /dashboard
+Allow: /party-master
+Allow: /inventory
+Allow: /dyeing-orders
