@@ -291,9 +291,30 @@ app.post('/api/parties-direct', (req, res) => {
   });
 });
 
-// Health check route
+// Replace simple /health with enhanced version and add /ready
+app._router.stack = app._router.stack.filter(m => !(m.route && m.route.path === '/health'));
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+  const uptimeSeconds = process.uptime();
+  res.json({
+    status: 'ok',
+    service: 'asu-erp-api',
+    version: process.env.npm_package_version || '1.0.0',
+    env: process.env.NODE_ENV,
+    timestamp: new Date().toISOString(),
+    uptimeSeconds,
+    uptimeHuman: `${Math.floor(uptimeSeconds/60)}m ${Math.floor(uptimeSeconds)%60}s`,
+    memory: process.memoryUsage(),
+    pid: process.pid
+  });
+});
+app.get('/ready', async (req, res) => {
+  // Lightweight DB readiness check
+  try {
+    await sequelizeInstance.query('SELECT 1');
+    res.json({ status: 'ready', db: 'up', timestamp: new Date().toISOString() });
+  } catch (e) {
+    res.status(503).json({ status: 'degraded', db: 'down', error: e.message, timestamp: new Date().toISOString() });
+  }
 });
 
 // ------------------- Error Handler -------------------
