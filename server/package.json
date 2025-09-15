@@ -34,6 +34,8 @@
   "migrate:add-machine-config": "psql \"$POSTGRES_URL\" -f ./server/sql/migrations/add_machine_configurations_table.sql",
   "migrate:all": "npm run migrate:core && npm run migrate:inventory-fields && npm run migrate:add-machine-config",
   "render-postbuild": "npm run migrate:all",
+  "migrate": "sequelize db:migrate",
+  "postbuild": "npm run migrate",
   "sql:check-asu": "node scripts/diagnostics/check_asu_tables.js"
   },
   "keywords": [],
@@ -58,6 +60,7 @@
   },
   "devDependencies": {
     "axios": "^1.10.0",
-    "nodemon": "^3.1.10"
+    "nodemon": "^3.1.10",
+    "sequelize-cli": "^6.6.2"
   }
 }
