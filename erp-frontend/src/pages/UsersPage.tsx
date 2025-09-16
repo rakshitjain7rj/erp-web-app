@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Users as UsersIcon, Shield, Ban, Check, Edit2, Trash2, Search, Filter } from 'lucide-react';
-import { API_BASE_URL } from '../config/api';
+import { getAllUsers as apiGetAllUsers } from '../api/userApi';
 
 // Types
 export type Role = 'superadmin' | 'admin' | 'manager';
@@ -89,14 +89,16 @@ const UsersPage: React.FC = () => {
       if (search) params.set('search', search);
       if (roleFilter !== 'all') params.set('role', roleFilter);
       if (statusFilter !== 'all') params.set('status', statusFilter);
-      const q = params.toString();
-  // Use centralized API base to avoid relying on same-origin in production
-  const res = await fetch(`${API_BASE_URL}/users${q ? `?${q}` : ''}`.replace(/([^:]?)\/\/+/, '$1/'), { headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }});
-      if (!res.ok) throw new Error('Failed to load users');
-  const raw = await res.json();
-  console.debug('[UsersPage] Raw users response:', raw);
-      let list: any[] = [];
-      if (Array.isArray(raw)) list = raw; else if (raw && Array.isArray(raw.data)) list = raw.data; else list = [];
+      const raw = await apiGetAllUsers();
+      let list: any[] = Array.isArray(raw) ? raw : (raw?.data && Array.isArray(raw.data) ? raw.data : []);
+      if (search || roleFilter !== 'all' || statusFilter !== 'all') {
+        list = list.filter((u:any) => {
+          if (search && !(u.name?.toLowerCase().includes(search.toLowerCase()) || u.email?.toLowerCase().includes(search.toLowerCase()))) return false;
+            if (roleFilter !== 'all' && u.role !== roleFilter) return false;
+            if (statusFilter !== 'all' && u.status !== statusFilter) return false;
+            return true;
+        });
+      }
       const normalized: UserRecord[] = list.map((u:any) => ({
         id: (typeof u.id === 'number' ? u.id : (typeof u._id === 'string' ? u._id : Math.random())) as any,
         name: u.name || '(No Name)',
@@ -105,7 +107,6 @@ const UsersPage: React.FC = () => {
         status: (u.status || 'active') as Status,
         createdAt: u.createdAt || new Date().toISOString()
       }));
-      // Sort: pending first, then newest created
       normalized.sort((a,b) => {
         if (a.status === 'pending' && b.status !== 'pending') return -1;
         if (b.status === 'pending' && a.status !== 'pending') return 1;
@@ -114,12 +115,11 @@ const UsersPage: React.FC = () => {
       setRecords(normalized);
       setTotal(normalized.length);
     } catch (e:any) {
+      console.error('[UsersPage] fetchUsers error', e);
       setError(e.message || 'Error loading users');
       setRecords([]);
       setTotal(0);
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
   useEffect(() => { fetchUsers(); /* eslint-disable-next-line */ }, [page, roleFilter, statusFilter]);
@@ -135,7 +135,7 @@ const UsersPage: React.FC = () => {
   const updateStatus = async (target: UserRecord, status: 'active' | 'inactive') => {
     try {
       // Backend route: PATCH /api/users/:id
-  const res = await fetch(`${API_BASE_URL}/users/${target.id}`.replace(/([^:]?)\/\/+/, '$1/'), {
+  const res = await fetch(`/api/users/${target.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({ status })
@@ -147,7 +147,7 @@ const UsersPage: React.FC = () => {
 
   const approveUser = async (target: UserRecord, approved: boolean) => {
     try {
-  const res = await fetch(`${API_BASE_URL}/users/${target.id}/approve`.replace(/([^:]?)\/\/+/, '$1/'), {
+  const res = await fetch(`/api/users/${target.id}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({ approved })
@@ -160,7 +160,7 @@ const UsersPage: React.FC = () => {
   const deleteUser = async (target: UserRecord) => {
     if (!window.confirm('Delete user?')) return;
     try {
-  const res = await fetch(`${API_BASE_URL}/users/${target.id}`.replace(/([^:]?)\/\/+/, '$1/'), {
+  const res = await fetch(`/api/users/${target.id}`, {
         method: 'DELETE',
         headers: { ...getAuthHeaders() }
       });
