@@ -78,8 +78,12 @@ export default defineConfig({
       },
       devOptions: {
         enabled: true,
-        type: 'module'
-      }
+        type: 'module',
+        // Reduce update frequency in development
+        suppressWarnings: true
+      },
+      // Don't auto-update in development to prevent constant prompts
+      mode: process.env.NODE_ENV === 'production' ? 'production' : 'development'
     })
   ],
   server: {

@@ -91,6 +91,12 @@ class ServiceWorkerManager {
   }
 
   private handleWaiting(worker: ServiceWorker): void {
+    // Skip notifications in development mode to prevent constant update prompts
+    if (import.meta && import.meta.env && import.meta.env.DEV) {
+      console.log('ℹ️ Development mode: skipping service worker update notification');
+      return;
+    }
+    
     // Dedupe: only notify once per unique worker script URL
     const scriptURL = worker.scriptURL;
     // Extra global session guard (covers dev HMR + any accidental double event)
@@ -102,11 +108,24 @@ class ServiceWorkerManager {
     const notifiedSet: Set<string> = w.__ASU_ERP_SW_NOTIFIED__;
 
     if (this.notifiedWorkerScriptURL === scriptURL || notifiedSet.has(scriptURL)) {
+      console.log('ℹ️ Already notified for this service worker version, skipping...');
       return; // already notified for this version in this tab
+    }
+
+    // Add additional session-based throttling - only one notification per 5 minutes
+    const lastNotificationTime = sessionStorage.getItem('sw-last-notification');
+    const now = Date.now();
+    if (lastNotificationTime) {
+      const timeSinceLastNotification = now - parseInt(lastNotificationTime);
+      if (timeSinceLastNotification < 5 * 60 * 1000) { // 5 minutes
+        console.log('ℹ️ Recent notification sent, throttling update prompt');
+        return;
+      }
     }
 
     this.notifiedWorkerScriptURL = scriptURL;
     notifiedSet.add(scriptURL);
+    sessionStorage.setItem('sw-last-notification', now.toString());
 
     // Small micro-delay to allow 'waiting' state stabilization (prevents race where installing triggers then waiting triggers quickly).
     setTimeout(() => {
@@ -130,7 +149,13 @@ class ServiceWorkerManager {
   }
 
   private setupPeriodicUpdateCheck(): void {
-    // Check for updates every 30 minutes
+    // Skip periodic updates in development mode
+    if (import.meta && import.meta.env && import.meta.env.DEV) {
+      console.log('ℹ️ Development mode: skipping periodic update checks');
+      return;
+    }
+    
+    // Check for updates every 30 minutes in production only
     setInterval(() => {
       if (this.registration) {
         console.log('🔍 Checking for Service Worker updates...');
@@ -216,4 +241,19 @@ export function getServiceWorkerVersion(): Promise<string> {
 
 export function preloadRoutes(routes: string[]): Promise<void> {
   return swManager?.preloadRoutes(routes) || Promise.resolve();
+}
+
+// Development utility to clear update notification state
+export function clearUpdateNotificationState(): void {
+  if (import.meta && import.meta.env && import.meta.env.DEV) {
+    sessionStorage.removeItem('sw-last-notification');
+    const w = window as any;
+    if (w.__ASU_ERP_SW_NOTIFIED__) {
+      w.__ASU_ERP_SW_NOTIFIED__.clear();
+    }
+    if (swManager) {
+      (swManager as any).notifiedWorkerScriptURL = null;
+    }
+    console.log('🧹 Cleared service worker notification state');
+  }
 }

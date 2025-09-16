@@ -11,15 +11,37 @@ import "./index.css";
 // PWA Service Worker Registration
 const initializePWA = async () => {
   try {
+    // Track if we've already shown an update prompt in this session
+    let updatePromptShown = false;
+    
     const registered = await registerServiceWorker({
       onUpdate: (update) => {
         console.log('🆕 PWA update available');
-        // Show update notification to user
-        if (confirm('A new version of ASU ERP is available. Update now?')) {
+        
+        // Prevent multiple update prompts in the same session
+        if (updatePromptShown) {
+          console.log('ℹ️ Update prompt already shown in this session, skipping...');
+          return;
+        }
+        
+        // Don't show update prompts in development mode
+        if (import.meta.env.DEV) {
+          console.log('ℹ️ Development mode detected, skipping update prompt');
+          return;
+        }
+        
+        updatePromptShown = true;
+        
+        // Show update notification to user with a timeout
+        const shouldUpdate = confirm('A new version of ASU ERP is available. Update now?');
+        if (shouldUpdate) {
           if (update.waiting) {
             update.waiting.postMessage({ type: 'SKIP_WAITING' });
           }
-          window.location.reload();
+          // Add a small delay before reload to ensure the message is processed
+          setTimeout(() => {
+            window.location.reload();
+          }, 100);
         }
       },
       onSuccess: () => {
