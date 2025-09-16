@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Users as UsersIcon, Shield, Ban, Check, Edit2, Trash2, Search, Filter } from 'lucide-react';
-import { getAllUsers as apiGetAllUsers } from '../api/userApi';
+import { getAllUsers as apiGetAllUsers, updateUser as apiUpdateUser, deleteUser as apiDeleteUser, approveUser as apiApproveUser } from '../api/userApi';
 
 // Types
 export type Role = 'superadmin' | 'admin' | 'manager';
@@ -134,39 +134,24 @@ const UsersPage: React.FC = () => {
 
   const updateStatus = async (target: UserRecord, status: 'active' | 'inactive') => {
     try {
-      // Backend route: PATCH /api/users/:id
-  const res = await fetch(`/api/users/${target.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify({ status })
-      });
-      if (!res.ok) throw new Error('Status update failed');
+      await apiUpdateUser(String(target.id), { status });
       fetchUsers();
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error('Status update failed', e); }
   };
 
   const approveUser = async (target: UserRecord, approved: boolean) => {
     try {
-  const res = await fetch(`/api/users/${target.id}/approve`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify({ approved })
-      });
-      if (!res.ok) throw new Error('Approval failed');
+      await apiApproveUser(String(target.id), approved);
       fetchUsers();
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error('Approval failed', e); }
   };
 
   const deleteUser = async (target: UserRecord) => {
     if (!window.confirm('Delete user?')) return;
     try {
-  const res = await fetch(`/api/users/${target.id}`, {
-        method: 'DELETE',
-        headers: { ...getAuthHeaders() }
-      });
-      if (!res.ok) throw new Error('Delete failed');
+      await apiDeleteUser(String(target.id));
       fetchUsers();
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error('Delete failed', e); }
   };
 
   return (
