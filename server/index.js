@@ -165,8 +165,7 @@ const countProductRoutes = require('./routes/countProductRoutes');
 const dyeingFirmRoutes = require('./routes/dyeingFirmRoutes');
 const machineConfigRoutes = require('./routes/machineConfigurationRoutes');
 const userRoutes = require('./routes/user'); // <-- Users (RBAC & approvals)
-const { auth } = require('./middleware/authMiddleware');
-const managerReadOnly = require('./middleware/roleReadOnly');
+const { auth, readOnlyForManagers } = require('./middleware/authMiddleware');
 // const workOrderRoutes = require('./routes/workOrderRoutes');
 // const bomRoutes = require('./routes/bomRoutes');
 // const costingRoutes = require('./routes/costingRoutes');
@@ -228,7 +227,7 @@ app.use('/api', (req, res, next) => {
       try { req.user = require('jsonwebtoken').verify(token, process.env.JWT_SECRET); } catch (_) {}
     }
   }
-  managerReadOnly(req, res, next);
+  readOnlyForManagers(req, res, next);
 });
 // Users (RBAC & approval workflow)
 app.use('/api/users', userRoutes);
