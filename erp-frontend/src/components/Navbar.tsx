@@ -72,7 +72,7 @@ const Navbar = () => {
 
   if (["superadmin", "admin", "manager"].includes(role)) links.push({ to: "/dashboard", label: "Dashboard", icon: <FaChartBar /> });
   if (["superadmin", "admin", "manager"].includes(role)) links.push({ to: "/inventory", label: "Inventory", icon: <FaWarehouse /> });
-  if (["superadmin", "admin", "manager"].includes(role)) links.push({ to: "/count-product-overview", label: "Count/Product Overview", icon: <FaClipboardList /> });
+  if (["superadmin", "admin"].includes(role)) links.push({ to: "/count-product-overview", label: "Count/Product Overview", icon: <FaClipboardList /> });
   if (["superadmin", "admin"].includes(role)) links.push({ to: "/dyeing-orders", label: "Dyeing Orders", icon: <FaClipboardList /> });
   if (["superadmin", "admin"].includes(role)) links.push({ to: "/party-master", label: "Party Master", icon: <FaUsers /> });
   if (["superadmin", "admin", "manager"].includes(role)) links.push({ to: "/production/asu-unit-1", label: "ASU Unit 1", icon: <FaIndustry /> });

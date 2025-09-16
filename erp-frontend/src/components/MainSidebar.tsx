@@ -13,7 +13,7 @@ const MainSidebar: React.FC = () => {
   const { isOpen, close } = useSidebar();
   const { user } = useAuth();
 
-  const menuItems = [
+  let menuItems = [
     { 
       id: 'dashboard', 
       label: 'Dashboard', 
@@ -50,6 +50,12 @@ const MainSidebar: React.FC = () => {
       description: 'Configuration'
     }
   ];
+
+  // Role-based filtering: hide Count/Product Overview for manager
+  const role = user?.role?.toLowerCase();
+  if (role === 'manager') {
+    menuItems = menuItems.filter(item => item.id !== 'count-product-overview');
+  }
 
   return (
     <>

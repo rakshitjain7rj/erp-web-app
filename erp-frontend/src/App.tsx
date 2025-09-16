@@ -183,7 +183,14 @@ const App = () => {
                 <Route path="/products" element={<Product />} />
                 <Route path="/party-test" element={<PartyMaster />} />
                 <Route path="/archived-parties" element={<ArchivedParties />} />
-                <Route path="/count-product-overview" element={<CountProductOverview />} />
+                <Route
+                  path="/count-product-overview"
+                  element={
+                    <PrivateRoute roles={["superadmin", "admin"]}>
+                      <CountProductOverview />
+                    </PrivateRoute>
+                  }
+                />
                 <Route path="/simple-test" element={<SimplePartyTest />} />
                 <Route path="/raw-test" element={<RawDataTest />} />
                 <Route path="/api-test" element={<ApiTest />} />

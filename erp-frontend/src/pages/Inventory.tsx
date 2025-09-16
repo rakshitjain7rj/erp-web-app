@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { getInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem } from "../api/inventoryApi";
+import { useManagerGuard } from '../utils/managerGuard';
 import { InventoryItem } from "../types/inventory";
 import StockManagementModal from "../components/StockManagementModal";
 import toast from "react-hot-toast";
@@ -28,6 +29,7 @@ const Inventory = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<InventoryItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const { guard: managerGuard, isReadOnly: isManagerReadOnly } = useManagerGuard();
   
   // Tooltip state management for better control
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
@@ -340,6 +342,7 @@ const Inventory = () => {
   };
 
   const handleEdit = (item: InventoryItem) => {
+    if (managerGuard()) return;
     console.log('✏️ Editing inventory item:', item.id, item.productName);
     setEditingItem(item);
     setNewItem({
@@ -365,6 +368,7 @@ const Inventory = () => {
   };
 
   const handleDuplicate = (item: InventoryItem) => {
+    if (managerGuard()) return;
     console.log('📋 Duplicating inventory item:', item.id, item.productName);
     // Clear editing state to ensure we're creating a new item
     setEditingItem(null);
@@ -407,6 +411,7 @@ const Inventory = () => {
   };
 
   const handleDelete = (item: InventoryItem) => {
+    if (managerGuard()) return;
     setItemToDelete(item);
     setShowDeleteModal(true);
   };
@@ -419,6 +424,7 @@ const Inventory = () => {
 
     setIsDeleting(true);
     try {
+      if (managerGuard()) { setIsDeleting(false); return; }
       await deleteInventoryItem(itemToDelete.id);
       toast.success("✅ Inventory item deleted successfully");
       setShowDeleteModal(false);
@@ -433,6 +439,7 @@ const Inventory = () => {
   };
 
   const handleAddInventory = async () => {
+    if (managerGuard()) return;
     const { productName, rawMaterial, initialQuantity, effectiveYarn, count } = newItem;
     
     console.log('🔍 Form values:', {
@@ -498,13 +505,15 @@ const Inventory = () => {
     try {
       let result;
       if (editingItem) {
+        if (managerGuard()) { setIsCreating(false); return; }
         console.log(`🔄 Updating inventory item with ID: ${editingItem.id}`);
         result = await updateInventoryItem(editingItem.id, payloadToSend);
         console.log('✅ Update API Success response:', result);
         toast.success("✅ Inventory item updated successfully");
       } else {
         const isDuplicate = newItem.productName.includes('(Copy)');
-        console.log(isDuplicate ? '� Duplicating inventory item...' : '�🚀 Creating new inventory item...');
+        if (managerGuard()) { setIsCreating(false); return; }
+        console.log(isDuplicate ? '📋 Duplicating inventory item...' : '🚀 Creating new inventory item...');
         result = await createInventoryItem(payloadToSend);
         console.log('✅ Create API Success response:', result);
         toast.success(isDuplicate 
