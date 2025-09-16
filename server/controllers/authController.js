@@ -24,8 +24,8 @@ const createUserResponse = (user) => {
 const authController = {
   // Register User
   register: asyncHandler(async (req, res) => {
-    const { name, email, password } = req.body;
-    let { role } = req.body;
+  const { name, email, password } = req.body;
+  let { role } = req.body;
 
     // Basic presence validation (role optional -> defaults below)
     if (!name?.trim() || !email?.trim() || !password) {
@@ -33,8 +33,8 @@ const authController = {
     }
 
     // Normalize / default role EARLY to avoid enum DB errors later
-    const allowedRoles = ['admin', 'manager', 'storekeeper'];
-    role = (role || 'storekeeper').toString().trim().toLowerCase();
+  const allowedRoles = ['admin', 'manager']; // user-submitted roles (superadmin created internally only)
+  role = (role || 'manager').toString().trim().toLowerCase();
     if (!allowedRoles.includes(role)) {
       return res.status(400).json({ success: false, message: `Invalid role. Allowed: ${allowedRoles.join(', ')}` });
     }
@@ -67,7 +67,8 @@ const authController = {
         name: name.trim(),
         email: normalizedEmail,
         password: hashedPassword,
-        role
+  role,
+  status: 'pending'
       });
     } catch (dbErr) {
       // Handle enum / validation gracefully instead of generic 500
@@ -84,9 +85,9 @@ const authController = {
       return res.status(500).json({ success: false, message: 'Server auth configuration error (missing JWT secret)' });
     }
 
-    const token = generateToken(user);
-    const userResponse = createUserResponse(user);
-    res.status(201).json({ success: true, message: 'User registered successfully', token, user: userResponse });
+  // Do NOT auto-login pending users. Provide message.
+  const userResponse = createUserResponse(user);
+  res.status(201).json({ success: true, pending: true, message: 'Registration submitted. Await approval by an administrator.', user: userResponse });
   }),
 
   // Login User
@@ -138,12 +139,20 @@ const authController = {
       });
     }
 
+    if (user.status === 'pending') {
+      return res.status(403).json({ success: false, message: 'Account pending approval. Please wait for an administrator to approve your access.' });
+    }
+
+    if (user.status === 'inactive') {
+      return res.status(403).json({ success: false, message: 'Account is inactive. Contact an administrator.' });
+    }
+
     // Generate token and response
     const token = generateToken(user);
     const userResponse = createUserResponse(user);
 
-  console.log('✅ Login successful', { userId: user.id, role: user.role });
-  res.status(200).json({
+    console.log('✅ Login successful', { userId: user.id, role: user.role });
+    res.status(200).json({
       success: true,
       message: 'Login successful',
       token,

@@ -25,4 +25,5 @@ BEGIN
         ADD CONSTRAINT unique_machine_no_per_unit 
         UNIQUE (machine_no, unit);
     EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
+    END;
+END $$ LANGUAGE plpgsql;

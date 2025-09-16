@@ -34,6 +34,8 @@ const Register = () => {
     }
   };
 
+  const [pendingNotice, setPendingNotice] = useState<string | null>(null);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const { name, email, password, role } = form;
@@ -56,9 +58,16 @@ const Register = () => {
       // Debug: show fully-resolved endpoint actually being called
       // eslint-disable-next-line no-console
       console.log('🛰 Register endpoint (resolved):', API_ENDPOINTS.AUTH.REGISTER);
-      await registerUser(form);
-      toast.success("✅ Registration successful!", { id: loadingToast });
-      navigate("/login");
+      const resp = await registerUser(form as any);
+      if (resp?.pending) {
+        toast.success("✅ Request submitted for approval", { id: loadingToast });
+        setPendingNotice('Your account is pending approval. You will be able to login once an administrator activates it.');
+        // Clear sensitive fields
+        setForm(prev => ({ ...prev, password: '' }));
+      } else {
+        toast.success("✅ Registration successful!", { id: loadingToast });
+        navigate("/login");
+      }
     } catch (err) {
       toast.error("❌ Registration failed. Email may already be in use.", {
         id: loadingToast,
@@ -143,9 +152,13 @@ const Register = () => {
           <option value="">Select Role</option>
           <option value="admin">Admin</option>
           <option value="manager">Manager</option>
-          <option value="storekeeper">Storekeeper</option>
 
         </select>
+        {pendingNotice && (
+          <div className="text-xs rounded-md bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 p-2 border border-amber-300 dark:border-amber-700">
+            {pendingNotice}
+          </div>
+        )}
 
         <button
           type="submit"

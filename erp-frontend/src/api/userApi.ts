@@ -50,3 +50,9 @@ export const fetchLoginHistory = async (userId: string) => {
   const res = await apiClient.get(`${basePath}/${userId}/logs`);
   return res.data;
 };
+
+// 8. Approve or reject a pending user (approved: boolean)
+export const approveUser = async (userId: string | number, approved: boolean) => {
+  const res = await apiClient.post(`${basePath}/${userId}/approve`, { approved });
+  return res.data;
+};

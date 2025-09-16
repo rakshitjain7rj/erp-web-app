@@ -164,6 +164,8 @@ const inventoryRoutes = require('./routes/inventoryRoutes');
 const countProductRoutes = require('./routes/countProductRoutes');
 const dyeingFirmRoutes = require('./routes/dyeingFirmRoutes');
 const machineConfigRoutes = require('./routes/machineConfigurationRoutes');
+const userRoutes = require('./routes/user'); // <-- Users (RBAC & approvals)
+const { auth, readOnlyForManagers } = require('./middleware/authMiddleware');
 // const workOrderRoutes = require('./routes/workOrderRoutes');
 // const bomRoutes = require('./routes/bomRoutes');
 // const costingRoutes = require('./routes/costingRoutes');
@@ -221,6 +223,24 @@ app.use('/api/yarn', yarnProductionRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/count-products', countProductRoutes);
 app.use('/api/dyeing-firms', dyeingFirmRoutes);
+// Apply manager read-only enforcement for all subsequent API routes (requires token)
+app.use('/api', (req, res, next) => {
+  // Quick JWT extraction (reuse logic from auth middleware lightly to avoid double verify if already run)
+  if (!req.user) {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (token) {
+      try { req.user = require('jsonwebtoken').verify(token, process.env.JWT_SECRET); } catch (_) {}
+    }
+  }
+  readOnlyForManagers(req, res, next);
+});
+// Users (RBAC & approval workflow)
+app.use('/api/users', userRoutes);
+// Optional legacy alias without /api (warn & continue) – remove later when frontend stabilized
+app.use('/users', (req, res, next) => { 
+  console.warn('⚠️ Received users request without /api prefix. Consider updating frontend. Path:', req.path); 
+  next(); 
+}, userRoutes);
 // app.use('/api/workorders', workOrderRoutes);
 // app.use('/api/bom', bomRoutes);
 // app.use('/api/costings', costingRoutes);
@@ -296,9 +316,39 @@ app.post('/api/parties-direct', (req, res) => {
   });
 });
 
-// Health check route
+// Replace simple /health with enhanced version and add /ready
+// Safely remove any existing /health route (Express 5 internal structure can differ during early init)
+try {
+  if (app && app._router && Array.isArray(app._router.stack)) {
+    app._router.stack = app._router.stack.filter(m => !(m.route && m.route.path === '/health'));
+  } else {
+    console.warn('⚠️ Skipping pre-existing /health route removal: router stack not initialized yet');
+  }
+} catch (e) {
+  console.warn('⚠️ Error while attempting to remove existing /health route (continuing):', e.message);
+}
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+  const uptimeSeconds = process.uptime();
+  res.json({
+    status: 'ok',
+    service: 'asu-erp-api',
+    version: process.env.npm_package_version || '1.0.0',
+    env: process.env.NODE_ENV,
+    timestamp: new Date().toISOString(),
+    uptimeSeconds,
+    uptimeHuman: `${Math.floor(uptimeSeconds/60)}m ${Math.floor(uptimeSeconds)%60}s`,
+    memory: process.memoryUsage(),
+    pid: process.pid
+  });
+});
+app.get('/ready', async (req, res) => {
+  // Lightweight DB readiness check
+  try {
+    await sequelizeInstance.query('SELECT 1');
+    res.json({ status: 'ready', db: 'up', timestamp: new Date().toISOString() });
+  } catch (e) {
+    res.status(503).json({ status: 'degraded', db: 'down', error: e.message, timestamp: new Date().toISOString() });
+  }
 });
 
 // ------------------- Error Handler -------------------

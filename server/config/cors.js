@@ -6,9 +6,8 @@
 //  4. Allow optional extension via env var CORS_ORIGINS (comma separated)
 //  5. Production safe: explicit methods, headers, short preflight cache
 
+// Base production-safe defaults (no localhost). Add localhost only outside production.
 const DEFAULT_ALLOWED = [
-  'http://localhost:5173',
-  'http://localhost:5176', // Vite dev port currently used
   'https://asuerp.netlify.app'
 ];
 
@@ -27,7 +26,7 @@ if (process.env.CORS_ORIGINS) {
     .forEach(o => allowedOriginsSet.add(o));
 }
 
-// In non-production allow a small set of common Vite dev ports to reduce friction
+// In non-production allow a small set of common Vite dev ports (explicit) plus historically used 5176
 if (process.env.NODE_ENV !== 'production') {
   ['5173','5174','5175','5176','5177'].forEach(p => {
     allowedOriginsSet.add(`http://localhost:${p}`);

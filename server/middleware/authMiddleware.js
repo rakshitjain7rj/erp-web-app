@@ -24,4 +24,18 @@ const authorizeRoles = (...roles) => {
   };
 };
 
-module.exports = { auth, authorizeRoles };
+// ✅ Middleware to enforce read-only access for manager role globally (non-GET blocked)
+// Place this AFTER auth in the middleware chain (e.g., app.use(auth, readOnlyForManagers) )
+// Or attach selectively on route groups.
+const readOnlyForManagers = (req, res, next) => {
+  try {
+    if (req.user?.role === 'manager' && req.method !== 'GET') {
+      return res.status(403).json({ error: 'Managers have read-only access' });
+    }
+  } catch (e) {
+    // fall-through; if something unexpected happens, proceed (auth should have handled user)
+  }
+  next();
+};
+
+module.exports = { auth, authorizeRoles, readOnlyForManagers };

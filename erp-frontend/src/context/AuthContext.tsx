@@ -22,6 +22,7 @@ type AuthContextType = {
   login: (userData: User) => void;
   logout: () => void;
   getAuthHeaders: () => HeadersInit;
+  isManagerReadOnly: () => boolean;
 };
 
 const USER_KEY = "user";
@@ -112,6 +113,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
+  // ✅ Helper: detect manager role (case-insensitive) for read-only enforcement
+  const isManagerReadOnly = () => {
+    const role = user?.role?.toLowerCase();
+    return role === 'manager';
+  };
+
   const value = useMemo<AuthContextType>(
     () => ({
       isAuthenticated: !!user,
@@ -120,6 +127,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       login,
       logout,
       getAuthHeaders,
+      isManagerReadOnly,
     }),
     [user, isLoading]
   );

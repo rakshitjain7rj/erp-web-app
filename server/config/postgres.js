@@ -1,34 +1,45 @@
 const { Sequelize } = require('sequelize');
 
-// Helper to mask password in a Postgres URI
-function maskPostgresUri(uri) {
-  if (!uri || typeof uri !== 'string') return uri;
-  try {
-    return uri.replace(/(postgres(?:ql)?:\/\/[^:]+:)([^@]+)(@.*)/, '$1***$3');
-  } catch (_) {
-    return uri;
-  }
-}
-
 const NODE_ENV = process.env.NODE_ENV || 'development';
 let sequelize;
 let usingUri = false;
 
-if (NODE_ENV === 'production' && process.env.POSTGRES_URI) {
-  // Render Postgres typically requires SSL
+// Support multiple common env var names for the Postgres connection string
+const POSTGRES_URI = process.env.POSTGRES_URI || process.env.POSTGRES_URL || process.env.DATABASE_URL;
+
+if (POSTGRES_URI) {
+  // Prefer URI if provided in any environment (dev/prod). Managed providers often require SSL.
   usingUri = true;
-  const masked = maskPostgresUri(process.env.POSTGRES_URI);
-  console.log('🔧 Using production POSTGRES_URI');
-  console.log('🔒 Database URI (masked):', masked);
-  sequelize = new Sequelize(process.env.POSTGRES_URI, {
+  let sslRequired = true;
+  try {
+    const parsed = new URL(POSTGRES_URI);
+    const host = (parsed.hostname || '').toLowerCase();
+    if (host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local')) {
+      sslRequired = false;
+    }
+    // If connection string explicitly disables SSL, respect it
+    if (parsed.searchParams.get('sslmode') === 'disable') {
+      sslRequired = false;
+    }
+  } catch {
+    // If URL parsing fails, keep default sslRequired=true for safety on managed providers
+  }
+
+  sequelize = new Sequelize(POSTGRES_URI, {
     dialect: 'postgres',
     logging: false,
     dialectOptions: {
-      ssl: {
+      ssl: sslRequired ? {
         require: true,
         rejectUnauthorized: false,
-      }
-    }
+      } : false,
+    },
+    pool: {
+      max: 10,
+      min: 0,
+      idle: 10000,
+      acquire: 30000,
+    },
   });
 } else {
   // Fallback to discrete credentials (development / legacy)
@@ -43,15 +54,9 @@ if (NODE_ENV === 'production' && process.env.POSTGRES_URI) {
                       DB_HOST.includes('railway.app') ||
                       DB_HOST.includes('heroku') ||
                       NODE_ENV === 'production';
-
-  console.log('🔧 Using discrete DB config (not POSTGRES_URI)', {
-    env: NODE_ENV,
-    database: DB_NAME,
-    user: DB_USER,
-    host: DB_HOST,
-    port: DB_PORT,
-    ssl: requiresSSL
-  });
+  if (NODE_ENV === 'production') {
+    console.warn('[DB] Warning -> Using discrete DB variables in production (no POSTGRES_URI/POSTGRES_URL/DATABASE_URL provided)');
+  }
 
   sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASSWORD, {
     host: DB_HOST,
@@ -61,11 +66,22 @@ if (NODE_ENV === 'production' && process.env.POSTGRES_URI) {
       ssl: requiresSSL ? {
         require: true,
         rejectUnauthorized: false,
-      } : false
+      } : false,
     },
     logging: false,
+    pool: {
+      max: 10,
+      min: 0,
+      idle: 10000,
+      acquire: 30000,
+    },
   });
 }
+
+// Startup summary log
+console.log(
+  `[DB] Startup -> NODE_ENV=${NODE_ENV} | using ${usingUri ? 'URI (POSTGRES_URI/URL/DATABASE_URL)' : 'discrete variables'} | dialect=postgres`
+);
 
 const connectPostgres = async () => {
   try {
@@ -75,14 +91,14 @@ const connectPostgres = async () => {
     return true;
   } catch (err) {
     console.error('❌ PostgreSQL connection error:', err.message);
-    if (err.message.includes('sslmode=require')) {
+    if (err.message && err.message.includes('sslmode=require')) {
       console.log('💡 SSL Required: This database requires SSL connection');
     }
-    if (err.message.includes('authentication failed')) {
-      console.log('💡 Check your database credentials / POSTGRES_URI');
+    if (err.message && err.message.toLowerCase().includes('authentication')) {
+      console.log('💡 Check your database credentials / POSTGRES_URI/URL/DATABASE_URL');
     }
-    if (err.message.includes('ENOTFOUND')) {
-      console.log('💡 Host not found - verify DB_HOST or POSTGRES_URI host');
+    if (err.code === 'ENOTFOUND' || (err.message && err.message.includes('ENOTFOUND'))) {
+      console.log('💡 Host not found - verify DB_HOST or connection string host');
     }
     console.log('⚠️ App will continue to run with limited functionality - database features will not work');
     return false;

@@ -30,4 +30,5 @@ BEGIN
         ADD CONSTRAINT unique_unit_machine_date_shift 
         UNIQUE (unit, machine_number, date, shift);
     EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
+    END;
+END $$ LANGUAGE plpgsql;

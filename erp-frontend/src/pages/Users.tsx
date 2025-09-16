@@ -1,3 +1,6 @@
+// DEPRECATED: This legacy Users component is superseded by UsersPage.tsx.
+// It uses _id (Mongo-style) while backend now uses numeric id. Kept temporarily for reference.
+// Prefer editing UsersPage.tsx and centralized api methods in userApi.ts.
 import { useEffect, useState } from "react";
 import {
   getAllUsers,

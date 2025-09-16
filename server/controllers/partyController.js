@@ -438,27 +438,52 @@ const updateParty = asyncHandler(async (req, res) => {
 const deleteParty = asyncHandler(async (req, res) => {
   const { partyName } = req.params;
 
-  if (!partyName) {
-    res.status(400);
-    throw new Error("Party name is required");
+  if (!partyName || partyName.trim() === '') {
+    return res.status(400).json({ message: 'Party name is required' });
   }
 
-  const existingParty = await Party.findOne({ where: { name: partyName } });
-  if (!existingParty) {
-    res.status(404);
-    throw new Error("Party not found");
-  }
+  const cleanName = partyName.trim();
+  console.log(`🗑️ DELETE REQUEST (soft) for party: "${cleanName}"`);
 
-  // Delete associated dyeing records first (optional - you might want to handle this differently)
-  await DyeingRecord.destroy({ where: { partyName } });
-  
-  // Delete the party
-  await existingParty.destroy();
-
-  res.status(200).json({
-    message: "Party deleted successfully",
-    partyName,
+  // Case-insensitive lookup (exact name match ignoring case & whitespace)
+  const existingParty = await Party.findOne({
+    where: sequelize.where(
+      sequelize.fn('UPPER', sequelize.fn('TRIM', sequelize.col('name'))),
+      cleanName.toUpperCase()
+    )
   });
+
+  if (!existingParty) {
+    return res.status(404).json({ message: 'Party not found' });
+  }
+
+  // Start transaction to ensure atomic delete of related records
+  const tx = await sequelize.transaction();
+  try {
+    const deletedRecords = await DyeingRecord.destroy({
+      where: sequelize.where(
+        sequelize.fn('UPPER', sequelize.fn('TRIM', sequelize.col('partyName'))),
+        'LIKE',
+        `%${cleanName.toUpperCase()}%`
+      ),
+      transaction: tx
+    });
+
+    await existingParty.destroy({ transaction: tx });
+    await tx.commit();
+
+    console.log(`✅ Deleted party "${cleanName}" and ${deletedRecords} dyeing records`);
+    return res.status(200).json({
+      message: 'Party deleted successfully',
+      party: cleanName,
+      deletedDyeingRecords: deletedRecords,
+      success: true
+    });
+  } catch (err) {
+    await tx.rollback();
+    console.error(`❌ Delete failed for party "${cleanName}":`, err.message);
+    return res.status(500).json({ message: 'Failed to delete party', error: err.message });
+  }
 });
 
 // 🆕 Archive a party (mark as archived instead of deleting) - PROFESSIONAL IMPLEMENTATION

@@ -8,6 +8,7 @@ deleteUser,
 resetPassword,
 sendInvite,
 getLoginHistory,
+approveUser,
 } = require("../controllers/userController");
 
 // GET /api/users → Fetch all users (with optional filters/search)
@@ -24,6 +25,9 @@ router.delete("/:id", deleteUser);
 
 // POST /api/users/:id/reset-password → Trigger password reset
 router.post("/:id/reset-password", resetPassword);
+
+// POST /api/users/:id/approve → Approve or reject a pending user
+router.post('/:id/approve', approveUser);
 
 // POST /api/users/invite → Send invitation email
 router.post("/invite", sendInvite);

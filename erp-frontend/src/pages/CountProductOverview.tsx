@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { useAuth } from "../context/AuthContext";
+import { Navigate } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import { ChevronDown, ChevronUp, Package, TrendingUp, Calendar, BarChart3, Plus, Check, X, Loader } from "lucide-react";
 import { FaCheck, FaTimes } from "react-icons/fa";
@@ -23,6 +25,12 @@ import { DyeingRecord } from "../types/dyeing";
 // REMOVED: mockCountProducts hard-coded demo data. We now rely ONLY on real API / synced creations
 
 const CountProductOverview: React.FC = () => {
+  // Early role-based page guard (defense in depth)
+  const { user } = useAuth();
+  const role = user?.role?.toLowerCase();
+  if (role === 'manager') {
+    return <Navigate to="/dashboard" replace />;
+  }
   const [products, setProducts] = useState<CountProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedFirm, setExpandedFirm] = useState<string | null>(null);
