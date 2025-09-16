@@ -15,6 +15,9 @@ export interface PWAUpdateCallbacks {
 class ServiceWorkerManager {
   private registration: ServiceWorkerRegistration | null = null;
   private callbacks: PWAUpdateCallbacks = {};
+  // Track the scriptURL of the worker we've already notified about to avoid
+  // showing multiple update prompts (seen occurring 10-15 times in some cases)
+  private notifiedWorkerScriptURL: string | null = null;
 
   constructor(callbacks: PWAUpdateCallbacks = {}) {
     this.callbacks = callbacks;
@@ -88,10 +91,30 @@ class ServiceWorkerManager {
   }
 
   private handleWaiting(worker: ServiceWorker): void {
-    this.callbacks.onUpdate?.({
-      waiting: worker,
-      installing: this.registration?.installing || null
-    });
+    // Dedupe: only notify once per unique worker script URL
+    const scriptURL = worker.scriptURL;
+    // Extra global session guard (covers dev HMR + any accidental double event)
+    const w = window as any;
+    if (!w.__ASU_ERP_SW_NOTIFIED__) {
+      w.__ASU_ERP_SW_NOTIFIED__ = new Set<string>();
+    }
+
+    const notifiedSet: Set<string> = w.__ASU_ERP_SW_NOTIFIED__;
+
+    if (this.notifiedWorkerScriptURL === scriptURL || notifiedSet.has(scriptURL)) {
+      return; // already notified for this version in this tab
+    }
+
+    this.notifiedWorkerScriptURL = scriptURL;
+    notifiedSet.add(scriptURL);
+
+    // Small micro-delay to allow 'waiting' state stabilization (prevents race where installing triggers then waiting triggers quickly).
+    setTimeout(() => {
+      this.callbacks.onUpdate?.({
+        waiting: worker,
+        installing: this.registration?.installing || null
+      });
+    }, 50);
   }
 
   skipWaiting(): void {

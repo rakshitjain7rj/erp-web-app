@@ -135,6 +135,20 @@ const Navbar = () => {
 
             {menuOpen && (
               <div className="absolute right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg w-56 z-50 text-sm overflow-hidden">
+                {/* User Info Section */}
+                {user && (
+                  <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">
+                      {user.name || 'User'}
+                    </p>
+                    {user.email && (
+                      <p className="text-xs text-gray-500 dark:text-gray-300 truncate">{user.email}</p>
+                    )}
+                    <span className="inline-block mt-1 text-[11px] uppercase tracking-wide px-2 py-0.5 rounded bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 font-medium">
+                      {user.role}
+                    </span>
+                  </div>
+                )}
                 {getRoleOptions().length > 0 && (
                   <>
                     <p className="px-4 py-2 text-gray-500 dark:text-gray-300 font-medium">Switch Role</p>

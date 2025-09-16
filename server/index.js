@@ -165,6 +165,8 @@ const countProductRoutes = require('./routes/countProductRoutes');
 const dyeingFirmRoutes = require('./routes/dyeingFirmRoutes');
 const machineConfigRoutes = require('./routes/machineConfigurationRoutes');
 const userRoutes = require('./routes/user'); // <-- Users (RBAC & approvals)
+const { auth } = require('./middleware/authMiddleware');
+const managerReadOnly = require('./middleware/roleReadOnly');
 // const workOrderRoutes = require('./routes/workOrderRoutes');
 // const bomRoutes = require('./routes/bomRoutes');
 // const costingRoutes = require('./routes/costingRoutes');
@@ -217,6 +219,17 @@ app.use('/api/yarn', yarnProductionRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/count-products', countProductRoutes);
 app.use('/api/dyeing-firms', dyeingFirmRoutes);
+// Apply manager read-only enforcement for all subsequent API routes (requires token)
+app.use('/api', (req, res, next) => {
+  // Quick JWT extraction (reuse logic from auth middleware lightly to avoid double verify if already run)
+  if (!req.user) {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (token) {
+      try { req.user = require('jsonwebtoken').verify(token, process.env.JWT_SECRET); } catch (_) {}
+    }
+  }
+  managerReadOnly(req, res, next);
+});
 // Users (RBAC & approval workflow)
 app.use('/api/users', userRoutes);
 // Optional legacy alias without /api (warn & continue) – remove later when frontend stabilized

@@ -128,6 +128,9 @@ npm run preview
 - **Image Optimization**: Network-aware quality adjustment
 - **Cache Management**: Automatic cleanup of old caches
 
+### Update Notification Dedupe
+Previously, the service worker update confirmation dialog could appear repeatedly (10–15 times) due to multiple `updatefound` / `statechange` events triggering the `onUpdate` callback. A guard has been added in `src/utils/serviceWorker.ts` (`notifiedWorkerScriptURL`) to ensure the user is prompted only once per new service worker version (unique `scriptURL`). This prevents notification spam while still informing users when a fresh version is available.
+
 ## 🌟 PWA Quality Score
 
 Your ASU ERP PWA should achieve:
