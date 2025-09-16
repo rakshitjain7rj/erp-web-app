@@ -11,10 +11,7 @@ import {
   FaChartBar,
   FaWarehouse,
   FaClipboardList,
-  FaCogs,
-  FaFileInvoice,
   FaUsers,
-  FaTools,
   FaIndustry,
 } from "react-icons/fa";
 
@@ -54,20 +51,13 @@ const Navbar = () => {
   }, []);
 
   const getRoleOptions = () => {
-    const originalRole = user?.originalRole || user?.role;
-    if (originalRole === "admin") return ["admin", "manager", "storekeeper", "operator"];
-    if (originalRole === "manager") return ["manager", "storekeeper", "operator"];
-    if (originalRole === "operator") return ["operator"];
+    // Role switching removed in new RBAC model (superadmin/admin/manager)
     return [];
   };
 
-  const handleRoleChange = (selectedRole: string) => {
-    if (user) {
-      const updatedUser = { ...user, role: selectedRole };
-      login(updatedUser);
-      setMenuOpen(false);
-      navigate("/dashboard");
-    }
+  const handleRoleChange = (_selectedRole: string) => {
+    // Disabled
+    return;
   };
 
   const getInitials = () => {
@@ -80,19 +70,14 @@ const Navbar = () => {
     const { role } = user;
   const links: { to: string; label: string; icon: React.ReactNode }[] = [];
 
-    if (["admin", "manager", "storekeeper"].includes(role)) links.push({ to: "/dashboard", label: "Dashboard", icon: <FaChartBar /> });
-    if (["admin", "manager", "storekeeper"].includes(role)) links.push({ to: "/inventory", label: "Inventory", icon: <FaWarehouse /> });
-    if (["admin", "manager", "storekeeper"].includes(role)) links.push({ to: "/count-product-overview", label: "Count/Product Overview", icon: <FaClipboardList /> });
-  // BOM / Work Orders / Costing / Reports removed as per cleanup
-    if (["admin", "manager"].includes(role)) links.push({ to: "/dyeing-orders", label: "Dyeing Orders", icon: <FaClipboardList /> });
-  if (["admin", "manager"].includes(role)) links.push({ to: "/party-master", label: "Party Master", icon: <FaUsers /> });
-    
-    // Production Module
-  if (["admin", "manager", "operator"].includes(role)) links.push({ to: "/production/asu-unit-1", label: "ASU Unit 1", icon: <FaIndustry /> });
-  if (["admin", "manager", "operator"].includes(role)) links.push({ to: "/production/asu-unit-2", label: "ASU Unit 2", icon: <FaIndustry /> });
-    // ASU Machines link removed - functionality now integrated into ASU Unit 1 page
-    
-  // Admin-only links Users/Settings removed
+  if (["superadmin", "admin", "manager"].includes(role)) links.push({ to: "/dashboard", label: "Dashboard", icon: <FaChartBar /> });
+  if (["superadmin", "admin", "manager"].includes(role)) links.push({ to: "/inventory", label: "Inventory", icon: <FaWarehouse /> });
+  if (["superadmin", "admin", "manager"].includes(role)) links.push({ to: "/count-product-overview", label: "Count/Product Overview", icon: <FaClipboardList /> });
+  if (["superadmin", "admin"].includes(role)) links.push({ to: "/dyeing-orders", label: "Dyeing Orders", icon: <FaClipboardList /> });
+  if (["superadmin", "admin"].includes(role)) links.push({ to: "/party-master", label: "Party Master", icon: <FaUsers /> });
+  if (["superadmin", "admin", "manager"].includes(role)) links.push({ to: "/production/asu-unit-1", label: "ASU Unit 1", icon: <FaIndustry /> });
+  if (["superadmin", "admin", "manager"].includes(role)) links.push({ to: "/production/asu-unit-2", label: "ASU Unit 2", icon: <FaIndustry /> });
+  if (["superadmin", "admin"].includes(role)) links.push({ to: "/users", label: "Users", icon: <FaUsers /> });
 
     return (
       <ul className="mt-6 flex flex-col gap-3">
@@ -153,7 +138,7 @@ const Navbar = () => {
                 {getRoleOptions().length > 0 && (
                   <>
                     <p className="px-4 py-2 text-gray-500 dark:text-gray-300 font-medium">Switch Role</p>
-                    {getRoleOptions().map((r) => (
+                    {getRoleOptions().map((r: string) => (
                       <button
                         key={r}
                         onClick={() => handleRoleChange(r)}

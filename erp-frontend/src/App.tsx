@@ -17,6 +17,7 @@ import Unauthorized from "./pages/Unauthorized";
 
 // Core Pages
 import Dashboard from "./pages/Dashboard";
+import UsersPage from "./pages/UsersPage";
 import Inventory from "./pages/Inventory";
 // Removed unused pages: BOM, WorkOrders, Costing
 // Removed: Reports
@@ -111,7 +112,7 @@ const App = () => {
                 <Route
                   path="/dashboard"
                   element={
-                    <PrivateRoute roles={["admin", "manager", "storekeeper", "operator"]}>
+                    <PrivateRoute roles={["superadmin", "admin", "manager"]}>
                       <Dashboard />
                     </PrivateRoute>
                   }
@@ -119,7 +120,7 @@ const App = () => {
                 <Route
                   path="/inventory"
                   element={
-                    <PrivateRoute roles={["admin", "manager", "storekeeper"]}>
+                    <PrivateRoute roles={["superadmin", "admin", "manager"]}>
                       <Inventory />
                     </PrivateRoute>
                   }
@@ -131,7 +132,7 @@ const App = () => {
                 <Route
                   path="/dyeing-orders"
                   element={
-                    <PrivateRoute roles={["admin", "manager"]}>
+                    <PrivateRoute roles={["superadmin", "admin"]}>
                       <DyeingOrders />
                     </PrivateRoute>
                   }
@@ -139,7 +140,7 @@ const App = () => {
                 <Route
                   path="/party-master"
                   element={
-                    <PrivateRoute roles={["admin", "manager"]}>
+                    <PrivateRoute roles={["superadmin", "admin"]}>
                       <PartyMaster />
                     </PrivateRoute>
                   }
@@ -147,7 +148,7 @@ const App = () => {
                 <Route
                   path="/production/asu-unit-1"
                   element={
-                    <PrivateRoute roles={["admin", "manager", "operator"]}>
+                    <PrivateRoute roles={["superadmin", "admin", "manager"]}>
                       <ASUUnit1Page />
                     </PrivateRoute>
                   }
@@ -155,7 +156,7 @@ const App = () => {
                 <Route
                   path="/production/asu-unit-2"
                   element={
-                    <PrivateRoute roles={["admin", "manager", "operator"]}>
+                    <PrivateRoute roles={["superadmin", "admin", "manager"]}>
                       <ASUUnit2Page />
                     </PrivateRoute>
                   }
@@ -164,8 +165,16 @@ const App = () => {
                 <Route
                   path="/test/asu-auth"
                   element={
-                    <PrivateRoute roles={["admin", "manager", "operator"]}>
+                    <PrivateRoute roles={["superadmin", "admin", "manager"]}>
                       <ASUAuthTest />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/users"
+                  element={
+                    <PrivateRoute roles={["superadmin", "admin"]}>
+                      <UsersPage />
                     </PrivateRoute>
                   }
                 />

@@ -164,6 +164,7 @@ const inventoryRoutes = require('./routes/inventoryRoutes');
 const countProductRoutes = require('./routes/countProductRoutes');
 const dyeingFirmRoutes = require('./routes/dyeingFirmRoutes');
 const machineConfigRoutes = require('./routes/machineConfigurationRoutes');
+const userRoutes = require('./routes/user'); // <-- Users (RBAC & approvals)
 // const workOrderRoutes = require('./routes/workOrderRoutes');
 // const bomRoutes = require('./routes/bomRoutes');
 // const costingRoutes = require('./routes/costingRoutes');
@@ -216,6 +217,13 @@ app.use('/api/yarn', yarnProductionRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/count-products', countProductRoutes);
 app.use('/api/dyeing-firms', dyeingFirmRoutes);
+// Users (RBAC & approval workflow)
+app.use('/api/users', userRoutes);
+// Optional legacy alias without /api (warn & continue) – remove later when frontend stabilized
+app.use('/users', (req, res, next) => { 
+  console.warn('⚠️ Received users request without /api prefix. Consider updating frontend. Path:', req.path); 
+  next(); 
+}, userRoutes);
 // app.use('/api/workorders', workOrderRoutes);
 // app.use('/api/bom', bomRoutes);
 // app.use('/api/costings', costingRoutes);

@@ -25,14 +25,14 @@ const User = sequelize.define('User', {
     // Password is excluded by default in queries
     select: false,
   },  role: {
-    type: DataTypes.ENUM('admin', 'manager', 'storekeeper'),
+    type: DataTypes.ENUM('superadmin', 'admin', 'manager'),
     allowNull: false,
-    defaultValue: 'storekeeper',
+    defaultValue: 'manager',
   },
   status: {
-    type: DataTypes.ENUM('active', 'inactive'),
+    type: DataTypes.ENUM('active', 'inactive', 'pending'),
     allowNull: false,
-    defaultValue: 'active',
+    defaultValue: 'pending',
   },
   loginHistory: {
     type: DataTypes.TEXT, // Change from JSONB to TEXT to avoid casting issues
