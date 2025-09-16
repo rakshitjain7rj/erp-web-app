@@ -28,8 +28,13 @@ module.exports = {
             CREATE TYPE "enum_Users_role" AS ENUM('superadmin','admin','manager');
           END IF;
         END $$;`, { transaction });
-        // Normalize legacy values (storekeeper -> manager, any other -> manager)
-        await queryInterface.sequelize.query("UPDATE \"Users\" SET role='manager' WHERE role NOT IN ('superadmin','admin','manager');", { transaction });
+  // Normalize legacy values BEFORE touching the column type. At this moment the column still
+  // uses the OLD enum (which does NOT include 'superadmin'). Referencing a literal that is
+  // NOT part of the old enum (e.g. 'superadmin') would trigger: invalid input value for enum
+  // "enum_Users_role_old": "superadmin" because Postgres attempts to cast each literal in
+  // the NOT IN list to the enum type. We only need to collapse deprecated values like
+  // 'storekeeper' to 'manager'. So we deliberately avoid mentioning 'superadmin' here.
+  await queryInterface.sequelize.query("UPDATE \"Users\" SET role='manager' WHERE role NOT IN ('admin','manager');", { transaction });
         // Convert column temporarily to text if old type existed to avoid default casting issues
         await queryInterface.sequelize.query(`DO $$ BEGIN
           IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_Users_role_old') THEN

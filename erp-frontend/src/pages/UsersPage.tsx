@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Users as UsersIcon, Shield, Ban, Check, Edit2, Trash2, Search, Filter } from 'lucide-react';
+import { API_BASE_URL } from '../config/api';
 
 // Types
 export type Role = 'superadmin' | 'admin' | 'manager';
@@ -89,7 +90,8 @@ const UsersPage: React.FC = () => {
       if (roleFilter !== 'all') params.set('role', roleFilter);
       if (statusFilter !== 'all') params.set('status', statusFilter);
       const q = params.toString();
-      const res = await fetch(`/api/users${q ? `?${q}` : ''}`, { headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }});
+  // Use centralized API base to avoid relying on same-origin in production
+  const res = await fetch(`${API_BASE_URL}/users${q ? `?${q}` : ''}`.replace(/([^:]?)\/\/+/, '$1/'), { headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }});
       if (!res.ok) throw new Error('Failed to load users');
   const raw = await res.json();
   console.debug('[UsersPage] Raw users response:', raw);
@@ -133,7 +135,7 @@ const UsersPage: React.FC = () => {
   const updateStatus = async (target: UserRecord, status: 'active' | 'inactive') => {
     try {
       // Backend route: PATCH /api/users/:id
-      const res = await fetch(`/api/users/${target.id}`, {
+  const res = await fetch(`${API_BASE_URL}/users/${target.id}`.replace(/([^:]?)\/\/+/, '$1/'), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({ status })
@@ -145,7 +147,7 @@ const UsersPage: React.FC = () => {
 
   const approveUser = async (target: UserRecord, approved: boolean) => {
     try {
-      const res = await fetch(`/api/users/${target.id}/approve`, {
+  const res = await fetch(`${API_BASE_URL}/users/${target.id}/approve`.replace(/([^:]?)\/\/+/, '$1/'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({ approved })
@@ -158,7 +160,7 @@ const UsersPage: React.FC = () => {
   const deleteUser = async (target: UserRecord) => {
     if (!window.confirm('Delete user?')) return;
     try {
-      const res = await fetch(`/api/users/${target.id}`, {
+  const res = await fetch(`${API_BASE_URL}/users/${target.id}`.replace(/([^:]?)\/\/+/, '$1/'), {
         method: 'DELETE',
         headers: { ...getAuthHeaders() }
       });
