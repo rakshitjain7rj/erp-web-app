@@ -412,6 +412,13 @@ connectPostgres()
         }
         
         console.log('✅ Database setup complete');
+        // Ensure superadmin exists
+        try {
+          const { ensureSuperAdmin } = require('./utils/ensureSuperAdmin');
+          await ensureSuperAdmin();
+        } catch (e) {
+          console.warn('⚠️ ensureSuperAdmin failed:', e.message);
+        }
       } catch (error) {
         console.warn('⚠️ Database sync error:', error.message);
         console.warn('⚠️ Server will continue without full database sync');

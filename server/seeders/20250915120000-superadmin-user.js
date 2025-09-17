@@ -46,8 +46,8 @@ module.exports = {
       name,
       email,
       password: passwordHash, // Model field is 'password'
-      role: 'admin', // Using existing ENUM values. If 'superadmin' is desired, update the ENUM first.
-      status: 'active', // Using existing ENUM values.
+      role: 'superadmin',
+      status: 'active',
       createdAt: new Date(),
       updatedAt: new Date()
     }]);
