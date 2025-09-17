@@ -166,6 +166,29 @@ const authController = {
       success: true,
       message: 'Logout successful'
     });
+  }),
+
+  // Debug superadmin status (development only)
+  debugSuperAdmin: asyncHandler(async (req, res) => {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({ error: 'Not available in production' });
+    }
+    const email = (process.env.SUPERADMIN_EMAIL || '').toLowerCase().trim();
+    if (!email) {
+      return res.json({ configured: false, message: 'SUPERADMIN_EMAIL not set in env' });
+    }
+    let user = await User.findOne({ where: { email } });
+    if (!user) {
+      return res.json({ configured: true, exists: false, email });
+    }
+    return res.json({
+      configured: true,
+      exists: true,
+      email: user.email,
+      role: user.role,
+      status: user.status,
+      id: user.id
+    });
   })
 };
 
