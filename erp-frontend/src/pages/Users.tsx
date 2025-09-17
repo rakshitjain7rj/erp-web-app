@@ -130,18 +130,22 @@ const Users = () => {
                 <td className="p-3 border">{u.status}</td>
                 <td className="p-3 border">{format(new Date(u.createdAt), "dd MMM yyyy")}</td>
                 <td className="p-3 border space-x-2">
-                  <button onClick={() => handleRoleChange(u._id, u.role)} title="Toggle Role" className="text-blue-600 hover:underline">
-                    <ShieldCheck size={16} />
-                  </button>
-                  <button onClick={() => handleStatusToggle(u._id, u.status)} title="Toggle Status" className="text-yellow-600 hover:underline">
-                    <RefreshCw size={16} />
-                  </button>
-                  <button onClick={() => handleReset(u._id)} title="Reset Password" className="text-purple-600 hover:underline">
-                    <RefreshCw size={16} />
-                  </button>
-                  <button onClick={() => handleDelete(u._id)} title="Delete User" className="text-red-600 hover:underline">
-                    <Trash2 size={16} />
-                  </button>
+                  {(u.role !== 'superadmin') && (
+                    <>
+                      <button onClick={() => handleRoleChange(u._id, u.role)} title="Toggle Role" className="text-blue-600 hover:underline">
+                        <ShieldCheck size={16} />
+                      </button>
+                      <button onClick={() => handleStatusToggle(u._id, u.status)} title="Toggle Status" className="text-yellow-600 hover:underline">
+                        <RefreshCw size={16} />
+                      </button>
+                      <button onClick={() => handleReset(u._id)} title="Reset Password" className="text-purple-600 hover:underline">
+                        <RefreshCw size={16} />
+                      </button>
+                      <button onClick={() => handleDelete(u._id)} title="Delete User" className="text-red-600 hover:underline">
+                        <Trash2 size={16} />
+                      </button>
+                    </>
+                  )}
                 </td>
               </tr>
             ))}

@@ -80,9 +80,29 @@ exports.updateUser = async (req, res) => {
   try {
     const { id } = req.params;
     const { role, status } = req.body;
+    const target = await User.findByPk(id);
+    if (!target) return res.status(404).json({ error: 'User not found' });
 
-    await User.update({ role, status }, { where: { id } });
+    // Prevent changing role or status of a superadmin (except keep active)
+    if (target.role === 'superadmin') {
+      if (role && role !== 'superadmin') {
+        return res.status(400).json({ error: 'Cannot change role of a superadmin' });
+      }
+      if (status && status !== 'active') {
+        return res.status(400).json({ error: 'Cannot deactivate a superadmin' });
+      }
+    }
 
+    // Only include fields that are provided (avoid overwriting with undefined)
+    const updates = {};
+    if (typeof role !== 'undefined') updates.role = role;
+    if (typeof status !== 'undefined') updates.status = status;
+
+    if (Object.keys(updates).length === 0) {
+      return res.json(target); // nothing to update
+    }
+
+    await User.update(updates, { where: { id } });
     const updatedUser = await User.findByPk(id);
     res.json(updatedUser);
   } catch (err) {
@@ -95,6 +115,13 @@ exports.updateUser = async (req, res) => {
 exports.deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
+    const target = await User.findByPk(id);
+    if (!target) return res.status(404).json({ error: 'User not found' });
+
+    if (target.role === 'superadmin') {
+      return res.status(400).json({ error: 'Cannot delete a superadmin user' });
+    }
+
     await User.destroy({ where: { id } });
     res.json({ message: "User deleted" });
   } catch (err) {

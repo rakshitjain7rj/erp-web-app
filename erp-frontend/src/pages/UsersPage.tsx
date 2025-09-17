@@ -60,23 +60,26 @@ const UsersPage: React.FC = () => {
 
   const canEditDelete = (target: UserRecord) => {
     if (!user) return false;
+    if ((target.role as string) === 'superadmin') return false; // Protect superadmin
     if (user.role === 'superadmin') return true;
     if (user.role === 'admin') {
-      return target.role !== 'superadmin';
+      return (target.role as string) !== 'superadmin';
     }
     return false;
   };
 
   const canToggleStatus = (target: UserRecord) => {
     if (!user) return false;
+    if ((target.role as string) === 'superadmin') return false; // Protect superadmin
     if (user.role === 'superadmin') return true;
-    if (user.role === 'admin' && target.role !== 'superadmin') return true;
+    if (user.role === 'admin' && (target.role as string) !== 'superadmin') return true;
     return false;
   };
 
   const canApprove = (target: UserRecord) => {
     if (!user) return false;
     if (target.status !== 'pending') return false;
+    if ((target.role as string) === 'superadmin') return false; // Shouldn't approve superadmin here
     if (user.role === 'superadmin') return true;
     if (user.role === 'admin' && (target.role === 'manager' || target.role === 'admin')) return true;
     return false;
