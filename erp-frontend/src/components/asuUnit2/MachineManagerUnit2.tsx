@@ -91,10 +91,10 @@ const MachineManagerUnit2: React.FC = () => {
         savedAt: new Date().toISOString(),
         isActive: true
       } as any;
-      if (configs.length === 0 || ['count','yarnType','spindles','speed','productionAt100'].some(k => String((configs[0] as any)[k]) !== String((currentEntry as any)[k]))) {
+      if (configs.length === 0 || ['count', 'yarnType', 'spindles', 'speed', 'productionAt100'].some(k => String((configs[0] as any)[k]) !== String((currentEntry as any)[k]))) {
         configs.unshift(currentEntry);
       }
-      configs.sort((a,b)=> new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      configs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setConfigurations(configs);
     } finally { setLoading(false); }
   }, [selectedMachine]);
@@ -138,9 +138,9 @@ const MachineManagerUnit2: React.FC = () => {
       const history: any[] = JSON.parse(localStorage.getItem(historyKey) || '[]');
       history.push({ ...machine, savedAt: new Date().toISOString() });
       localStorage.setItem(historyKey, JSON.stringify(history));
-    } catch {}
+    } catch { }
   };
-  const configsDiffer = (a: ASUMachine, b: EditingMachine) => ['count','yarnType','spindles','speed','productionAt100','machineName','machineNo'].some(k => String((a as any)[k]) !== String((b as any)[k]));
+  const configsDiffer = (a: ASUMachine, b: EditingMachine) => ['count', 'yarnType', 'spindles', 'speed', 'productionAt100', 'machineName', 'machineNo'].some(k => String((a as any)[k]) !== String((b as any)[k]));
 
   const handleSaveEdit = async () => {
     if (!editingMachine) return;
@@ -195,7 +195,7 @@ const MachineManagerUnit2: React.FC = () => {
   return (
     <>
       {/* Add Machine Modal (reusing Unit 1 modal) */}
-      <MachineFormModal 
+      <MachineFormModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         onSubmit={handleMachineCreate}
@@ -203,7 +203,7 @@ const MachineManagerUnit2: React.FC = () => {
         title="Add New Machine (Unit 2)"
       />
 
-  <div className="overflow-hidden bg-white border border-gray-200 shadow-sm dark:bg-gray-800 dark:border-gray-700 rounded-lg">
+      <div className="overflow-hidden bg-white border border-gray-200 shadow-sm dark:bg-gray-800 dark:border-gray-700 rounded-lg">
         <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-medium text-gray-900 dark:text-gray-100">Machine List (Unit 2)</h2>
@@ -333,7 +333,7 @@ const MachineManagerUnit2: React.FC = () => {
                             </>
                           ) : (
                             <>
-                              <Button size="sm" onClick={(e) => { e.stopPropagation(); handleEdit(machine); }} className="p-1 text-indigo-700 rounded-md bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-800/50 dark:text-indigo-300"><Edit className="w-4 h-4" /></Button>
+                              <Button size="sm" onClick={(e) => { e.stopPropagation(); handleEdit(machine); }} className="p-1 text-white rounded-md bg-indigo-600 hover:bg-indigo-700 border border-indigo-700 dark:bg-indigo-900/70 dark:hover:bg-indigo-800 dark:text-indigo-200"><Edit className="w-4 h-4" /></Button>
                               <Button size="sm" onClick={(e) => { e.stopPropagation(); handleDelete(machine.id); }} className="p-1 text-white rounded-md bg-red-600 hover:bg-red-700 border border-red-700 dark:bg-red-900/70 dark:hover:bg-red-800 dark:text-red-200"><Trash2 className="w-4 h-4" /></Button>
                             </>
                           )}

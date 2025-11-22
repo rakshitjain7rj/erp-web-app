@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react"; 
+import React, { useEffect, useState, useCallback } from "react";
 import {
   getAllDyeingRecords,
   deleteDyeingRecord,
@@ -60,38 +60,38 @@ const DyeingOrders: React.FC = () => {
 
   useEffect(() => {
     let unmounted = false;
-    
+
     const initializeStoreAndSubscribe = async () => {
       try {
         // Initialize store first
         await dyeingDataStore.init();
-        
+
         if (unmounted) return;
-        
+
         // Subscribe to store updates
         const unsubscribeFirms = await dyeingDataStore.subscribeFirms((firms) => {
           if (unmounted) return;
           setCentralizedDyeingFirms(firms);
         });
-        
+
         const unsubscribeRecords = await dyeingDataStore.subscribeRecords((records) => {
           if (unmounted) return;
           setRecords(records);
           setDyeingRecords(records);
         });
-        
+
         // Fetch count products to show cross-page data
         fetchCountProducts();
-        
+
         // Store cleanup functions
         return () => {
           unsubscribeFirms();
           unsubscribeRecords();
         };
-        
+
       } catch (error) {
         console.error('Store initialization failed:', error);
-        
+
         // FALLBACK: Even if store fails, try to fetch count products
         try {
           await fetchCountProducts();
@@ -100,9 +100,9 @@ const DyeingOrders: React.FC = () => {
         }
       }
     };
-    
+
     let cleanupPromise = initializeStoreAndSubscribe();
-    
+
     return () => {
       unmounted = true;
       cleanupPromise.then(cleanup => {
@@ -118,24 +118,24 @@ const DyeingOrders: React.FC = () => {
 
     const fastRefresh = async () => {
       if (isRefreshing) return; // Prevent multiple simultaneous refreshes
-      
+
       isRefreshing = true;
       try {
         // Parallel data loading for maximum speed - only refresh if needed
         const refreshPromises: Promise<any>[] = [];
-        
+
         // Check if data is stale before refreshing
         const lastRefresh = localStorage.getItem('lastDyeingRefresh');
         const now = Date.now();
         const staleThreshold = 500; // 500ms threshold for staleness
-        
+
         if (!lastRefresh || (now - parseInt(lastRefresh)) > staleThreshold) {
           refreshPromises.push(
             dyeingDataStore.loadRecords(true),
             dyeingDataStore.loadFirms(true),
             fetchCountProducts()
           );
-          
+
           await Promise.all(refreshPromises);
           localStorage.setItem('lastDyeingRefresh', now.toString());
           setRefreshKey(prev => prev + 1);
@@ -150,7 +150,7 @@ const DyeingOrders: React.FC = () => {
     // Smart one-time initial load - check if we need to load data
     const lastLoadKey = `dyeingOrdersLastLoad_${new Date().toDateString()}`;
     const hasLoadedToday = localStorage.getItem(lastLoadKey);
-    
+
     if (!hasLoadedToday) {
       console.log('🚀 First load of the day - performing initial data load...');
       fastRefresh();
@@ -183,46 +183,46 @@ const DyeingOrders: React.FC = () => {
         originalRemarks: ""
       };
     }
-    
+
     const received = remarks.match(/Received: ([\d.]+)kg/)?.[1];
     const receivedDate = remarks.match(/Received: [\d.]+kg on ([\d-]+)/)?.[1];
     const dispatched = remarks.match(/Dispatched: ([\d.]+)kg/)?.[1];
     const dispatchDate = remarks.match(/Dispatched: [\d.]+kg on ([\d-]+)/)?.[1];
     const middleman = remarks.match(/Middleman: ([^|]+)/)?.[1]?.trim();
     const originalQty = remarks.match(/OriginalQty: ([\d.]+)kg/)?.[1];
-    
+
     // ENHANCED: Handle multiple entries by taking the LAST value
     const allReceivedMatches = remarks.match(/Received: ([\d.]+)kg/g);
     const allDispatchedMatches = remarks.match(/Dispatched: ([\d.]+)kg/g);
     const allOriginalQtyMatches = remarks.match(/OriginalQty: ([\d.]+)kg/g);
-    
+
     let finalReceived = received;
     let finalDispatched = dispatched;
     let finalOriginalQty = originalQty;
-    
+
     // If there are multiple entries, take the last one
     if (allReceivedMatches && allReceivedMatches.length > 1) {
       const lastReceivedMatch = allReceivedMatches[allReceivedMatches.length - 1];
       finalReceived = lastReceivedMatch.match(/Received: ([\d.]+)kg/)?.[1];
       console.log('🔍 Multiple received entries found, using last:', finalReceived);
     }
-    
+
     if (allDispatchedMatches && allDispatchedMatches.length > 1) {
       const lastDispatchedMatch = allDispatchedMatches[allDispatchedMatches.length - 1];
       finalDispatched = lastDispatchedMatch.match(/Dispatched: ([\d.]+)kg/)?.[1];
       console.log('🔍 Multiple dispatched entries found, using last:', finalDispatched);
     }
-    
+
     if (allOriginalQtyMatches && allOriginalQtyMatches.length > 1) {
       const lastOriginalQtyMatch = allOriginalQtyMatches[allOriginalQtyMatches.length - 1];
       finalOriginalQty = lastOriginalQtyMatch.match(/OriginalQty: ([\d.]+)kg/)?.[1];
       console.log('🔍 Multiple original quantity entries found, using last:', finalOriginalQty);
     }
-    
+
     // Extract original remarks (everything before ANY tracking info)
     const trackingPattern = / \| (Received:|Dispatched:|Middleman:|OriginalQty:)/;
     const originalRemarks = remarks.split(trackingPattern)[0] || remarks;
-    
+
     const trackingInfo = {
       received: finalReceived !== undefined ? parseFloat(finalReceived) : undefined,
       receivedDate: receivedDate || undefined,
@@ -232,21 +232,21 @@ const DyeingOrders: React.FC = () => {
       originalQuantity: finalOriginalQty !== undefined ? parseFloat(finalOriginalQty) : undefined,
       originalRemarks
     };
-    
+
     console.log('🔍 Parsed tracking info:', trackingInfo);
     return trackingInfo;
   };
 
-// ================= MAPPING FUNCTION =================
+  // ================= MAPPING FUNCTION =================
   const mapToSimplifiedDisplay = (record: DyeingRecord): SimplifiedDyeingDisplayRecord => {
     console.log('🔄 Mapping record to simplified display:', record.id);
     console.log('📋 Raw record data:', record);
-    
+
     const trackingInfo = parseTrackingInfo(record.remarks);
-    
+
     // PRESERVE USER INPUT: Show customer name exactly as user entered it
     let customerName = record.customerName || "Unknown Customer";
-    
+
     const mappedRecord = {
       id: record.id,
       quantity: trackingInfo.originalQuantity || record.quantity, // Use original quantity if available, otherwise use record quantity
@@ -262,7 +262,7 @@ const DyeingOrders: React.FC = () => {
       dyeingFirm: record.dyeingFirm,
       remarks: trackingInfo.originalRemarks || record.remarks
     };
-    
+
     console.log('✅ Mapped simplified record:', mappedRecord);
     console.log('✅ Customer name preserved as:', record.customerName);
     console.log('✅ Mapped quantity (original):', mappedRecord.quantity);
@@ -277,15 +277,15 @@ const DyeingOrders: React.FC = () => {
   const mapCountProductToSimplifiedDisplay = (countProduct: CountProduct): SimplifiedDyeingDisplayRecord => {
     // PRESERVE USER INPUT: Show customer name exactly as user entered it
     let customerName = countProduct.customerName;
-    
+
     // DEBUG: Log customer name details
     console.log(`🔍 Mapping CountProduct ID ${countProduct.id}: customerName="${customerName}"`);
-    
+
     const mappedRecord = {
       id: countProduct.id,
       quantity: countProduct.quantity,
       customerName: customerName, // Use the exact customer name from user input
-      count: countProduct.count || "Standard", 
+      count: countProduct.count || "Standard",
       sentToDye: countProduct.sentToDye ? (countProduct.sentQuantity ?? countProduct.quantity) : 0,
       sentDate: countProduct.sentDate,
       received: countProduct.received ? countProduct.receivedQuantity : undefined,
@@ -296,31 +296,26 @@ const DyeingOrders: React.FC = () => {
       dyeingFirm: countProduct.dyeingFirm,
       remarks: countProduct.remarks || ''
     };
-    
+
     console.log('✅ [CountProduct] Mapped with preserved customer name:', countProduct.customerName);
     return mappedRecord;
   };
-// ================= FETCH COUNT PRODUCTS =================
+  // ================= FETCH COUNT PRODUCTS =================
   const fetchCountProducts = async () => {
     try {
-  const directResponse = await fetch(`${import.meta.env.VITE_API_URL}/count-products`);
-      
-      if (directResponse.ok) {
-        const directData = await directResponse.json();
-        
-        if (directData.success && directData.data && Array.isArray(directData.data)) {
-          const products = directData.data;
-          
-          // Set the products directly
-          setCountProducts(products);
-          localStorage.setItem('countProducts', JSON.stringify(products));
-          localStorage.setItem('countProductsTimestamp', Date.now().toString());
-          
-          return; // Success - exit early
-        }
+      // Use the authenticated API client instead of plain fetch
+      const products = await getAllCountProducts();
+
+      if (products && Array.isArray(products)) {
+        // Set the products directly
+        setCountProducts(products);
+        localStorage.setItem('countProducts', JSON.stringify(products));
+        localStorage.setItem('countProductsTimestamp', Date.now().toString());
+
+        return; // Success - exit early
       }
-      
-      // If direct API failed, try cached data as fallback
+
+      // If API returned invalid data, try cached data as fallback
       const cached = localStorage.getItem('countProducts');
       if (cached) {
         try {
@@ -333,7 +328,7 @@ const DyeingOrders: React.FC = () => {
           console.warn('Failed to parse cached data');
         }
       }
-      
+
     } catch (error) {
       console.error('Failed to fetch count products:', error);
       // Try cached data as last resort
@@ -367,12 +362,12 @@ const DyeingOrders: React.FC = () => {
             count: updatedProducts.length,
             source: 'storage-event'
           });
-          
+
           setCountProducts(updatedProducts);
           setRefreshKey(prev => prev + 1);
-          
+
           console.log('✅ [DyeingOrders] Storage sync completed');
-          
+
         } catch (error) {
           console.error('❌ [DyeingOrders] Failed to parse countProducts from storage change:', error);
         }
@@ -381,7 +376,7 @@ const DyeingOrders: React.FC = () => {
 
     // Listen for storage changes from other tabs/pages
     window.addEventListener('storage', handleStorageChange);
-    
+
     // Also listen for custom events (for same-page updates)
     const handleCustomSync = (e: CustomEvent) => {
       if (e.detail && e.detail.countProducts) {
@@ -392,10 +387,10 @@ const DyeingOrders: React.FC = () => {
           timestamp: e.detail.timestamp,
           demoMode: e.detail.demoMode
         });
-        
+
         setCountProducts(e.detail.countProducts);
         setRefreshKey(prev => prev + 1);
-        
+
         console.log('✅ [DyeingOrders] Custom sync completed');
       }
     };
@@ -409,10 +404,10 @@ const DyeingOrders: React.FC = () => {
           updateData: e.detail.updateData,
           timestamp: e.detail.timestamp
         });
-        
+
         setDyeingRecords(e.detail.dyeingRecords);
         setRefreshKey(prev => prev + 1);
-        
+
         console.log('✅ [DyeingOrders] Dyeing records sync completed');
       }
     };
@@ -474,7 +469,7 @@ const DyeingOrders: React.FC = () => {
       r.lot.toLowerCase().includes(query) ||
       r.count.toLowerCase().includes(query);
 
-  const matchesStatus = true;
+    const matchesStatus = true;
     const matchesFirm = firmFilter ? nk(r.dyeingFirm) === nk(firmFilter) : true;
     const matchesParty = partyFilter ? nk(r.partyName) === nk(partyFilter) : true;
 
@@ -553,7 +548,7 @@ const DyeingOrders: React.FC = () => {
   // Group count products by count for cross-page display - make reactive with useMemo
   const completeCountListing = React.useMemo(() => {
     console.log('🔄 [DyeingOrders] Recalculating completeCountListing with countProducts:', countProducts.length);
-    
+
     const groupedCountProductsByCount = filteredCountProducts.reduce((acc, product) => {
       const key = normalizeCount(product.count || 'Standard');
       if (!acc[key]) acc[key] = [];
@@ -562,7 +557,7 @@ const DyeingOrders: React.FC = () => {
     }, {} as Record<string, CountProduct[]>);
     // Display names from count products (fallbacks if none from records)
     const countDisplayNameFromProducts: Record<string, string> = {};
-  filteredCountProducts.forEach((p) => {
+    filteredCountProducts.forEach((p) => {
       const key = normalizeCount(p.count || 'Standard');
       if (!countDisplayNameFromProducts[key]) {
         countDisplayNameFromProducts[key] = getDisplayCount(p.count);
@@ -581,10 +576,10 @@ const DyeingOrders: React.FC = () => {
         const dyeingRecords = groupedByCount[key] || [];
         const countProductsForCount = groupedCountProductsByCount[key] || [];
         const displayName = countDisplayNameFromRecords[key] || countDisplayNameFromProducts[key] || 'Standard';
-        
+
         // Combine both dyeing records and count products for display
         const hasData = dyeingRecords.length > 0 || countProductsForCount.length > 0;
-        
+
         return {
           name: displayName, // Friendly display name
           records: dyeingRecords,
@@ -609,11 +604,11 @@ const DyeingOrders: React.FC = () => {
   // Debug: Log count group listing construction
   console.log('🔍 [DyeingOrders] completeCountListing constructed:', {
     completeCountListingCount: completeCountListing.length,
-    completeCountListingNames: completeCountListing.map(c => ({ 
-      countValue: c.name, 
-      dyeingRecords: c.records.length, 
+    completeCountListingNames: completeCountListing.map(c => ({
+      countValue: c.name,
+      dyeingRecords: c.records.length,
       countProducts: c.countProducts.length,
-      hasData: c.hasData 
+      hasData: c.hasData
     })),
     timestamp: new Date().toISOString()
   });
@@ -638,56 +633,56 @@ const DyeingOrders: React.FC = () => {
     console.log('🖊️ handleEdit called with record:', record);
     console.log('🆔 Record ID:', record.id);
     console.log('🔍 Record type:', typeof record.id);
-    
+
     const trackingInfo = parseTrackingInfo(record.remarks);
-    
+
     console.log('📝 [EDIT] Parsing remarks for edit form:', record.remarks);
     console.log('📝 [EDIT] Extracted tracking info:', trackingInfo);
     console.log('📝 [EDIT] Received value for form:', trackingInfo.received);
     console.log('📝 [EDIT] Dispatch value for form:', trackingInfo.dispatch);
     console.log('📝 [EDIT] Original quantity from tracking:', trackingInfo.originalQuantity);
-    
+
     // Determine the correct quantity values for form fields
     // If no original quantity is stored in remarks, both fields will initially show the same value
     // but the user can edit them separately in the form
     const originalQuantity = trackingInfo.originalQuantity !== undefined ? trackingInfo.originalQuantity : record.quantity;
     const sentToDye = record.quantity; // What was actually sent (stored as main quantity in DB)
-    
+
     console.log('📝 [EDIT] Setting quantity field to (original):', originalQuantity);
     console.log('📝 [EDIT] Setting sentToDye field to (actual sent):', sentToDye);
     console.log('📝 [EDIT] Are they the same?', originalQuantity === sentToDye);
     console.log('📝 [EDIT] Has originalQuantity in remarks?', trackingInfo.originalQuantity !== undefined);
-    
+
     // Convert DyeingRecord to SimplifiedDyeingOrderForm format with all fields properly mapped
     const simplifiedOrder = {
       // Include the record ID for editing
       id: record.id,
-      
+
       // Basic fields from API - CORRECTED FIELD MAPPINGS
       quantity: originalQuantity, // Use original quantity for the quantity field
       customerName: record.customerName,
       sentToDye: sentToDye, // Use actual sent quantity (what's stored in record.quantity)
       sentDate: record.sentDate,
       dyeingFirm: record.dyeingFirm,
-      
+
       // Tracking info parsed from remarks
       received: trackingInfo.received || 0,
       receivedDate: trackingInfo.receivedDate || '',
       dispatch: trackingInfo.dispatch || 0,
       dispatchDate: trackingInfo.dispatchDate || '',
       partyName: trackingInfo.partyNameMiddleman || 'Direct Supply', // This is the middleman/party
-      
+
       // Technical fields for API
       yarnType: record.yarnType,
       shade: record.shade,
       count: record.count,
       lot: record.lot,
       expectedArrivalDate: record.expectedArrivalDate,
-      
+
       // Clean remarks without tracking info
       remarks: trackingInfo.originalRemarks,
     };
-    
+
     console.log('📝 Edit record - Original:', record);
     console.log('📝 Edit record - Parsed tracking info:', trackingInfo);
     console.log('📝 Edit record - Simplified order for form:', simplifiedOrder);
@@ -696,7 +691,7 @@ const DyeingOrders: React.FC = () => {
     console.log('📝 Final form sentToDye (actual sent):', simplifiedOrder.sentToDye);
     console.log('📝 Form will show same values?', simplifiedOrder.quantity === simplifiedOrder.sentToDye);
     console.log('🔍 Final simplified order ID type:', typeof simplifiedOrder.id);
-    
+
     setOrderToEdit(simplifiedOrder);
     setIsFormOpen(true);
   };
@@ -715,23 +710,23 @@ const DyeingOrders: React.FC = () => {
           console.warn('⚠️ Failed to ensure firm in store:', error);
         }
       }
-      
+
       console.log("🎯 Order operation completed successfully:", orderData);
       console.log("🎯 Is editing mode:", !!orderToEdit);
       console.log("🎯 Order ID (if editing):", orderToEdit?.id);
-      
+
       // AGGRESSIVE: Clear all cached data and force complete reload
       console.log('🔥 AGGRESSIVE REFRESH - Clearing all caches...');
       localStorage.removeItem('dyeingData');
       localStorage.removeItem('dyeingFirms');
       localStorage.removeItem('lastDyeingDataTimestamp');
       localStorage.removeItem('lastDyeingFirmsTimestamp');
-      
+
       // Force reload from API with cache bypass
       console.log('🔄 Force reloading data from store with cache bypass...');
       await dyeingDataStore.loadRecords(true);
       await dyeingDataStore.loadFirms(true);
-      
+
       // CRITICAL: Also refresh count products so count-based grouping reflects edits
       try {
         console.log('🔄 Also fetching latest count products for regrouping...');
@@ -739,29 +734,29 @@ const DyeingOrders: React.FC = () => {
       } catch (cpErr) {
         console.warn('⚠️ Failed to refresh count products after order update:', cpErr);
       }
-      
+
       console.log('✅ Store data refreshed aggressively');
-      
+
       // Close the form and clear edit state
       setIsFormOpen(false);
       setOrderToEdit(null);
-      
+
       // Force UI refresh with timestamp to ensure re-render
       const newRefreshKey = Date.now();
       setRefreshKey(newRefreshKey);
-      
+
       console.log('🎯 Form closed and edit state cleared, refresh key:', newRefreshKey);
-      
+
       // Show success message with edit-specific information
       const actionType = orderData?.action || (orderToEdit ? 'updated' : 'created');
-      const message = orderToEdit 
-        ? `Order #${orderToEdit.id} updated successfully! Party/middleman changes are now visible.` 
+      const message = orderToEdit
+        ? `Order #${orderToEdit.id} updated successfully! Party/middleman changes are now visible.`
         : `Order ${actionType} successfully! Data synchronized across all pages.`;
-        
+
       toast.success(message, {
         duration: 3000,
       });
-      
+
       // Additional debug: Log current data state after refresh
       setTimeout(() => {
         console.log('🔍 Post-refresh data check:');
@@ -772,7 +767,7 @@ const DyeingOrders: React.FC = () => {
           console.log('👥 Updated partyNameMiddleman:', (updatedRecord as any)?.partyNameMiddleman);
         }
       }, 1000);
-      
+
     } catch (error) {
       console.error("Failed to refresh data after order operation:", error);
       toast.error("Order operation completed but failed to refresh data. Please try again.");
@@ -781,31 +776,31 @@ const DyeingOrders: React.FC = () => {
 
   const handleDelete = async (record: DyeingRecord) => {
     console.log('🗑️ Delete button clicked for record:', record.id, record.partyName);
-    
+
     const confirmed = window.confirm(`Are you sure you want to delete order for ${record.partyName}?`);
     console.log('💭 Confirmation result:', confirmed);
-    
+
     if (!confirmed) {
       console.log('❌ Delete cancelled by user');
       return;
     }
-    
+
     try {
       console.log('🔄 Attempting to delete record with ID:', record.id);
-      
+
       await deleteDyeingRecord(record.id);
       console.log('✅ Record deleted successfully from API');
-      
+
       toast.success("Record deleted successfully!");
-      
+
       // Refresh the records list using store
       console.log('🔄 Refreshing records list...');
       await dyeingDataStore.loadRecords(true);
       console.log('✅ Records list refreshed');
-      
+
     } catch (error: any) {
       console.error("❌ Delete failed:", error);
-      
+
       // Show more detailed error message
       const errorMessage = error?.response?.data?.message || error?.message || "Unknown error occurred";
       toast.error(`Failed to delete record: ${errorMessage}`);
@@ -825,17 +820,17 @@ const DyeingOrders: React.FC = () => {
 
   const selectAllItems = () => {
     const allItemIds = new Set<string>();
-    
+
     // Add all dyeing records
     dyeingRecords.forEach((record) => {
       allItemIds.add(`dyeing-${record.id}`);
     });
-    
+
     // Add all count products
     countProducts.forEach((product) => {
       allItemIds.add(`countProduct-${product.id}`);
     });
-    
+
     setSelectedItems(allItemIds);
   };
 
@@ -859,12 +854,12 @@ const DyeingOrders: React.FC = () => {
 
     try {
       const deletePromises: Promise<void>[] = [];
-      
+
       // Process selected items
       selectedItems.forEach(itemId => {
         const [type, id] = itemId.split('-');
         const numericId = parseInt(id);
-        
+
         if (type === 'dyeing') {
           deletePromises.push(deleteDyeingRecord(numericId));
         } else if (type === 'countProduct') {
@@ -874,17 +869,17 @@ const DyeingOrders: React.FC = () => {
 
       // Execute all deletions
       await Promise.all(deletePromises);
-      
+
       toast.success(`Successfully deleted ${selectedItems.size} item(s)`);
-      
+
       // Clear selection and refresh data
       setSelectedItems(new Set());
       setIsMultiDeleteMode(false);
-      
+
       // Refresh the records list using store
       await dyeingDataStore.loadRecords(true);
       fetchCountProducts();
-      
+
     } catch (error: any) {
       console.error("❌ Multiple delete failed:", error);
       const errorMessage = error?.response?.data?.message || error?.message || "Unknown error occurred";
@@ -924,10 +919,10 @@ const DyeingOrders: React.FC = () => {
   // Count Product Update Quantities functionality - matches CountProductOverview behavior
   const handleCountProductUpdateQuantities = async (id: number) => {
     console.log('Count Product Update Quantities called for ID:', id);
-    
+
     const recordToUpdate = countProducts.find(cp => cp.id === id);
     console.log('Found Count Product Record:', recordToUpdate);
-    
+
     if (!recordToUpdate) {
       toast.error('Count Product record not found!');
       return;
@@ -948,21 +943,21 @@ const DyeingOrders: React.FC = () => {
   const handleUpdateQuantities = (record: DyeingRecord) => {
     console.log('🎯 [DYEING] handleUpdateQuantities called for record:', record.id);
     console.log('🎯 [DYEING] Raw record data:', record);
-    
+
     try {
       // Set edit values directly from record, same pattern as CountProductOverview
       setEditingRecordId(record.id);
-      
+
       const newEditValues = {
         quantity: record.quantity || 0,
         receivedQuantity: 0,  // Default to 0 since DyeingRecord doesn't have this field
         dispatchQuantity: 0,  // Default to 0 since DyeingRecord doesn't have this field
         sentQuantity: record.quantity || 0  // Use record.quantity as sent quantity
       };
-      
+
       setEditValues(newEditValues);
       toast.info("Edit mode activated. Update quantities and save changes.");
-      
+
     } catch (error) {
       console.error('❌ [DYEING] Error in handleUpdateQuantities:', error);
       toast.error("Failed to activate edit mode");
@@ -973,15 +968,15 @@ const DyeingOrders: React.FC = () => {
     console.log('🔄 [DYEING] handleSaveQuantities called for record ID:', record.id);
     console.log('📋 [DYEING] Current editValues:', editValues);
     console.log('⚡ [DYEING] Current isSaving state:', isSaving);
-    
+
     if (isSaving) {
       console.log('⏳ [DYEING] Save already in progress, ignoring duplicate call');
       return;
     }
-    
+
     try {
       setIsSaving(true);
-      
+
       // MINIMAL VALIDATION FOR TESTING - same as CountProductOverview
       if (editValues.quantity <= 0) {
         console.log('❌ [DYEING] Validation failed: quantity <= 0');
@@ -1012,16 +1007,16 @@ const DyeingOrders: React.FC = () => {
       console.log('✅ [DYEING] Record updated successfully via API');
 
       // Update local state - merge the edit values with the updated record
-      const updatedRecords = dyeingRecords.map(r => 
-        r.id === record.id 
-          ? { 
-              ...r, 
-              quantity: editValues.quantity,
-              receivedQuantity: editValues.receivedQuantity || 0,
-              received: (editValues.receivedQuantity || 0) > 0,
-              dispatchQuantity: editValues.dispatchQuantity || 0,
-              dispatch: (editValues.dispatchQuantity || 0) > 0
-            }
+      const updatedRecords = dyeingRecords.map(r =>
+        r.id === record.id
+          ? {
+            ...r,
+            quantity: editValues.quantity,
+            receivedQuantity: editValues.receivedQuantity || 0,
+            received: (editValues.receivedQuantity || 0) > 0,
+            dispatchQuantity: editValues.dispatchQuantity || 0,
+            dispatch: (editValues.dispatchQuantity || 0) > 0
+          }
           : r
       );
       setDyeingRecords(updatedRecords);
@@ -1034,9 +1029,9 @@ const DyeingOrders: React.FC = () => {
 
       // Cross-page synchronization - same events as CountProductOverview
       console.log('📡 [DYEING] Dispatching cross-page sync events...');
-      
-      window.dispatchEvent(new CustomEvent('dyeingRecordsUpdated', { 
-        detail: { 
+
+      window.dispatchEvent(new CustomEvent('dyeingRecordsUpdated', {
+        detail: {
           dyeingRecords: updatedRecords,
           updatedRecordId: record.id,
           updateData: {
@@ -1045,9 +1040,9 @@ const DyeingOrders: React.FC = () => {
             dispatchQuantity: editValues.dispatchQuantity || 0
           },
           timestamp: Date.now()
-        } 
+        }
       }));
-      
+
       window.dispatchEvent(new CustomEvent('storage', {
         detail: {
           key: 'dyeingRecords',
@@ -1055,16 +1050,16 @@ const DyeingOrders: React.FC = () => {
           timestamp: Date.now()
         }
       }));
-      
+
       console.log('📡 [DYEING] Cross-page sync events dispatched successfully');
 
       // Exit edit mode
       setEditingRecordId(null);
       setEditValues({ quantity: 0, receivedQuantity: 0, dispatchQuantity: 0, sentQuantity: 0 });
-      
+
       toast.success("Quantities updated successfully!");
       console.log('🎉 [DYEING] Save completed successfully');
-      
+
     } catch (error) {
       console.error('❌ [DYEING] Error saving quantities:', error);
       toast.error("Failed to update quantities");
@@ -1085,12 +1080,12 @@ const DyeingOrders: React.FC = () => {
   };
 
   // CountProduct action handlers - synchronized with CountProductOverview
-  
+
   // Debug function to inspect the current state of count products
   const inspectCountProductsState = () => {
     console.log('🔍 [DyeingOrders] INSPECTING CURRENT COUNT PRODUCTS STATE');
     console.log('Total count products:', countProducts.length);
-    
+
     countProducts.forEach((product, index) => {
       console.log(`Product ${index + 1} (ID: ${product.id}):`, {
         customerName: product.customerName,
@@ -1152,13 +1147,13 @@ const DyeingOrders: React.FC = () => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
-    
+
     console.log('🧪 [DyeingOrders] Creating test product with distinct values:', {
       customerName: testProduct.customerName,
       partyName: testProduct.partyName,
       middleman: testProduct.middleman
     });
-    
+
     const updatedProducts = [...countProducts, testProduct];
     setCountProducts(updatedProducts);
     localStorage.setItem('countProducts', JSON.stringify(updatedProducts));
@@ -1177,19 +1172,19 @@ const DyeingOrders: React.FC = () => {
         middleman: product.middleman,
         quantity: product.quantity
       });
-      
+
       // ULTRA-AGGRESSIVE FIX: Force customer name distinction before passing to edit form
       const fixedProduct = {
         ...product,
-        customerName: product.customerName === product.partyName ? 
-          `Customer: ${product.customerName}` : 
+        customerName: product.customerName === product.partyName ?
+          `Customer: ${product.customerName}` :
           product.customerName
       };
-      
+
       if (fixedProduct.customerName !== product.customerName) {
         console.log('🔧 FORCED CUSTOMER NAME FOR EDIT FORM:', product.customerName, '→', fixedProduct.customerName);
       }
-      
+
       setCountProductToEdit(fixedProduct);
       setIsCountProductEditModalOpen(true);
       setSelectedRecord(null); // Clear any dyeing record selection
@@ -1212,7 +1207,7 @@ const DyeingOrders: React.FC = () => {
       quantity: updatedProduct.quantity,
       count: (updatedProduct as any).count
     });
-    
+
     // Ensure data integrity - keep fields separate
     const cleanedProduct = {
       ...updatedProduct,
@@ -1220,59 +1215,59 @@ const DyeingOrders: React.FC = () => {
       partyName: updatedProduct.partyName || "Direct",
       middleman: updatedProduct.middleman || "Direct" // Don't mix with partyName
     };
-    
+
     console.log('🔧 [DyeingOrders] Cleaned product data:', {
       originalCustomerName: updatedProduct.customerName,
       originalPartyName: updatedProduct.partyName,
       cleanedCustomerName: cleanedProduct.customerName,
       cleanedPartyName: cleanedProduct.partyName
     });
-    
+
     // Update the product in the local state
     const updatedProducts = countProducts.map(p => p.id === updatedProduct.id ? cleanedProduct : p);
-    
+
     // Use functional state update to ensure fresh state
     setCountProducts(() => {
       console.log('🔄 [DyeingOrders] Setting updated count products, count:', updatedProducts.length);
       return updatedProducts;
     });
-    
+
     // Save updated products to localStorage for persistence
     localStorage.setItem('countProducts', JSON.stringify(updatedProducts));
     localStorage.setItem('countProductsTimestamp', new Date().getTime().toString());
     console.log('💾 [DyeingOrders] Updated products saved to localStorage with timestamp');
-    
+
     // Dispatch custom event for cross-page synchronization
-    window.dispatchEvent(new CustomEvent('countProductsUpdated', { 
-      detail: { countProducts: updatedProducts } 
+    window.dispatchEvent(new CustomEvent('countProductsUpdated', {
+      detail: { countProducts: updatedProducts }
     }));
-    
+
     // Close the modal
     setIsCountProductEditModalOpen(false);
     setCountProductToEdit(null);
-    
+
     // Force refresh to update the display
     setRefreshKey(prev => {
       const newKey = prev + 1;
       console.log('🔑 [DyeingOrders] Updated refreshKey from', prev, 'to', newKey);
       return newKey;
     });
-    
+
     toast.success("Count product updated successfully!");
   };
 
   const handleCountProductDelete = useCallback(async (productId: number) => {
     console.log('🗑️ [DyeingOrders] handleCountProductDelete called for product:', productId);
-    
+
     const productToDelete = countProducts.find(p => p.id === productId);
     if (!productToDelete) {
       console.error('❌ Product not found for deletion');
       toast.error('Product not found. Please try again.');
       return;
     }
-    
+
     const confirmMessage = `Are you sure you want to delete this count product?\n\nCustomer: ${productToDelete.partyName}\nDyeing Firm: ${productToDelete.dyeingFirm}\nQuantity: ${productToDelete.quantity} kg\n\nThis action cannot be undone.`;
-    
+
     if (!confirm(confirmMessage)) {
       console.log('❌ Delete cancelled by user');
       return;
@@ -1280,29 +1275,29 @@ const DyeingOrders: React.FC = () => {
 
     try {
       console.log('✅ Delete confirmed by user, proceeding...', { productToDelete });
-      
+
       // Use the API to delete the product properly
       await deleteCountProduct(productId);
-      
+
       // Update local state
       const updatedCountProducts = countProducts.filter(p => p.id !== productId);
       setCountProducts(updatedCountProducts);
-      
+
       // Update localStorage for persistence across pages
       localStorage.setItem('countProducts', JSON.stringify(updatedCountProducts));
       localStorage.setItem('countProductsTimestamp', new Date().getTime().toString());
       console.log('💾 [DyeingOrders] Updated countProducts saved to localStorage');
-      
+
       // Dispatch custom event for cross-page synchronization
-      window.dispatchEvent(new CustomEvent('countProductsUpdated', { 
-        detail: { countProducts: updatedCountProducts } 
+      window.dispatchEvent(new CustomEvent('countProductsUpdated', {
+        detail: { countProducts: updatedCountProducts }
       }));
-      
+
       // Force refresh to update UI
       setRefreshKey(prev => prev + 1);
-      
+
       toast.success(`Count Product deleted successfully: ${productToDelete.partyName}`);
-      
+
     } catch (error) {
       console.error('❌ Error deleting count product:', error);
       toast.error('Failed to delete count product. Please try again.');
@@ -1323,21 +1318,21 @@ const DyeingOrders: React.FC = () => {
     console.log('🔄 [DyeingOrders] handleSaveCountProductQuantities called for product ID:', productId);
     console.log('📋 Current editValues:', editValues);
     console.log('⚡ Current isSaving state:', isSaving);
-    
+
     if (isSaving) {
       console.log('⏳ Save already in progress, ignoring duplicate call');
       return;
     }
-    
+
     try {
       setIsSaving(true);
-      
+
       console.log('🔍 Detailed validation check:');
       console.log('   - quantity:', editValues.quantity);
       console.log('   - sentQuantity:', editValues.sentQuantity);
       console.log('   - receivedQuantity:', editValues.receivedQuantity);
       console.log('   - dispatchQuantity:', editValues.dispatchQuantity);
-      
+
       // MINIMAL VALIDATION FOR TESTING (same as CountProductOverview)
       if (editValues.quantity <= 0) {
         console.log('❌ Validation failed: quantity <= 0');
@@ -1356,7 +1351,7 @@ const DyeingOrders: React.FC = () => {
         received: (editValues.receivedQuantity || 0) > 0,
         dispatchQuantity: editValues.dispatchQuantity || 0,
         dispatch: (editValues.dispatchQuantity || 0) > 0,
-        dispatchDate: (editValues.dispatchQuantity || 0) > 0 ? 
+        dispatchDate: (editValues.dispatchQuantity || 0) > 0 ?
           (countProducts.find(p => p.id === productId)?.dispatchDate || new Date().toISOString().split('T')[0]) : ""
       };
 
@@ -1375,8 +1370,8 @@ const DyeingOrders: React.FC = () => {
       console.log('✅ Count Product updated successfully via API');
 
       // Update local state EXACTLY like CountProductOverview
-      const updatedCountProducts = countProducts.map(product => 
-        product.id === productId 
+      const updatedCountProducts = countProducts.map(product =>
+        product.id === productId
           ? { ...product, ...updateData }
           : product
       );
@@ -1390,17 +1385,17 @@ const DyeingOrders: React.FC = () => {
 
       // ENHANCED cross-page synchronization - EXACT copy from CountProductOverview
       console.log('📡 Dispatching cross-page sync events...');
-      
+
       // Primary sync event
-      window.dispatchEvent(new CustomEvent('countProductsUpdated', { 
-        detail: { 
+      window.dispatchEvent(new CustomEvent('countProductsUpdated', {
+        detail: {
           countProducts: updatedCountProducts,
           updatedProductId: productId,
           updateData: updateData,
           timestamp: Date.now()
-        } 
+        }
       }));
-      
+
       // Secondary storage event for additional sync
       window.dispatchEvent(new CustomEvent('storage', {
         detail: {
@@ -1409,14 +1404,14 @@ const DyeingOrders: React.FC = () => {
           timestamp: Date.now()
         }
       }));
-      
+
       // Exit edit mode
       setEditingRecordId(null);
       setEditValues({ quantity: 0, receivedQuantity: 0, dispatchQuantity: 0, sentQuantity: 0 });
-      
+
       toast.success("Count product quantities updated successfully!");
       console.log('🎉 Count product update completed successfully');
-      
+
     } catch (error) {
       console.error('❌ Error saving count product quantities:', error);
       toast.error('Failed to save changes. Please try again.');
@@ -1536,15 +1531,15 @@ const DyeingOrders: React.FC = () => {
                         const isEditing = editingRecordId === displayRecord.id;
                         const isCountProduct = displayRecord.type === 'countProduct';
                         const itemId = `${displayRecord.type}-${displayRecord.id}`;
-                        
+
                         // Debug logging for editing state
                         if (editingRecordId !== null) {
                           console.log(`🔍 [TABLE RENDER] Record ${displayRecord.id}: editingRecordId=${editingRecordId}, isEditing=${isEditing}, type=${displayRecord.type}`);
                         }
-                        
+
                         return (
                           <tr key={`${displayRecord.type}-${displayRecord.id}-${refreshKey}-${index}`}
-                              className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 ${isCountProduct ? 'bg-green-50 dark:bg-green-900/20' : ''}`}>
+                            className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 ${isCountProduct ? 'bg-green-50 dark:bg-green-900/20' : ''}`}>
                             <td className="px-3 py-3 text-center">
                               {isMultiDeleteMode && (
                                 <input
@@ -1642,11 +1637,10 @@ const DyeingOrders: React.FC = () => {
                                       }
                                     }}
                                     disabled={isSaving}
-                                    className={`p-1.5 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 ${
-                                      isSaving
+                                    className={`p-1.5 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 ${isSaving
                                         ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                                         : 'bg-green-100 hover:bg-green-200 text-green-700'
-                                    }`}
+                                      }`}
                                     title={isSaving ? "Saving..." : "Save Changes"}
                                   >
                                     {isSaving ? (
@@ -1658,11 +1652,10 @@ const DyeingOrders: React.FC = () => {
                                   <button
                                     onClick={handleCancelEdit}
                                     disabled={isSaving}
-                                    className={`p-1.5 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 ${
-                                      isSaving
+                                    className={`p-1.5 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 ${isSaving
                                         ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                                         : 'bg-red-100 hover:bg-red-200 text-red-700'
-                                    }`}
+                                      }`}
                                     title="Cancel Changes"
                                   >
                                     <X className="w-4 h-4" />
@@ -1709,8 +1702,8 @@ const DyeingOrders: React.FC = () => {
 
   return (
     <div className="min-h-screen p-6 bg-gray-50 dark:bg-gray-900 relative" style={{ overflow: 'visible' }}>
-      
-  <style>{`
+
+      <style>{`
         [data-floating-ui-portal] {
           z-index: 10000 !important;
           position: fixed !important;
@@ -1732,7 +1725,7 @@ const DyeingOrders: React.FC = () => {
           overflow: visible !important;
         }
   `}</style>
-      
+
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-3">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">🪨 Dyeing Orders Overview</h1>
@@ -1747,10 +1740,10 @@ const DyeingOrders: React.FC = () => {
           <Button onClick={handleExportCSV}>Export CSV</Button>
           <Button onClick={handleExportPDF}>Export PDF</Button>
           <Button onClick={() => { setOrderToEdit(null); setIsFormOpen(true); }}>+ Add Dyeing Order</Button>
-          
+
           {/* Multiple Delete Buttons */}
           {!isMultiDeleteMode ? (
-            <Button 
+            <Button
               onClick={() => {
                 setSelectedItems(new Set()); // Clear any existing selections
                 setIsMultiDeleteMode(true);
@@ -1762,14 +1755,14 @@ const DyeingOrders: React.FC = () => {
             </Button>
           ) : (
             <div className="flex gap-2">
-              <Button 
+              <Button
                 onClick={handleMultipleDelete}
                 disabled={selectedItems.size === 0}
                 className="bg-red-600 hover:bg-red-700 text-white"
               >
                 Delete Selected ({selectedItems.size})
               </Button>
-              <Button 
+              <Button
                 onClick={() => {
                   setIsMultiDeleteMode(false);
                   setSelectedItems(new Set());
@@ -1791,7 +1784,7 @@ const DyeingOrders: React.FC = () => {
           placeholder="🔍 Search by party, firm, yarn, lot, shade, count"
           className="w-full px-4 py-2 border rounded-md dark:bg-gray-800 dark:text-white dark:border-gray-700"
         />
-  {/* Status filter removed */}
+        {/* Status filter removed */}
         <select value={firmFilter} onChange={(e) => setFirmFilter(e.target.value)} className="px-4 py-2 border rounded-md dark:bg-gray-800 dark:text-white dark:border-gray-700">
           <option value="">Filter by Firm</option>
           {pageFirms.map((f) => <option key={f} value={f}>{f}</option>)}
@@ -1827,7 +1820,7 @@ const DyeingOrders: React.FC = () => {
 
       {/* Count Product Edit Modal */}
       {isCountProductEditModalOpen && countProductToEdit && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
           onClick={(e) => {
             if (e.target === e.currentTarget) {

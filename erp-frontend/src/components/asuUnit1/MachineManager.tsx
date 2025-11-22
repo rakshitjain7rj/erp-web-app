@@ -52,14 +52,14 @@ const MachineManager: React.FC = () => {
   // Load configuration history for the selected machine
   const loadConfigurations = useCallback(async () => {
     if (!selectedMachine) return;
-    
+
     try {
       setLoading(true);
-      
+
       // First check if the machine has any production entries
       const hasEntries = await asuUnit1Api.checkMachineHasProductionEntries(selectedMachine.id);
       setHasProductionEntries(hasEntries);
-      
+
       // If there are no production entries, don't show any configuration history
       if (!hasEntries) {
         console.log('No production entries for this machine, clearing configuration history');
@@ -67,10 +67,10 @@ const MachineManager: React.FC = () => {
         setLoading(false);
         return;
       }
-      
+
       // Load the configuration history
       const history = await asuUnit1Api.getMachineConfigHistory(selectedMachine.id);
-      
+
       // Convert history items to MachineConfiguration format
       const configs: MachineConfiguration[] = history.map((item, index) => ({
         id: index,
@@ -84,10 +84,10 @@ const MachineManager: React.FC = () => {
         createdAt: item.savedAt || new Date(item.updated_at || item.createdAt || '').toISOString(),
         updatedAt: item.updated_at || item.updatedAt || ''
       }));
-      
+
       // Sort configurations in reverse chronological order (newest first)
       configs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      
+
       setConfigurations(configs);
     } catch (error) {
       console.error('Error loading machine configurations:', error);
@@ -117,13 +117,13 @@ const MachineManager: React.FC = () => {
       setHasProductionEntries(false);
       return;
     }
-    
+
     const machineIdNum = parseInt(machineId);
     const machine = machines.find(m => m.id === machineIdNum);
-    
+
     if (machine) {
       setSelectedMachine(machine);
-      
+
       // Reset production entries flag when selecting a new machine
       // It will be updated properly when loadConfigurations runs
       setHasProductionEntries(false);
@@ -143,7 +143,7 @@ const MachineManager: React.FC = () => {
 
     try {
       setLoading(true);
-      
+
       // Create the new machine with required fields - ensure machineNo is properly cast to number
       const machineData = {
         ...formData,
@@ -152,18 +152,18 @@ const MachineManager: React.FC = () => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
-      
+
       console.log('Submitting new machine with machineNo:', machineData.machineNo);
-      
+
       const newMachine = await asuUnit1Api.createMachine(machineData);
       toast.success(`Machine ${newMachine.machineNo} created successfully`);
-      
+
       // Close the modal
       setIsAddModalOpen(false);
-      
+
       // Reload machines
       await loadMachines();
-      
+
       // Select the newly created machine
       setSelectedMachine(newMachine);
     } catch (error) {
@@ -176,10 +176,10 @@ const MachineManager: React.FC = () => {
   };
 
   const handleEdit = (machine: ASUMachine) => {
-    const numericCount = typeof machine.count === 'string' 
+    const numericCount = typeof machine.count === 'string'
       ? (() => { const m = String(machine.count).match(/\d*\.?\d+/); return m ? parseFloat(m[0]) : 0; })()
       : (Number(machine.count) || 0);
-      
+
     setEditingMachine({
       id: machine.id,
       machineNo: Number(machine.machineNo) || 0,
@@ -200,46 +200,46 @@ const MachineManager: React.FC = () => {
     try {
       // First check if this machine has any production entries
       const hasProductionEntries = await asuUnit1Api.checkMachineHasProductionEntries(machine.id);
-      
+
       // If there are no production entries, don't save the configuration
       if (!hasProductionEntries) {
         console.log('No production entries exist for this machine, skipping configuration history save');
         return;
       }
-      
+
       // Save to localStorage for backward compatibility
       const historyKey = `machine_config_history_${machine.id}`;
       const history = JSON.parse(localStorage.getItem(historyKey) || '[]');
-      
+
       // Check if we have a previous configuration
       if (history.length > 0) {
         const lastConfig = history[history.length - 1];
-        
+
         // Check if important values have changed
         const sameCount = String(lastConfig.count) === String(machine.count);
         const sameYarnType = lastConfig.yarnType === machine.yarnType;
         const sameSpindles = String(lastConfig.spindles) === String(machine.spindles);
         const sameSpeed = String(lastConfig.speed) === String(machine.speed);
         const sameProduction = String(lastConfig.productionAt100) === String(machine.productionAt100);
-        
+
         // If all values are the same, don't save a new entry
         if (sameCount && sameYarnType && sameSpindles && sameSpeed && sameProduction) {
           console.log('No changes detected in configuration, skipping history save');
           return;
         }
       }
-      
+
       // Prepare the new configuration entry
       const configEntry = {
         ...machine,
         savedAt: new Date().toISOString()
       };
-      
+
       // Save to localStorage for backward compatibility
       history.push(configEntry);
       localStorage.setItem(historyKey, JSON.stringify(history));
       console.log('Configuration history saved to localStorage');
-      
+
       // Also try to save to the server if the endpoint exists
       try {
         console.log('Attempting to save configuration to server...');
@@ -258,13 +258,13 @@ const MachineManager: React.FC = () => {
 
     try {
       setLoading(true);
-      
+
       // If we're updating a selected machine, save its current state to history before update
       if (selectedMachine && selectedMachine.id === editingMachine.id) {
         // This is now an async call
         await saveConfigurationHistory(selectedMachine);
       }
-      
+
       await asuUnit1Api.updateMachine(editingMachine.id, {
         machineNo: editingMachine.machineNo,
         machine_name: editingMachine.machineName,
@@ -279,15 +279,15 @@ const MachineManager: React.FC = () => {
 
       toast.success('Machine updated successfully');
       setEditingMachine(null);
-      
+
       // Update the selected machine if it's the one that was edited
       if (selectedMachine && selectedMachine.id === editingMachine.id) {
         const updatedMachine = { ...selectedMachine, ...editingMachine };
         setSelectedMachine(updatedMachine);
       }
-      
+
       await loadMachines();
-      
+
       // Also reload configurations if we modified the selected machine
       if (selectedMachine && selectedMachine.id === editingMachine.id) {
         await loadConfigurations();
@@ -308,7 +308,7 @@ const MachineManager: React.FC = () => {
 
     try {
       setLoading(true);
-      
+
       try {
         // First try normal delete
         await asuUnit1Api.deleteMachine(id);
@@ -317,14 +317,14 @@ const MachineManager: React.FC = () => {
         // If normal delete fails, try with force=true
         await asuUnit1Api.deleteMachine(id, true);
       }
-      
+
       toast.success('Machine deleted successfully');
-      
+
       // If the deleted machine was selected, clear the selection
       if (selectedMachine && selectedMachine.id === id) {
         setSelectedMachine(null);
       }
-      
+
       await loadMachines();
     } catch (error) {
       console.error('Error deleting machine:', error);
@@ -339,7 +339,7 @@ const MachineManager: React.FC = () => {
 
   // Keeping the calculation function for reference, but not auto-applying it
   // Users will now enter the productionAt100 value manually
-  
+
   const calculateProductionAt100Reference = (count: number, spindles: number, speed: number) => {
     // Formula: (Spindles × Speed × 0.84 × 24) / (count × 14400)
     const production = (spindles * speed * 0.84 * 24) / (count * 14400);
@@ -349,7 +349,7 @@ const MachineManager: React.FC = () => {
   return (
     <>
       {/* Machine Form Modal */}
-      <MachineFormModal 
+      <MachineFormModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         onSubmit={handleMachineCreate}
@@ -430,13 +430,12 @@ const MachineManager: React.FC = () => {
                 </TableHeader>
                 <TableBody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {machines.map(machine => (
-                    <TableRow 
-                      key={machine.id} 
-                      className={`transition-colors cursor-pointer ${
-                        selectedMachine?.id === machine.id 
-                          ? 'bg-indigo-50 dark:bg-indigo-900/20' 
+                    <TableRow
+                      key={machine.id}
+                      className={`transition-colors cursor-pointer ${selectedMachine?.id === machine.id
+                          ? 'bg-indigo-50 dark:bg-indigo-900/20'
                           : 'hover:bg-gray-50 dark:hover:bg-gray-700/30'
-                      }`}
+                        }`}
                       onClick={() => handleMachineSelect(machine.id.toString())}
                     >
                       <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
@@ -444,9 +443,9 @@ const MachineManager: React.FC = () => {
                           <Input
                             type="number"
                             value={editingMachine.machineNo}
-                            onChange={(e) => setEditingMachine({ 
-                              ...editingMachine, 
-                              machineNo: parseInt(e.target.value) || 0 
+                            onChange={(e) => setEditingMachine({
+                              ...editingMachine,
+                              machineNo: parseInt(e.target.value) || 0
                             })}
                             className="w-20 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
                             onClick={(e) => e.stopPropagation()}
@@ -462,9 +461,9 @@ const MachineManager: React.FC = () => {
                           <Input
                             type="text"
                             value={editingMachine.machineName || ''}
-                            onChange={(e) => setEditingMachine({ 
-                              ...editingMachine, 
-                              machineName: e.target.value 
+                            onChange={(e) => setEditingMachine({
+                              ...editingMachine,
+                              machineName: e.target.value
                             })}
                             className="w-32 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
                             onClick={(e) => e.stopPropagation()}
@@ -485,10 +484,11 @@ const MachineManager: React.FC = () => {
                               // Extract numeric part (supports decimals like 0.65)
                               const numericMatch = displayValue.match(/^\d*\.?\d+/);
                               const numericValue = numericMatch ? parseFloat(numericMatch[0]) : 0;
-                              
-                              setEditingMachine({ 
-                                ...editingMachine, 
-                                count: numericValue,                                countDisplay: displayValue                              });
+
+                              setEditingMachine({
+                                ...editingMachine,
+                                count: numericValue, countDisplay: displayValue
+                              });
                             }}
                             className="w-20 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
                             onClick={(e) => e.stopPropagation()}
@@ -521,11 +521,11 @@ const MachineManager: React.FC = () => {
                                     }}
                                     className="px-1.5 py-0.5 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded"
                                   >
-                                      {type}
-                                    </button>
-                                  ))}
-                                </div>
+                                    {type}
+                                  </button>
+                                ))}
                               </div>
+                            </div>
                           </div>
                         ) : (
                           <span className="text-gray-700 dark:text-gray-300">{machine.yarnType}</span>
@@ -538,9 +538,9 @@ const MachineManager: React.FC = () => {
                             value={editingMachine.spindles || ''}
                             onChange={(e) => {
                               const val = e.target.value.trim();
-                              setEditingMachine({ 
-                                ...editingMachine, 
-                                spindles: val ? parseInt(val) : null 
+                              setEditingMachine({
+                                ...editingMachine,
+                                spindles: val ? parseInt(val) : null
                               });
                             }}
                             className="w-24 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
@@ -558,9 +558,9 @@ const MachineManager: React.FC = () => {
                             value={editingMachine.speed || ''}
                             onChange={(e) => {
                               const val = e.target.value.trim();
-                              setEditingMachine({ 
-                                ...editingMachine, 
-                                speed: val ? parseFloat(val) : null 
+                              setEditingMachine({
+                                ...editingMachine,
+                                speed: val ? parseFloat(val) : null
                               });
                             }}
                             className="w-24 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
@@ -578,9 +578,9 @@ const MachineManager: React.FC = () => {
                             step="0.00001"
                             onChange={(e) => {
                               const val = e.target.value.trim();
-                              setEditingMachine({ 
-                                ...editingMachine, 
-                                productionAt100: val ? parseFloat(val) : 0 
+                              setEditingMachine({
+                                ...editingMachine,
+                                productionAt100: val ? parseFloat(val) : 0
                               });
                             }}
                             className="w-24 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
@@ -605,11 +605,10 @@ const MachineManager: React.FC = () => {
                             <Label className="text-sm text-gray-700 dark:text-gray-300">Active</Label>
                           </div>
                         ) : (
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            machine.isActive 
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' 
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${machine.isActive
+                              ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
                               : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                          }`}>
+                            }`}>
                             {machine.isActive ? 'Active' : 'Inactive'}
                           </span>
                         )}
@@ -618,19 +617,19 @@ const MachineManager: React.FC = () => {
                         <div className="flex justify-end gap-2">
                           {editingMachine?.id === machine.id ? (
                             <>
-                              <Button 
-                                size="sm" 
+                              <Button
+                                size="sm"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleSaveEdit();
                                 }}
-                                disabled={loading} 
+                                disabled={loading}
                                 className="p-1 text-white bg-green-600 rounded-md hover:bg-green-700 focus:ring-green-500"
                               >
                                 <Save className="w-4 h-4" />
                               </Button>
-                              <Button 
-                                size="sm" 
+                              <Button
+                                size="sm"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setEditingMachine(null);
@@ -642,18 +641,18 @@ const MachineManager: React.FC = () => {
                             </>
                           ) : (
                             <>
-                              <Button 
-                                size="sm" 
+                              <Button
+                                size="sm"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleEdit(machine);
                                 }}
-                                className="p-1 text-indigo-700 rounded-md bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-800/50 dark:text-indigo-300"
+                                className="p-1 text-white rounded-md bg-indigo-600 hover:bg-indigo-700 border border-indigo-700 dark:bg-indigo-900/70 dark:hover:bg-indigo-800 dark:text-indigo-200"
                               >
                                 <Edit className="w-4 h-4" />
                               </Button>
-                              <Button 
-                                size="sm" 
+                              <Button
+                                size="sm"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleDelete(machine.id);
@@ -678,7 +677,7 @@ const MachineManager: React.FC = () => {
       {/* Configuration History */}
       {selectedMachine && (
         <div className="mt-6">
-          <MachineConfigurationHistory 
+          <MachineConfigurationHistory
             machine={selectedMachine}
             configurations={configurations}
             loading={loading}
