@@ -229,7 +229,7 @@ app.use('/api', (req, res, next) => {
   if (!req.user) {
     const token = req.headers.authorization?.split(' ')[1];
     if (token) {
-      try { req.user = require('jsonwebtoken').verify(token, process.env.JWT_SECRET); } catch (_) {}
+      try { req.user = require('jsonwebtoken').verify(token, process.env.JWT_SECRET); } catch (_) { }
     }
   }
   readOnlyForManagers(req, res, next);
@@ -237,9 +237,9 @@ app.use('/api', (req, res, next) => {
 // Users (RBAC & approval workflow)
 app.use('/api/users', userRoutes);
 // Optional legacy alias without /api (warn & continue) – remove later when frontend stabilized
-app.use('/users', (req, res, next) => { 
-  console.warn('⚠️ Received users request without /api prefix. Consider updating frontend. Path:', req.path); 
-  next(); 
+app.use('/users', (req, res, next) => {
+  console.warn('⚠️ Received users request without /api prefix. Consider updating frontend. Path:', req.path);
+  next();
 }, userRoutes);
 // app.use('/api/workorders', workOrderRoutes);
 // app.use('/api/bom', bomRoutes);
@@ -255,8 +255,8 @@ app.use('/api', machineConfigRoutes);
 
 // Test route for debugging
 app.get('/api/test', (req, res) => {
-  res.json({ 
-    message: 'API is working!', 
+  res.json({
+    message: 'API is working!',
     timestamp: new Date().toISOString(),
     availableRoutes: [
       'GET /api/test',
@@ -298,8 +298,8 @@ app.get('/api/debug-routes', (req, res) => {
 app.post('/api/test-post', (req, res) => {
   console.log('🚀 Test POST route hit');
   console.log('📝 Request body:', req.body);
-  res.json({ 
-    message: 'POST is working!', 
+  res.json({
+    message: 'POST is working!',
     body: req.body,
     timestamp: new Date().toISOString()
   });
@@ -309,8 +309,8 @@ app.post('/api/test-post', (req, res) => {
 app.post('/api/parties-direct', (req, res) => {
   console.log('🚀 Direct party POST route hit');
   console.log('📝 Request body:', req.body);
-  res.json({ 
-    message: 'Direct party POST is working!', 
+  res.json({
+    message: 'Direct party POST is working!',
     body: req.body,
     timestamp: new Date().toISOString()
   });
@@ -336,7 +336,7 @@ app.get('/health', (req, res) => {
     env: process.env.NODE_ENV,
     timestamp: new Date().toISOString(),
     uptimeSeconds,
-    uptimeHuman: `${Math.floor(uptimeSeconds/60)}m ${Math.floor(uptimeSeconds)%60}s`,
+    uptimeHuman: `${Math.floor(uptimeSeconds / 60)}m ${Math.floor(uptimeSeconds) % 60}s`,
     memory: process.memoryUsage(),
     pid: process.pid
   });
@@ -366,22 +366,22 @@ connectPostgres()
       // Sync models with database
       try {
         console.log('🔄 Starting database table sync...');
-        
+
         await User.sync({ alter: true }); // This will create/update the Users table
         console.log('✅ Users table synced');
-        
+
         await Inventory.sync({ alter: true }); // This will create/update the table
         console.log('✅ Inventory table synced');
-        
+
         await Party.sync({ alter: true }); // This will create/update the Parties table
         console.log('✅ Party table synced');
-        
+
         await ASUMachine.sync({ alter: true }); // This will create/update the ASU Machines table
         console.log('✅ ASU Machines table synced');
-        
+
         await ASUProductionEntry.sync({ alter: true }); // This will create/update the ASU Production Entries table
         console.log('✅ ASU Production Entries table synced');
-        
+
         // Sync Machine table with error handling for enum issues
         try {
           await Machine.sync({ alter: true }); // This will create/update the Machines table
@@ -389,19 +389,19 @@ connectPostgres()
         } catch (machineError) {
           console.warn('⚠️ Machines table sync error (continuing):', machineError.message);
         }
-        
+
         await DyeingRecord.sync({ alter: true }); // This will create/update the Dyeing Records table
         console.log('✅ Dyeing Records table synced');
-        
+
         await DyeingFollowUp.sync({ alter: true }); // This will create/update the Dyeing Follow Up table
         console.log('✅ Dyeing Follow Up table synced');
-        
+
         await CountProduct.sync({ alter: true }); // This will create/update the Count Products table
         console.log('✅ Count Products table synced');
-        
+
         await DyeingFirm.sync({ alter: true }); // This will create/update the Dyeing Firms table
         console.log('✅ Dyeing Firms table synced');
-        
+
         // Sync CountProductFollowUp table
         try {
           const CountProductFollowUp = require('./models/CountProductFollowUp');
@@ -410,7 +410,14 @@ connectPostgres()
         } catch (error) {
           console.warn('⚠️ Count Product Follow Up table sync failed:', error.message);
         }
-        
+
+        // Ensure ASU machine composite unique constraint
+        try {
+          await ensureASUMachineCompositeUnique();
+        } catch (e) {
+          console.warn('⚠️ ensureASUMachineCompositeUnique failed:', e.message);
+        }
+
         console.log('✅ Database setup complete');
         // Ensure superadmin exists
         try {
@@ -434,18 +441,18 @@ connectPostgres()
       console.log(`📦 Inventory API: http://localhost:${PORT}/api/inventory`);
       console.log(`🏢 Party API: http://localhost:${PORT}/api/parties`);
       console.log(`🧪 Test API route: http://localhost:${PORT}/api/test`);
-  console.log(`🔧 CORS enabled for: ${allowedOrigins.join(', ')}`);
+      console.log(`🔧 CORS enabled for: ${allowedOrigins.join(', ')}`);
     });
   })
   .catch((err) => {
     console.error('❌ Database connection error:', err);
     console.warn('⚠️ Starting server without database connection - some features will not work');
-    
+
     // Start server even if database connection fails
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT} (without database)`);
       console.log(`📡 API endpoints available at http://localhost:${PORT}/api`);
       console.log(`🧪 Test API route: http://localhost:${PORT}/api/test`);
-  console.log(`🔧 CORS enabled for: ${allowedOrigins.join(', ')}`);
+      console.log(`🔧 CORS enabled for: ${allowedOrigins.join(', ')}`);
     });
   });

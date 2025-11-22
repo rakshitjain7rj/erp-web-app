@@ -1,14 +1,16 @@
 import React from "react";
 import LayoutWrapper from "../components/LayoutWrapper";
-import TotalASUUnit1YarnSummary from "../components/dashboard/TotalASUUnit1YarnSummary";
+import DashboardCharts from "../components/dashboard/DashboardCharts";
 
 function Dashboard() {
 
   return (
     <LayoutWrapper>
-      <div className="w-full px-4 md:px-6 py-4">
+      <div className="w-full px-4 md:px-6 py-4 space-y-6">
         <h1 className="text-2xl font-bold mb-4 dark:text-white">Dashboard</h1>
-        <TotalASUUnit1YarnSummary days={31} showRefreshButton={true} />
+
+        {/* Live Data Graphics */}
+        <DashboardCharts />
       </div>
     </LayoutWrapper>
   );
