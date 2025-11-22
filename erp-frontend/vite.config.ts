@@ -88,8 +88,8 @@ export default defineConfig({
   ],
   server: {
     host: 'localhost',              // Local binding
-    port: 5173,                     // Fixed dev port
-    strictPort: true,               // Do not change port automatically
+    port: 5174,                     // Fixed dev port
+    strictPort: false,              // Allow fallback to next available port
     proxy: {
       '/api': {
         target: 'http://localhost:5000',
@@ -101,7 +101,7 @@ export default defineConfig({
     hmr: {
       protocol: 'ws',
       host: 'localhost',
-      port: 5173,
+      port: 5174,
     }
   },
   build: {
