@@ -1473,226 +1473,229 @@ const DyeingOrders: React.FC = () => {
       ];
 
       return (
-        <div key={`${countValue}-${refreshKey}`} className="shadow rounded-2xl overflow-visible dyeing-orders-container">
+        <div key={`${countValue}-${refreshKey}`} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 mb-4 overflow-hidden">
           <div
             onClick={() => setExpandedFirm((f) => (f === countValue ? null : countValue))}
-            className="flex justify-between items-center px-6 py-4 bg-white dark:bg-gray-800 border-b dark:border-gray-700 cursor-pointer hover:bg-purple-50"
-          >
-            <h2 className="text-lg font-semibold text-purple-700 dark:text-purple-400">
-              Count: {countValue} ({allRecordsForDisplay.length} orders)
-            </h2>
-            {expandedFirm === countValue ? <ChevronUp /> : <ChevronDown />}
+            className="flex justify-between items-center px-6 py-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-3">
+              {expandedFirm === countValue ? <ChevronDown className="w-5 h-5 text-gray-500" /> : <ChevronUp className="w-5 h-5 text-gray-500" />}
+              <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+                Count: {countValue}
+              </h2>
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                ({allRecordsForDisplay.length} {allRecordsForDisplay.length === 1 ? 'order' : 'orders'})
+              </span>
+            </div>
           </div>
 
           {expandedFirm === countValue && (
-            <div className="bg-white dark:bg-gray-800 border-t dark:border-gray-700 overflow-visible" id="dyeing-orders-table">
-              <div className="overflow-x-auto">
-                {allRecordsForDisplay.length > 0 ? (
-                  <table className="w-full text-sm min-w-[1000px]">
-                    <thead className="text-gray-600 dark:text-gray-300 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-                      <tr>
-                        <th className="px-3 py-3 text-center font-semibold w-12">
-                          {isMultiDeleteMode && (
-                            <input
-                              type="checkbox"
-                              checked={allRecordsForDisplay.length > 0 && selectedItems.size > 0 && selectedItems.size === allRecordsForDisplay.length}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  // Select all items in the current view
-                                  const allItemIds = new Set<string>();
-                                  allRecordsForDisplay.forEach((record: any) => {
-                                    allItemIds.add(`${record.type}-${record.id}`);
-                                  });
-                                  setSelectedItems(allItemIds);
-                                } else {
-                                  clearSelection();
-                                }
-                              }}
-                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                            />
-                          )}
-                        </th>
-                        <th className="px-3 py-3 text-left font-semibold">Quantity</th>
-                        <th className="px-3 py-3 text-left font-semibold">Customer Name</th>
-                        <th className="px-3 py-3 text-left font-semibold">Dyeing Firm</th>
-                        <th className="px-3 py-3 text-left font-semibold">Sent to Dye</th>
-                        <th className="px-3 py-3 text-left font-semibold">Sent Date</th>
-                        <th className="px-3 py-3 text-left font-semibold">Received</th>
-                        <th className="px-3 py-3 text-left font-semibold">Received Date</th>
-                        <th className="px-3 py-3 text-left font-semibold">Dispatch</th>
-                        <th className="px-3 py-3 text-left font-semibold">Dispatch Date</th>
-                        <th className="px-3 py-3 text-left font-semibold">Party/Middleman</th>
-                        <th className="px-3 py-3 text-center font-semibold">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="text-gray-900 dark:text-white divide-y divide-gray-200 dark:divide-gray-700">
-                      {allRecordsForDisplay.map((displayRecord: any, index: number) => {
-                        // FIXED: Check editing state for BOTH dyeing records AND count products
-                        const isEditing = editingRecordId === displayRecord.id;
-                        const isCountProduct = displayRecord.type === 'countProduct';
-                        const itemId = `${displayRecord.type}-${displayRecord.id}`;
+            <div className="overflow-x-auto" id="dyeing-orders-table">
+              {allRecordsForDisplay.length > 0 ? (
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-100 dark:bg-gray-800 border-b-2 border-gray-200 dark:border-gray-700">
+                    <tr>
+                      <th className="px-4 py-3 text-center w-10">
+                        {isMultiDeleteMode && (
+                          <input
+                            type="checkbox"
+                            checked={allRecordsForDisplay.length > 0 && selectedItems.size > 0 && selectedItems.size === allRecordsForDisplay.length}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                const allItemIds = new Set<string>();
+                                allRecordsForDisplay.forEach((record: any) => {
+                                  allItemIds.add(`${record.type}-${record.id}`);
+                                });
+                                setSelectedItems(allItemIds);
+                              } else {
+                                clearSelection();
+                              }
+                            }}
+                            className="w-4 h-4 rounded border-gray-300"
+                          />
+                        )}
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Customer</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Firm</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Qty</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Sent</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Received</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Dispatch</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Party</th>
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider w-24">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-gray-900 dark:text-white divide-y divide-gray-200 dark:divide-gray-700">
+                    {allRecordsForDisplay.map((displayRecord: any, index: number) => {
+                      // FIXED: Check editing state for BOTH dyeing records AND count products
+                      const isEditing = editingRecordId === displayRecord.id;
+                      const isCountProduct = displayRecord.type === 'countProduct';
+                      const itemId = `${displayRecord.type}-${displayRecord.id}`;
 
-                        // Debug logging for editing state
-                        if (editingRecordId !== null) {
-                          console.log(`🔍 [TABLE RENDER] Record ${displayRecord.id}: editingRecordId=${editingRecordId}, isEditing=${isEditing}, type=${displayRecord.type}`);
-                        }
+                      // Debug logging for editing state
+                      if (editingRecordId !== null) {
+                        console.log(`🔍 [TABLE RENDER] Record ${displayRecord.id}: editingRecordId=${editingRecordId}, isEditing=${isEditing}, type=${displayRecord.type}`);
+                      }
 
-                        return (
-                          <tr key={`${displayRecord.type}-${displayRecord.id}-${refreshKey}-${index}`}
-                            className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 ${isCountProduct ? 'bg-green-50 dark:bg-green-900/20' : ''}`}>
-                            <td className="px-3 py-3 text-center">
-                              {isMultiDeleteMode && (
-                                <input
-                                  type="checkbox"
-                                  checked={selectedItems.has(itemId)}
-                                  onChange={() => toggleItemSelection(itemId)}
-                                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                />
-                              )}
-                            </td>
-                            <td className={`px-3 py-3 font-medium ${isCountProduct ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'}`}>
-                              {isEditing ? (
-                                <input
-                                  type="number"
-                                  value={editValues.quantity}
-                                  onChange={(e) => handleEditValueChange('quantity', e.target.value)}
-                                  className="w-20 px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
-                                  step="0.01"
-                                  min="0"
-                                />
-                              ) : (
-                                <>
-                                  {formatQuantity(displayRecord.quantity)}
-                                  {isCountProduct && <span className="ml-1 text-xs">(CP)</span>}
-                                </>
-                              )}
-                            </td>
-                            <td className="px-3 py-3 font-medium">
-                              {displayRecord.customerName || '[No Customer Name]'}
-                            </td>
-                            <td className="px-3 py-3 text-sm font-medium">{displayRecord.dyeingFirm || "Unknown Firm"}</td>
-                            <td className="px-3 py-3">
-                              {isEditing ? (
-                                <input
-                                  type="number"
-                                  value={editValues.sentQuantity}
-                                  onChange={(e) => handleEditValueChange('sentQuantity', e.target.value)}
-                                  className="w-20 px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
-                                  step="0.01"
-                                  min="0"
-                                />
-                              ) : (
-                                formatQuantity(displayRecord.sentToDye)
-                              )}
-                            </td>
-                            <td className="px-3 py-3">{displayRecord.sentDate ? new Date(displayRecord.sentDate).toLocaleDateString() : '--'}</td>
-                            <td className="px-3 py-3 text-gray-500 dark:text-gray-400">
-                              {isEditing ? (
-                                <input
-                                  type="number"
-                                  value={editValues.receivedQuantity}
-                                  onChange={(e) => handleEditValueChange('receivedQuantity', e.target.value)}
-                                  className="w-20 px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
-                                  step="0.01"
-                                  min="0"
-                                />
-                              ) : (
-                                formatQuantity(displayRecord.received)
-                              )}
-                            </td>
-                            <td className="px-3 py-3 text-gray-500 dark:text-gray-400">
-                              {displayRecord.receivedDate ? new Date(displayRecord.receivedDate).toLocaleDateString() : '--'}
-                            </td>
-                            <td className="px-3 py-3 text-gray-500 dark:text-gray-400">
-                              {isEditing ? (
-                                <input
-                                  type="number"
-                                  value={editValues.dispatchQuantity}
-                                  onChange={(e) => handleEditValueChange('dispatchQuantity', e.target.value)}
-                                  className="w-20 px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
-                                  step="0.01"
-                                  min="0"
-                                />
-                              ) : (
-                                formatQuantity(displayRecord.dispatch)
-                              )}
-                            </td>
-                            <td className="px-3 py-3 text-gray-500 dark:text-gray-400">
-                              {displayRecord.dispatchDate ? new Date(displayRecord.dispatchDate).toLocaleDateString() : '--'}
-                            </td>
-                            <td className="px-3 py-3">
-                              <span className="inline-flex px-2 py-1 text-xs font-medium bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 rounded-full">
-                                {displayRecord.partyNameMiddleman}
+                      return (
+                        <tr key={`${displayRecord.type}-${displayRecord.id}-${refreshKey}-${index}`}
+                          className={`border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${isCountProduct ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''}`}>
+                          <td className="px-4 py-3 text-center">
+                            {isMultiDeleteMode && (
+                              <input
+                                type="checkbox"
+                                checked={selectedItems.has(itemId)}
+                                onChange={() => toggleItemSelection(itemId)}
+                                className="w-4 h-4 rounded border-gray-300"
+                              />
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-col">
+                              <span className="font-medium text-gray-900 dark:text-white">
+                                {displayRecord.customerName || '[No Customer]'}
                               </span>
-                            </td>
-                            <td className="px-3 py-3 text-center relative" style={{ position: 'relative', zIndex: 1 }}>
-                              {isEditing ? (
-                                <div className="flex items-center justify-center space-x-2">
-                                  <button
-                                    onClick={() => {
-                                      if (isCountProduct) {
-                                        handleSaveCountProductQuantities((displayRecord.originalRecord as CountProduct).id);
-                                      } else if ('expectedArrivalDate' in displayRecord.originalRecord) {
-                                        handleSaveQuantities(displayRecord.originalRecord as DyeingRecord);
-                                      }
-                                    }}
-                                    disabled={isSaving}
-                                    className={`p-1.5 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 ${isSaving
-                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                        : 'bg-green-100 hover:bg-green-200 text-green-700'
-                                      }`}
-                                    title={isSaving ? "Saving..." : "Save Changes"}
-                                  >
-                                    {isSaving ? (
-                                      <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-                                    ) : (
-                                      <Check className="w-4 h-4" />
-                                    )}
-                                  </button>
-                                  <button
-                                    onClick={handleCancelEdit}
-                                    disabled={isSaving}
-                                    className={`p-1.5 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 ${isSaving
-                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                        : 'bg-red-100 hover:bg-red-200 text-red-700'
-                                      }`}
-                                    title="Cancel Changes"
-                                  >
-                                    <X className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              ) : isCountProduct ? (
-                                <FloatingActionDropdown
-                                  onEdit={() => handleCountProductEdit((displayRecord.originalRecord as CountProduct).id)}
-                                  onDelete={() => handleCountProductDelete((displayRecord.originalRecord as CountProduct).id)}
-                                  onFollowUp={() => handleCountProductFollowUp((displayRecord.originalRecord as CountProduct).id)}
-                                  onUpdateQuantities={() => {
-                                    console.log('🚨🔥 COUNT PRODUCT UPDATE QUANTITIES TRIGGERED');
-                                    console.log('🚨🔥 Count Product ID:', (displayRecord.originalRecord as CountProduct).id);
-                                    console.log('🚨🔥 Count Product Record:', displayRecord.originalRecord);
-                                    handleCountProductUpdateQuantities((displayRecord.originalRecord as CountProduct).id);
+                              {isCountProduct && <span className="text-xs text-blue-600 dark:text-blue-400">Count Product</span>}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                            {displayRecord.dyeingFirm || "--"}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {isEditing ? (
+                              <input
+                                type="number"
+                                value={editValues.quantity}
+                                onChange={(e) => handleEditValueChange('quantity', e.target.value)}
+                                className="w-20 px-2 py-1 text-sm border rounded text-right dark:bg-gray-700 dark:border-gray-600"
+                                step="0.01"
+                                min="0"
+                              />
+                            ) : (
+                              <span className="font-semibold text-gray-900 dark:text-white">
+                                {formatQuantity(displayRecord.quantity)}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {isEditing ? (
+                              <input
+                                type="number"
+                                value={editValues.sentQuantity}
+                                onChange={(e) => handleEditValueChange('sentQuantity', e.target.value)}
+                                className="w-20 px-2 py-1 text-sm border rounded text-right dark:bg-gray-700 dark:border-gray-600"
+                                step="0.01"
+                                min="0"
+                              />
+                            ) : (
+                              <div className="flex flex-col items-end">
+                                <span className="text-gray-700 dark:text-gray-300">{formatQuantity(displayRecord.sentToDye)}</span>
+                                {displayRecord.sentDate && <span className="text-xs text-gray-500">{new Date(displayRecord.sentDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</span>}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {isEditing ? (
+                              <input
+                                type="number"
+                                value={editValues.receivedQuantity}
+                                onChange={(e) => handleEditValueChange('receivedQuantity', e.target.value)}
+                                className="w-20 px-2 py-1 text-sm border rounded text-right dark:bg-gray-700 dark:border-gray-600"
+                                step="0.01"
+                                min="0"
+                              />
+                            ) : (
+                              <div className="flex flex-col items-end">
+                                <span className="text-gray-700 dark:text-gray-300">{formatQuantity(displayRecord.received)}</span>
+                                {displayRecord.receivedDate && <span className="text-xs text-gray-500">{new Date(displayRecord.receivedDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</span>}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {isEditing ? (
+                              <input
+                                type="number"
+                                value={editValues.dispatchQuantity}
+                                onChange={(e) => handleEditValueChange('dispatchQuantity', e.target.value)}
+                                className="w-20 px-2 py-1 text-sm border rounded text-right dark:bg-gray-700 dark:border-gray-600"
+                                step="0.01"
+                                min="0"
+                              />
+                            ) : (
+                              <div className="flex flex-col items-end">
+                                <span className="text-gray-700 dark:text-gray-300">{formatQuantity(displayRecord.dispatch)}</span>
+                                {displayRecord.dispatchDate && <span className="text-xs text-gray-500">{new Date(displayRecord.dispatchDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</span>}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="inline-flex px-2 py-1 text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
+                              {displayRecord.partyNameMiddleman}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center" style={{ position: 'relative', zIndex: 1 }}>
+                            {isEditing ? (
+                              <div className="flex items-center justify-center gap-2">
+                                <button
+                                  onClick={() => {
+                                    if (isCountProduct) {
+                                      handleSaveCountProductQuantities((displayRecord.originalRecord as CountProduct).id);
+                                    } else if ('expectedArrivalDate' in displayRecord.originalRecord) {
+                                      handleSaveQuantities(displayRecord.originalRecord as DyeingRecord);
+                                    }
                                   }}
-                                />
-                              ) : (
-                                <FloatingActionDropdown
-                                  onEdit={() => handleEdit(displayRecord.originalRecord as DyeingRecord)}
-                                  onDelete={() => handleDelete(displayRecord.originalRecord as DyeingRecord)}
-                                  onFollowUp={() => handleFollowUp(displayRecord.originalRecord as DyeingRecord)}
-                                  onUpdateQuantities={() => {
-                                    handleUpdateQuantities(displayRecord.originalRecord as DyeingRecord);
-                                  }}
-                                />
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                ) : (
-                  <div className="p-6 text-center text-sm text-gray-500 dark:text-gray-400">No dyeing orders yet for this firm. (Synced firm)</div>
-                )}
-              </div>
+                                  disabled={isSaving}
+                                  className={`p-1.5 rounded transition-colors ${isSaving
+                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                    : 'bg-green-100 hover:bg-green-200 text-green-700'
+                                    }`}
+                                  title={isSaving ? "Saving..." : "Save"}
+                                >
+                                  {isSaving ? (
+                                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                                  ) : (
+                                    <Check className="w-4 h-4" />
+                                  )}
+                                </button>
+                                <button
+                                  onClick={handleCancelEdit}
+                                  disabled={isSaving}
+                                  className={`p-1.5 rounded transition-colors ${isSaving
+                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                    : 'bg-red-100 hover:bg-red-200 text-red-700'
+                                    }`}
+                                  title="Cancel"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ) : isCountProduct ? (
+                              <FloatingActionDropdown
+                                onEdit={() => handleCountProductEdit((displayRecord.originalRecord as CountProduct).id)}
+                                onDelete={() => handleCountProductDelete((displayRecord.originalRecord as CountProduct).id)}
+                                onFollowUp={() => handleCountProductFollowUp((displayRecord.originalRecord as CountProduct).id)}
+                                onUpdateQuantities={() => {
+                                  handleCountProductUpdateQuantities((displayRecord.originalRecord as CountProduct).id);
+                                }}
+                              />
+                            ) : (
+                              <FloatingActionDropdown
+                                onEdit={() => handleEdit(displayRecord.originalRecord as DyeingRecord)}
+                                onDelete={() => handleDelete(displayRecord.originalRecord as DyeingRecord)}
+                                onFollowUp={() => handleFollowUp(displayRecord.originalRecord as DyeingRecord)}
+                                onUpdateQuantities={() => {
+                                  handleUpdateQuantities(displayRecord.originalRecord as DyeingRecord);
+                                }}
+                              />
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="p-6 text-center text-sm text-gray-500 dark:text-gray-400">No dyeing orders yet for this count.</div>
+              )}
             </div>
           )}
         </div>
@@ -1726,41 +1729,37 @@ const DyeingOrders: React.FC = () => {
         }
   `}</style>
 
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-3">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">🪨 Dyeing Orders Overview</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dyeing Orders</h1>
+        <div className="flex items-center gap-2">
           {isRefreshing && (
-            <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
-              <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-              <span className="text-sm font-medium">Refreshing...</span>
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 rounded text-blue-600 dark:text-blue-400 text-sm">
+              <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              <span>Refreshing...</span>
             </div>
           )}
-        </div>
-        <div className="flex gap-2">
-          <Button onClick={handleExportCSV}>Export CSV</Button>
-          <Button onClick={handleExportPDF}>Export PDF</Button>
-          <Button onClick={() => { setOrderToEdit(null); setIsFormOpen(true); }}>+ Add Dyeing Order</Button>
+          <Button onClick={handleExportCSV} variant="outline" className="text-sm">Export CSV</Button>
+          <Button onClick={() => { setOrderToEdit(null); setIsFormOpen(true); }} className="text-sm">+ Add Order</Button>
 
-          {/* Multiple Delete Buttons */}
           {!isMultiDeleteMode ? (
             <Button
               onClick={() => {
-                setSelectedItems(new Set()); // Clear any existing selections
+                setSelectedItems(new Set());
                 setIsMultiDeleteMode(true);
               }}
               variant="outline"
-              className="text-red-600 border-red-300 hover:bg-red-50"
+              className="text-sm text-red-600 border-red-300 hover:bg-red-50"
             >
-              Multiple Delete
+              Delete Multiple
             </Button>
           ) : (
-            <div className="flex gap-2">
+            <>
               <Button
                 onClick={handleMultipleDelete}
                 disabled={selectedItems.size === 0}
-                className="bg-red-600 hover:bg-red-700 text-white"
+                className="text-sm bg-red-600 hover:bg-red-700 text-white"
               >
-                Delete Selected ({selectedItems.size})
+                Delete ({selectedItems.size})
               </Button>
               <Button
                 onClick={() => {
@@ -1768,29 +1767,35 @@ const DyeingOrders: React.FC = () => {
                   setSelectedItems(new Set());
                 }}
                 variant="outline"
+                className="text-sm"
               >
                 Cancel
               </Button>
-            </div>
+            </>
           )}
         </div>
       </div>
 
-      <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="mb-4 flex gap-3">
         <input
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="🔍 Search by party, firm, yarn, lot, shade, count"
-          className="w-full px-4 py-2 border rounded-md dark:bg-gray-800 dark:text-white dark:border-gray-700"
+          placeholder="Search by customer, firm, yarn, lot, shade, count..."
+          className="flex-1 px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
-        {/* Status filter removed */}
-        <select value={firmFilter} onChange={(e) => setFirmFilter(e.target.value)} className="px-4 py-2 border rounded-md dark:bg-gray-800 dark:text-white dark:border-gray-700">
-          <option value="">Filter by Firm</option>
+        <select
+          value={firmFilter}
+          onChange={(e) => setFirmFilter(e.target.value)}
+          className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          <option value="">All Firms</option>
           {pageFirms.map((f) => <option key={f} value={f}>{f}</option>)}
         </select>
-        <select value={partyFilter} onChange={(e) => setPartyFilter(e.target.value)} className="px-4 py-2 border rounded-md dark:bg-gray-800 dark:text-white dark:border-gray-700">
-          <option value="">Filter by Party</option>
+        <select
+          value={partyFilter}
+          onChange={(e) => setPartyFilter(e.target.value)}
+          className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          <option value="">All Parties</option>
           {pageParties.map((p) => <option key={p} value={p}>{p}</option>)}
         </select>
       </div>

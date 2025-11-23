@@ -3,6 +3,7 @@ import { useAuth } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import PrivateRoute from "./components/PrivateRoute";
 import LoadingSpinner from "./components/LoadingSpinner";
+// Updated: 2025-11-23 - Simplified Inventory added
 
 // PWA Components
 import PWAInstallPrompt from "./components/PWAInstallPrompt";
@@ -18,17 +19,17 @@ import Unauthorized from "./pages/Unauthorized";
 // Core Pages
 import Dashboard from "./pages/Dashboard";
 import UsersPage from "./pages/UsersPage";
-import Inventory from "./pages/Inventory";
+import SimplifiedInventory from "./pages/SimplifiedInventory";
 // Removed unused pages: BOM, WorkOrders, Costing
 // Removed: Reports
-import DyeingOrders from "./pages/DyeingOrders";
+import SimplifiedDyeingOrders from "./pages/SimplifiedDyeingOrders";
 import Product from "./pages/Product";
 // Removed: Users
 // Removed: Settings
-import PartyMaster from "./pages/PartyMaster";
+import SimplifiedPartyMaster from "./pages/SimplifiedPartyMaster";
 import ArchivedParties from "./pages/ArchivedParties";
 import ASUUnit1Page from "./pages/ASUUnit1Page";
-import CountProductOverview from "./pages/CountProductOverview";
+import SimplifiedCountProductOverview from "./pages/SimplifiedCountProductOverview";
 import ASUUnit2Page from "./pages/ASUUnit2Page";
 import ASUAuthTest from "./components/ASUAuthTest";
 import ApiTest from "./components/ApiTest";
@@ -90,9 +91,9 @@ const App = () => {
             <Route path="/signup" element={<Signup />} />
             <Route path="/unauthorized" element={<Unauthorized />} />
             <Route path="/products" element={<Product />} />
-            <Route path="/party-test" element={<PartyMaster />} />
+            <Route path="/party-test" element={<SimplifiedPartyMaster />} />
             <Route path="/archived-parties" element={<ArchivedParties />} />
-            <Route path="/count-product-overview" element={<CountProductOverview />} />
+            <Route path="/count-product-overview" element={<SimplifiedCountProductOverview />} />
             <Route path="/simple-test" element={<SimplePartyTest />} />
             <Route path="/raw-test" element={<RawDataTest />} />
             <Route path="/api-test" element={<ApiTest />} />
@@ -121,7 +122,7 @@ const App = () => {
                   path="/inventory"
                   element={
                     <PrivateRoute roles={["superadmin", "admin", "manager"]}>
-                      <Inventory />
+                      <SimplifiedInventory />
                     </PrivateRoute>
                   }
                 />
@@ -133,7 +134,7 @@ const App = () => {
                   path="/dyeing-orders"
                   element={
                     <PrivateRoute roles={["superadmin", "admin"]}>
-                      <DyeingOrders />
+                      <SimplifiedDyeingOrders />
                     </PrivateRoute>
                   }
                 />
@@ -141,7 +142,7 @@ const App = () => {
                   path="/party-master"
                   element={
                     <PrivateRoute roles={["superadmin", "admin"]}>
-                      <PartyMaster />
+                      <SimplifiedPartyMaster />
                     </PrivateRoute>
                   }
                 />
@@ -181,13 +182,13 @@ const App = () => {
                 {/** Users removed */}
                 {/** Settings removed */}
                 <Route path="/products" element={<Product />} />
-                <Route path="/party-test" element={<PartyMaster />} />
+                <Route path="/party-test" element={<SimplifiedPartyMaster />} />
                 <Route path="/archived-parties" element={<ArchivedParties />} />
                 <Route
                   path="/count-product-overview"
                   element={
                     <PrivateRoute roles={["superadmin", "admin"]}>
-                      <CountProductOverview />
+                      <SimplifiedCountProductOverview />
                     </PrivateRoute>
                   }
                 />
@@ -201,7 +202,7 @@ const App = () => {
             </div>
           </>
         )}
-        
+
         {/* PWA Components - always available */}
         <PWAInstallBanner />
         <PWAInstallPrompt />
