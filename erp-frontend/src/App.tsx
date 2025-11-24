@@ -106,7 +106,10 @@ const App = () => {
           <>
             <Navbar />
 
-            <div className="px-4 pt-16">
+            <div
+              className="px-4 py-6 transition-[margin] duration-300 lg:py-8"
+              style={{ marginLeft: "var(--app-sidebar-width, 0px)" }}
+            >
               <Routes>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
 

@@ -1,20 +1,23 @@
 import React from "react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Sun, Moon } from "lucide-react";
+import {
+  Sun,
+  Moon,
+  Menu,
+  X,
+  LogOut,
+  LayoutDashboard,
+  Boxes,
+  ClipboardList,
+  Users,
+  Factory,
+  Warehouse,
+  ChevronLeft,
+  type LucideIcon,
+} from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
-import {
-  FaUserShield,
-  FaSignOutAlt,
-  FaBars,
-  FaTimes,
-  FaChartBar,
-  FaWarehouse,
-  FaClipboardList,
-  FaUsers,
-  FaIndustry,
-} from "react-icons/fa";
 
 const Navbar = () => {
   const navigate = useNavigate();
@@ -22,9 +25,12 @@ const Navbar = () => {
   const { isDark, toggleTheme } = useTheme();
   const { user, logout, login } = useAuth();
 
-  const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(min-width: 1024px)").matches;
+  });
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -42,63 +48,108 @@ const Navbar = () => {
   }, [user, login]);
 
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
+    if (typeof window === "undefined") return;
+    const mediaQuery = window.matchMedia("(min-width: 1024px)");
+    const handleChange = (event: MediaQueryListEvent) => {
+      setIsDesktop(event.matches);
+      if (!event.matches) {
+        setSidebarOpen(false);
+        setIsCollapsed(false);
       }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+
+    setIsDesktop(mediaQuery.matches);
+    if (!mediaQuery.matches) {
+      setSidebarOpen(false);
+      setIsCollapsed(false);
+    }
+
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
   }, []);
 
-  const getRoleOptions = () => {
-    // Role switching removed in new RBAC model (superadmin/admin/manager)
-    return [];
-  };
+  useEffect(() => {
+    const width = isDesktop ? (isCollapsed ? "80px" : "272px") : "0px";
+    document.documentElement.style.setProperty("--app-sidebar-width", width);
+  }, [isCollapsed, isDesktop]);
 
-  const handleRoleChange = (_selectedRole: string) => {
-    // Disabled
-    return;
-  };
+  useEffect(() => {
+    return () => {
+      document.documentElement.style.removeProperty("--app-sidebar-width");
+    };
+  }, []);
 
   const getInitials = () => {
     const nameParts = user?.name?.split(" ") || ["U"];
     return (nameParts[0]?.[0] || "") + (nameParts[1]?.[0] || "");
   };
 
-  const renderNavLinks = () => {
-    if (!user) return null;
-    const { role } = user;
-  const links: { to: string; label: string; icon: React.ReactNode }[] = [];
+  const handleLogout = () => {
+    const ok = window.confirm("Are you sure you want to logout?");
+    if (!ok) return;
+    logout();
+    setSidebarOpen(false);
+    navigate("/login", { replace: true });
+  };
 
-  if (["superadmin", "admin", "manager"].includes(role)) links.push({ to: "/dashboard", label: "Dashboard", icon: <FaChartBar /> });
-  if (["superadmin", "admin", "manager"].includes(role)) links.push({ to: "/inventory", label: "Inventory", icon: <FaWarehouse /> });
-  if (["superadmin", "admin"].includes(role)) links.push({ to: "/count-product-overview", label: "Count/Product Overview", icon: <FaClipboardList /> });
-  if (["superadmin", "admin"].includes(role)) links.push({ to: "/dyeing-orders", label: "Dyeing Orders", icon: <FaClipboardList /> });
-  if (["superadmin", "admin"].includes(role)) links.push({ to: "/party-master", label: "Party Master", icon: <FaUsers /> });
-  if (["superadmin", "admin", "manager"].includes(role)) links.push({ to: "/production/asu-unit-1", label: "ASU Unit 1", icon: <FaIndustry /> });
-  if (["superadmin", "admin", "manager"].includes(role)) links.push({ to: "/production/asu-unit-2", label: "ASU Unit 2", icon: <FaIndustry /> });
-  if (["superadmin", "admin"].includes(role)) links.push({ to: "/users", label: "Users", icon: <FaUsers /> });
+  const navLinks = useMemo(() => {
+    if (!user) return [];
+    const role = user.role;
+    const links: { to: string; label: string; icon: LucideIcon }[] = [];
+
+    if (["superadmin", "admin", "manager"].includes(role))
+      links.push({ to: "/dashboard", label: "Dashboard", icon: LayoutDashboard });
+    if (["superadmin", "admin", "manager"].includes(role))
+      links.push({ to: "/inventory", label: "Inventory", icon: Boxes });
+    if (["superadmin", "admin"].includes(role))
+      links.push({ to: "/count-product-overview", label: "Count/Product Overview", icon: ClipboardList });
+    if (["superadmin", "admin"].includes(role))
+      links.push({ to: "/dyeing-orders", label: "Dyeing Orders", icon: ClipboardList });
+    if (["superadmin", "admin"].includes(role))
+      links.push({ to: "/party-master", label: "Party Master", icon: Users });
+    if (["superadmin", "admin", "manager"].includes(role))
+      links.push({ to: "/production/asu-unit-1", label: "ASU Unit 1", icon: Factory });
+    if (["superadmin", "admin", "manager"].includes(role))
+      links.push({ to: "/production/asu-unit-2", label: "ASU Unit 2", icon: Factory });
+    if (["superadmin", "admin"].includes(role))
+      links.push({ to: "/users", label: "Users", icon: Users });
+
+    return links;
+  }, [user]);
+
+  const renderNavLinks = (options?: { compact?: boolean; onNavigate?: () => void }) => {
+    const compact = options?.compact ?? false;
+    const onNavigate = options?.onNavigate;
+
+    if (navLinks.length === 0) {
+      return null;
+    }
 
     return (
-      <ul className="mt-6 flex flex-col gap-3">
-        {links.map((link) => {
+      <ul className="mt-4 flex flex-col gap-2">
+        {navLinks.map((link) => {
           const currentPath = `${location.pathname}${location.search}`;
           const isActive = link.to.includes("?")
             ? currentPath === link.to
             : location.pathname.startsWith(link.to);
+          const Icon = link.icon;
           return (
             <li key={link.to}>
               <Link
                 to={link.to}
-                onClick={() => setSidebarOpen(false)}
-                className={`flex items-center gap-3 px-4 py-2 rounded-md text-sm font-medium transition ${
+                onClick={() => {
+                  onNavigate?.();
+                  setSidebarOpen(false);
+                }}
+                title={compact ? link.label : undefined}
+                className={`flex items-center ${compact ? "justify-center" : "gap-3"} px-3 py-2 rounded-lg text-sm font-medium transition ${
                   isActive
                     ? "bg-blue-100 text-blue-600 dark:bg-gray-700 dark:text-blue-400"
                     : "text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700"
                 }`}
               >
-                {link.icon} {link.label}
+                <Icon className="h-5 w-5" />
+                {!compact && <span>{link.label}</span>}
               </Link>
             </li>
           );
@@ -109,92 +160,105 @@ const Navbar = () => {
 
   return (
     <>
-      {/* Topbar */}
-      <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 shadow-md fixed top-0 left-0 w-full z-50">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setSidebarOpen((open) => !open)}
-            className="text-gray-700 dark:text-gray-200 text-xl"
-            title="Toggle Menu"
-            aria-expanded={sidebarOpen}
-          >
-            <FaBars />
-          </button>
-          <h1 className="text-xl font-bold text-blue-700 dark:text-white">ERP System</h1>
-        </div>
+      {user && (
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(true)}
+          className={`fixed left-4 top-4 z-40 inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-md transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-white lg:hidden ${
+            sidebarOpen ? "pointer-events-none opacity-0" : "opacity-100"
+          }`}
+          aria-label="Open navigation"
+          aria-expanded={sidebarOpen}
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+      )}
 
-        <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={toggleTheme}
-            title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-            aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-            aria-pressed={isDark}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
-          >
-            {isDark ? <Moon size={18} /> : <Sun size={18} />}
-          </button>
-          <div className="relative" ref={dropdownRef}>
+      {/* Desktop Sidebar */}
+      {user && (
+        <aside
+          className={`hidden lg:flex fixed top-0 left-0 h-screen flex-col border-r border-gray-200 bg-white pt-6 transition-all duration-300 dark:border-gray-800 dark:bg-gray-900 ${
+            isCollapsed ? "w-20" : "w-72"
+          }`}
+          style={{ zIndex: 40 }}
+          aria-label="Primary navigation"
+        >
+          <div className="flex items-center justify-between gap-2 px-4 pb-4">
+            {!isCollapsed ? (
+              <div className="flex items-center gap-2">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600 shadow-sm dark:bg-blue-900/40 dark:text-blue-300">
+                  <Warehouse className="h-5 w-5" />
+                </div>
+                <span className="font-semibold text-blue-700 dark:text-blue-300">ASU ERP</span>
+              </div>
+            ) : (
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600 shadow-sm dark:bg-blue-900/40 dark:text-blue-300">
+                <Warehouse className="h-5 w-5" />
+              </div>
+            )}
             <button
-              onClick={() => setMenuOpen(!menuOpen)}
-              className="flex items-center gap-2 bg-purple-600 text-white px-3 py-1.5 rounded-full"
+              onClick={() => setIsCollapsed((prev) => !prev)}
+              className="rounded-lg border border-blue-200 bg-blue-50 p-2 text-blue-600 shadow-sm transition hover:bg-blue-100 hover:text-blue-700 dark:border-blue-900/50 dark:bg-blue-900/30 dark:text-blue-200 dark:hover:bg-blue-900/50"
+              title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
-              <span className="font-bold uppercase">{getInitials()}</span>
+              <ChevronLeft className={`h-4 w-4 transition-transform ${isCollapsed ? "rotate-180" : ""}`} />
             </button>
-
-            {menuOpen && (
-              <div className="absolute right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg w-56 z-50 text-sm overflow-hidden">
-                {/* User Info Section */}
-                {user && (
-                  <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
-                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">
-                      {user.name || 'User'}
-                    </p>
+          </div>
+          <nav className="flex-1 overflow-y-auto px-2 pb-6">
+            {renderNavLinks({ compact: isCollapsed })}
+          </nav>
+          <div
+            className={`border-t border-gray-200 px-4 py-4 dark:border-gray-800 ${
+              isCollapsed ? "flex flex-col items-center gap-3" : "flex flex-col gap-3"
+            }`}
+          >
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
+              title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+              aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+              aria-pressed={isDark}
+            >
+              {isDark ? <Moon size={18} /> : <Sun size={18} />}
+            </button>
+            {user && (
+              <div
+                className={`flex items-center ${
+                  isCollapsed ? "justify-center" : "gap-3"
+                }`}
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold uppercase text-white">
+                  {getInitials()}
+                </div>
+                {!isCollapsed && (
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{user.name || "User"}</p>
                     {user.email && (
-                      <p className="text-xs text-gray-500 dark:text-gray-300 truncate">{user.email}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user.email}</p>
                     )}
-                    <span className="inline-block mt-1 text-[11px] uppercase tracking-wide px-2 py-0.5 rounded bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 font-medium">
+                    <span className="mt-1 inline-block rounded bg-purple-100 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-purple-700 dark:bg-purple-900 dark:text-purple-300">
                       {user.role}
                     </span>
                   </div>
                 )}
-                {getRoleOptions().length > 0 && (
-                  <>
-                    <p className="px-4 py-2 text-gray-500 dark:text-gray-300 font-medium">Switch Role</p>
-                    {getRoleOptions().map((r: string) => (
-                      <button
-                        key={r}
-                        onClick={() => handleRoleChange(r)}
-                        className={`w-full text-left px-4 py-2 flex items-center gap-2 transition ${
-                          user?.role === r
-                            ? "text-blue-600 dark:text-blue-400 font-semibold bg-gray-100 dark:bg-gray-700"
-                            : "text-gray-800 dark:text-gray-200"
-                        } hover:bg-gray-100 dark:hover:bg-gray-700`}
-                      >
-                        <FaUserShield /> {r.charAt(0).toUpperCase() + r.slice(1)}
-                      </button>
-                    ))}
-                    <hr className="border-t border-gray-200 dark:border-gray-600" />
-                  </>
-                )}
-                <button
-                  onClick={() => {
-                    const ok = window.confirm('Are you sure you want to logout?');
-                    if (!ok) return;
-                    logout();
-                    setMenuOpen(false);
-                    setSidebarOpen(false);
-                    navigate('/login', { replace: true });
-                  }}
-                  className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900 flex items-center gap-2"
-                >
-                  <FaSignOutAlt /> Logout
-                </button>
               </div>
             )}
+            <button
+              onClick={handleLogout}
+              className={`flex items-center justify-center gap-2 rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-900/40 ${
+                isCollapsed ? "w-10 p-0" : ""
+              }`}
+              title="Logout"
+              aria-label="Logout"
+            >
+              <LogOut className="h-4 w-4" />
+              {!isCollapsed && <span>Logout</span>}
+            </button>
           </div>
-        </div>
-      </div>
+        </aside>
+      )}
 
       {/* Sidebar Overlay with Animation */}
       <div className={`fixed inset-0 z-40 ${sidebarOpen ? "block" : "hidden"}`}>
@@ -203,21 +267,60 @@ const Navbar = () => {
 
         {/* Sidebar */}
         <div
-          className={`absolute top-0 left-0 w-72 h-full bg-white dark:bg-gray-900 shadow-lg z-50 transform transition-transform duration-300 ${
+          className={`absolute top-0 left-0 flex h-full w-72 flex-col bg-white shadow-lg transition-transform duration-300 dark:bg-gray-900 ${
             sidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
+          style={{ zIndex: 50 }}
         >
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-            <h1 className="text-xl font-bold text-blue-700 dark:text-white">ERP System</h1>
+          <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+            <h1 className="text-xl font-bold text-blue-700 dark:text-white">ASU ERP</h1>
             <button
               onClick={() => setSidebarOpen(false)}
               className="text-gray-600 dark:text-gray-300"
               title="Close Sidebar"
             >
-              <FaTimes />
+              <X className="h-5 w-5" />
             </button>
           </div>
-          {renderNavLinks()}
+          <div className="flex-1 overflow-y-auto px-2 pb-6">
+            {renderNavLinks({ onNavigate: () => setSidebarOpen(false) })}
+          </div>
+          <div className="border-t border-gray-200 px-4 py-4 dark:border-gray-800">
+            <div className="mb-3 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold uppercase text-white">
+                {getInitials()}
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{user?.name || "User"}</p>
+                {user?.email && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user.email}</p>
+                )}
+                {user?.role && (
+                  <span className="mt-1 inline-block rounded bg-purple-100 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-purple-700 dark:bg-purple-900 dark:text-purple-300">
+                    {user.role}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
+                title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+                aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+                aria-pressed={isDark}
+              >
+                {isDark ? <Moon size={18} /> : <Sun size={18} />}
+              </button>
+              <button
+                onClick={handleLogout}
+                className="flex flex-1 items-center justify-center gap-2 rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-900/40"
+              >
+                <LogOut className="h-4 w-4" /> Logout
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </>
