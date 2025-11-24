@@ -251,9 +251,17 @@ const SimplifiedDyeingOrders: React.FC = () => {
         setEditValues(prev => ({ ...prev, [field]: parseFloat(value) || 0 }));
     };
 
-    const formatQuantity = (value: number | undefined): string => {
+    const formatQuantity = (value?: number | string | null): string => {
         if (value === undefined || value === null) return "--";
-        return `${value % 1 === 0 ? value.toString() : value.toFixed(1)} kg`;
+
+        const numericValue = Number.parseFloat(String(value).replace(/,/g, '').trim());
+        if (!Number.isFinite(numericValue)) return "--";
+
+        const roundedValue = Number.isInteger(numericValue)
+            ? numericValue
+            : Math.round(numericValue * 10) / 10;
+
+        return `${roundedValue.toString()} kg`;
     };
 
     const formatDate = (date?: string): string => {
