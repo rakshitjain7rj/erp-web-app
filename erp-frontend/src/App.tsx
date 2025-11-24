@@ -56,7 +56,7 @@ const App = () => {
 
   return (
     <ThemeProvider>
-      <div className="min-h-screen text-black transition-all duration-300 bg-white dark:bg-gray-950 dark:text-white">
+      <div className="min-h-screen text-black transition-all duration-300 bg-slate-100 dark:bg-gray-950 dark:text-white">
         <Toaster
           position="top-right"
           toastOptions={{
@@ -107,10 +107,11 @@ const App = () => {
             <Navbar />
 
             <div
-              className="px-4 py-6 transition-[margin] duration-300 lg:py-8"
+              className="px-4 py-6 transition-[margin] duration-300 lg:px-8 lg:py-10"
               style={{ marginLeft: "var(--app-sidebar-width, 0px)" }}
             >
-              <Routes>
+              <div className="relative mx-auto min-h-[calc(100vh_-_5rem)] w-full max-w-[1360px] overflow-hidden rounded-3xl border border-slate-200/70 bg-white/90 p-4 shadow-xl backdrop-blur-sm transition-colors duration-300 dark:border-gray-800 dark:bg-gray-900/80 dark:shadow-black/40 sm:p-6 lg:p-8">
+                <Routes>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
                 <Route
@@ -202,6 +203,7 @@ const App = () => {
                 {/* Catch-all */}
                 <Route path="*" element={<Navigate to="/dashboard" />} />
               </Routes>
+              </div>
             </div>
           </>
         )}

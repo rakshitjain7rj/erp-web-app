@@ -183,7 +183,9 @@ const Navbar = () => {
           style={{ zIndex: 40 }}
           aria-label="Primary navigation"
         >
-          <div className="flex items-center justify-between gap-2 px-4 pb-4">
+          <div
+            className={`flex items-center gap-2 px-4 pb-4 ${isCollapsed ? "justify-center" : "justify-start"}`}
+          >
             {!isCollapsed ? (
               <div className="flex items-center gap-2">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600 shadow-sm dark:bg-blue-900/40 dark:text-blue-300">
@@ -196,14 +198,6 @@ const Navbar = () => {
                 <Warehouse className="h-5 w-5" />
               </div>
             )}
-            <button
-              onClick={() => setIsCollapsed((prev) => !prev)}
-              className="rounded-lg border border-blue-200 bg-blue-50 p-2 text-blue-600 shadow-sm transition hover:bg-blue-100 hover:text-blue-700 dark:border-blue-900/50 dark:bg-blue-900/30 dark:text-blue-200 dark:hover:bg-blue-900/50"
-              title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-              aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            >
-              <ChevronLeft className={`h-4 w-4 transition-transform ${isCollapsed ? "rotate-180" : ""}`} />
-            </button>
           </div>
           <nav className="flex-1 overflow-y-auto px-2 pb-6">
             {renderNavLinks({ compact: isCollapsed })}
@@ -213,6 +207,17 @@ const Navbar = () => {
               isCollapsed ? "flex flex-col items-center gap-3" : "flex flex-col gap-3"
             }`}
           >
+            <button
+              onClick={() => setIsCollapsed((prev) => !prev)}
+              className={`flex items-center justify-center gap-2 rounded-md border border-blue-200 px-3 py-2 text-sm font-medium text-blue-600 transition hover:bg-blue-50 dark:border-blue-900/50 dark:text-blue-200 dark:hover:bg-blue-900/40 ${
+                isCollapsed ? "w-10 p-0" : ""
+              }`}
+              title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              <ChevronLeft className={`h-4 w-4 transition-transform ${isCollapsed ? "rotate-180" : ""}`} />
+              {!isCollapsed && <span>{isCollapsed ? "Expand" : "Collapse"}</span>}
+            </button>
             <button
               type="button"
               onClick={toggleTheme}
