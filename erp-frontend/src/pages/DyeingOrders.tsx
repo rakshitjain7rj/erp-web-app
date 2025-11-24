@@ -1421,12 +1421,28 @@ const DyeingOrders: React.FC = () => {
   };
 
   // Format quantity display similar to count product
-  const formatQuantity = (quantity?: number): string => {
+  const formatQuantity = (quantity?: number | string | null): string => {
     // Only show "--" for undefined/null values, show "0 kg" for actual 0 values
     if (quantity === undefined || quantity === null) {
       return "--";
     }
-    return `${quantity % 1 === 0 ? quantity.toString() : quantity.toFixed(1)} kg`;
+
+    // Coerce incoming value to a finite number before formatting
+    const numericQuantity = typeof quantity === 'number'
+      ? quantity
+      : typeof quantity === 'string'
+        ? parseFloat(quantity.replace(/,/g, '').trim())
+        : Number(quantity);
+
+    if (!Number.isFinite(numericQuantity)) {
+      return "--";
+    }
+
+    const displayValue = Number.isInteger(numericQuantity)
+      ? numericQuantity.toString()
+      : numericQuantity.toFixed(1);
+
+    return `${displayValue} kg`;
   };
 
   const handleExportCSV = () => {
