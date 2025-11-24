@@ -347,330 +347,269 @@ const MachineManager: React.FC = () => {
   };
 
   return (
-    <>
-      {/* Machine Form Modal */}
-      <MachineFormModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onSubmit={handleMachineCreate}
-        loading={loading}
-      />
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold tracking-tight">Machine Management</h2>
+        <Button onClick={() => setIsAddModalOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" /> Add Machine
+        </Button>
+      </div>
 
-      {/* Machine Management */}
-      <div className="overflow-hidden bg-white border border-gray-200 shadow-sm dark:bg-gray-800 dark:border-gray-700 rounded-lg">
-        <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-medium text-gray-900 dark:text-gray-100">Machine List</h2>
-            <div className="flex items-center space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsAddModalOpen(true)}
-                className="flex items-center text-xs bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
-              >
-                <Plus className="w-3 h-3 mr-1" />
-                Add Machine
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={loadMachines}
-                disabled={loading}
-                className="flex items-center text-xs"
-              >
-                <RotateCcw className="w-3 h-3 mr-1" />
-                Refresh
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        <div className="p-4">
-          {loading && !machines.length ? (
-            <div className="flex items-center justify-center py-6">
-              <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
-                <div className="w-5 h-5 border-b-2 border-green-500 rounded-full animate-spin"></div>
-                <span className="text-sm">Loading machines...</span>
-              </div>
-            </div>
-          ) : machines.length === 0 ? (
-            <div className="flex flex-col items-center justify-center px-4 py-8 text-center">
-              <div className="p-2 mb-3 rounded-full bg-green-50 dark:bg-green-900/30">
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-green-500 dark:text-green-400" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <p className="text-base font-medium text-gray-700 dark:text-gray-300">No machines found</p>
-              <p className="max-w-md mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Click on "Add Machine" button to get started.
-              </p>
-              <Button
-                onClick={() => setIsAddModalOpen(true)}
-                className="flex items-center mt-4 px-3 py-2 text-sm font-medium text-white transition-all duration-200 rounded-md bg-blue-600 hover:bg-blue-700"
-              >
-                <Plus className="w-4 h-4 mr-1.5" />
-                Add Machine
-              </Button>
-            </div>
-          ) : (
-            <div className="w-full overflow-x-auto">
-              <Table className="w-full min-w-full">
-                <TableHeader className="bg-gray-50 dark:bg-gray-800">
-                  <TableRow className="border-b dark:border-gray-700">
-                    <TableHead className="px-3 py-2 text-xs font-medium text-left text-gray-500 sm:px-4 dark:text-gray-400">Machine #</TableHead>
-                    <TableHead className="px-3 py-2 text-xs font-medium text-left text-gray-500 sm:px-4 dark:text-gray-400">Name</TableHead>
-                    <TableHead className="px-3 py-2 text-xs font-medium text-left text-gray-500 sm:px-4 dark:text-gray-400">Count</TableHead>
-                    <TableHead className="px-3 py-2 text-xs font-medium text-left text-gray-500 sm:px-4 dark:text-gray-400">Yarn Type</TableHead>
-                    <TableHead className="px-3 py-2 text-xs font-medium text-left text-gray-500 sm:px-4 dark:text-gray-400">Spindles</TableHead>
-                    <TableHead className="px-3 py-2 text-xs font-medium text-left text-gray-500 sm:px-4 dark:text-gray-400">Speed</TableHead>
-                    <TableHead className="px-3 py-2 text-xs font-medium text-left text-gray-500 sm:px-4 dark:text-gray-400">Prod @ 100%</TableHead>
-                    <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400">Status</TableHead>
-                    <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-right text-gray-500 uppercase sm:px-6 dark:text-gray-400">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {machines.map(machine => (
-                    <TableRow
-                      key={machine.id}
-                      className={`transition-colors cursor-pointer ${selectedMachine?.id === machine.id
-                          ? 'bg-indigo-50 dark:bg-indigo-900/20'
-                          : 'hover:bg-gray-50 dark:hover:bg-gray-700/30'
-                        }`}
-                      onClick={() => handleMachineSelect(machine.id.toString())}
-                    >
-                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
-                        {editingMachine?.id === machine.id ? (
-                          <Input
-                            type="number"
-                            value={editingMachine.machineNo}
-                            onChange={(e) => setEditingMachine({
-                              ...editingMachine,
-                              machineNo: parseInt(e.target.value) || 0
-                            })}
-                            className="w-20 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        ) : (
-                          <span className="font-medium text-gray-900 dark:text-gray-100">
-                            {machine.machineNo}
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
-                        {editingMachine?.id === machine.id ? (
+      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-gray-50 dark:bg-gray-900/50">
+                <TableHead className="w-[100px]">Machine No</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Count</TableHead>
+                <TableHead>Yarn Type</TableHead>
+                <TableHead>Spindles</TableHead>
+                <TableHead>Speed (RPM)</TableHead>
+                <TableHead>Prod @ 100%</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={9} className="h-24 text-center">
+                    <div className="flex items-center justify-center">
+                      <div className="w-6 h-6 border-b-2 border-indigo-600 rounded-full animate-spin"></div>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : machines.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={9} className="h-24 text-center text-gray-500">
+                    No machines found. Add one to get started.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                machines.map((machine) => (
+                  <TableRow
+                    key={machine.id}
+                    className={`cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50 ${selectedMachine?.id === machine.id ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''
+                      }`}
+                    onClick={() => handleMachineSelect(machine.id.toString())}
+                  >
+                    <TableCell className="font-medium">
+                      {editingMachine?.id === machine.id ? (
+                        <Input
+                          type="number"
+                          value={editingMachine.machineNo}
+                          onChange={(e) => setEditingMachine({ ...editingMachine, machineNo: parseInt(e.target.value) || 0 })}
+                          className="w-20 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        machine.machineNo
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {editingMachine?.id === machine.id ? (
+                        <Input
+                          type="text"
+                          value={editingMachine.machineName || ''}
+                          onChange={(e) => setEditingMachine({ ...editingMachine, machineName: e.target.value })}
+                          className="w-32 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                          onClick={(e) => e.stopPropagation()}
+                          placeholder="Name"
+                        />
+                      ) : (
+                        <span className="text-gray-700 dark:text-gray-300">{machine.machineName || '-'}</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {editingMachine?.id === machine.id ? (
+                        <Input
+                          type="number"
+                          value={editingMachine.count}
+                          onChange={(e) => setEditingMachine({ ...editingMachine, count: parseInt(e.target.value) || 0 })}
+                          className="w-20 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300">
+                          {machine.count}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {editingMachine?.id === machine.id ? (
+                        <div className="relative">
                           <Input
                             type="text"
-                            value={editingMachine.machineName || ''}
-                            onChange={(e) => setEditingMachine({
-                              ...editingMachine,
-                              machineName: e.target.value
-                            })}
-                            className="w-32 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                            value={editingMachine.yarnType || ''}
+                            onChange={(e) => setEditingMachine({ ...editingMachine, yarnType: e.target.value })}
+                            className="w-28 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
                             onClick={(e) => e.stopPropagation()}
+                            placeholder="Enter yarn type"
                           />
-                        ) : (
-                          <span className="text-gray-700 dark:text-gray-300">
-                            {machine.machineName || ''}
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
-                        {editingMachine?.id === machine.id ? (
-                          <Input
-                            type="text"
-                            value={editingMachine.countDisplay || editingMachine.count}
-                            onChange={(e) => {
-                              const displayValue = e.target.value;
-                              // Extract numeric part (supports decimals like 0.65)
-                              const numericMatch = displayValue.match(/^\d*\.?\d+/);
-                              const numericValue = numericMatch ? parseFloat(numericMatch[0]) : 0;
-
-                              setEditingMachine({
-                                ...editingMachine,
-                                count: numericValue, countDisplay: displayValue
-                              });
-                            }}
-                            className="w-20 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                            onClick={(e) => e.stopPropagation()}
-                            placeholder="e.g., 30s"
-                          />
-                        ) : (
-                          <span className="text-gray-700 dark:text-gray-300">{machine.count}</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
-                        {editingMachine?.id === machine.id ? (
-                          <div className="relative">
-                            <Input
-                              type="text"
-                              value={editingMachine.yarnType || ''}
-                              onChange={(e) => setEditingMachine({ ...editingMachine, yarnType: e.target.value })}
-                              className="w-28 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                              onClick={(e) => e.stopPropagation()}
-                              placeholder="Enter yarn type"
-                            />
-                            <div className="absolute top-full left-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-sm p-1 z-50 w-auto min-w-[120px]">
-                              <div className="flex flex-wrap gap-1">
-                                {yarnTypes.map(type => (
-                                  <button
-                                    key={type}
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setEditingMachine({ ...editingMachine, yarnType: type });
-                                    }}
-                                    className="px-1.5 py-0.5 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded"
-                                  >
-                                    {type}
-                                  </button>
-                                ))}
-                              </div>
+                          <div className="absolute top-full left-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-sm p-1 z-50 w-auto min-w-[120px]">
+                            <div className="flex flex-wrap gap-1">
+                              {yarnTypes.map(type => (
+                                <button
+                                  key={type}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingMachine({ ...editingMachine, yarnType: type });
+                                  }}
+                                  className="px-1.5 py-0.5 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded"
+                                >
+                                  {type}
+                                </button>
+                              ))}
                             </div>
                           </div>
-                        ) : (
-                          <span className="text-gray-700 dark:text-gray-300">{machine.yarnType}</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
-                        {editingMachine?.id === machine.id ? (
-                          <Input
-                            type="number"
-                            value={editingMachine.spindles || ''}
-                            onChange={(e) => {
-                              const val = e.target.value.trim();
-                              setEditingMachine({
-                                ...editingMachine,
-                                spindles: val ? parseInt(val) : null
-                              });
-                            }}
-                            className="w-24 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        ) : (
-                          <span className="text-gray-700 dark:text-gray-300">{machine.spindles}</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
-                        {editingMachine?.id === machine.id ? (
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={editingMachine.speed || ''}
-                            onChange={(e) => {
-                              const val = e.target.value.trim();
-                              setEditingMachine({
-                                ...editingMachine,
-                                speed: val ? parseFloat(val) : null
-                              });
-                            }}
-                            className="w-24 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        ) : (
-                          <span className="text-gray-700 dark:text-gray-300">{machine.speed} RPM</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
-                        {editingMachine?.id === machine.id ? (
-                          <Input
-                            type="number"
-                            value={editingMachine.productionAt100 || ''}
-                            step="0.00001"
-                            onChange={(e) => {
-                              const val = e.target.value.trim();
-                              setEditingMachine({
-                                ...editingMachine,
-                                productionAt100: val ? parseFloat(val) : 0
-                              });
-                            }}
-                            className="w-24 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        ) : (
-                          <span className="text-purple-600 font-medium dark:text-purple-400">
-                            {machine.productionAt100 ? Number(machine.productionAt100).toFixed(5) : 'N/A'}
-                          </span>
-                        )}
-                      </TableCell>
-                      {/* Status field */}
-                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
-                        {editingMachine?.id === machine.id ? (
-                          <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
-                            <input
-                              type="checkbox"
-                              checked={editingMachine.isActive}
-                              onChange={(e) => setEditingMachine({ ...editingMachine, isActive: e.target.checked })}
-                              className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:focus:ring-indigo-400"
-                            />
-                            <Label className="text-sm text-gray-700 dark:text-gray-300">Active</Label>
-                          </div>
-                        ) : (
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${machine.isActive
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-                              : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                            }`}>
-                            {machine.isActive ? 'Active' : 'Inactive'}
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="px-4 py-4 text-right whitespace-nowrap sm:px-6">
-                        <div className="flex justify-end gap-2">
-                          {editingMachine?.id === machine.id ? (
-                            <>
-                              <Button
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleSaveEdit();
-                                }}
-                                disabled={loading}
-                                className="p-1 text-white bg-green-600 rounded-md hover:bg-green-700 focus:ring-green-500"
-                              >
-                                <Save className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setEditingMachine(null);
-                                }}
-                                className="p-1 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 focus:ring-gray-400 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200"
-                              >
-                                <X className="w-4 h-4" />
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Button
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleEdit(machine);
-                                }}
-                                className="p-1 text-white rounded-md bg-indigo-600 hover:bg-indigo-700 border border-indigo-700 dark:bg-indigo-900/70 dark:hover:bg-indigo-800 dark:text-indigo-200"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDelete(machine.id);
-                                }}
-                                className="p-1 text-white rounded-md bg-red-600 hover:bg-red-700 border border-red-700 dark:bg-red-900/70 dark:hover:bg-red-800 dark:text-red-200"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </>
-                          )}
                         </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
+                      ) : (
+                        <span className="text-gray-700 dark:text-gray-300">{machine.yarnType}</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
+                      {editingMachine?.id === machine.id ? (
+                        <Input
+                          type="number"
+                          value={editingMachine.spindles || ''}
+                          onChange={(e) => {
+                            const val = e.target.value.trim();
+                            setEditingMachine({
+                              ...editingMachine,
+                              spindles: val ? parseInt(val) : null
+                            });
+                          }}
+                          className="w-24 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <span className="text-gray-700 dark:text-gray-300">{machine.spindles}</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
+                      {editingMachine?.id === machine.id ? (
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={editingMachine.speed || ''}
+                          onChange={(e) => {
+                            const val = e.target.value.trim();
+                            setEditingMachine({
+                              ...editingMachine,
+                              speed: val ? parseFloat(val) : null
+                            });
+                          }}
+                          className="w-24 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <span className="text-gray-700 dark:text-gray-300">{machine.speed} RPM</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
+                      {editingMachine?.id === machine.id ? (
+                        <Input
+                          type="number"
+                          value={editingMachine.productionAt100 || ''}
+                          step="0.00001"
+                          onChange={(e) => {
+                            const val = e.target.value.trim();
+                            setEditingMachine({
+                              ...editingMachine,
+                              productionAt100: val ? parseFloat(val) : 0
+                            });
+                          }}
+                          className="w-24 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <span className="text-purple-600 font-medium dark:text-purple-400">
+                          {machine.productionAt100 ? Number(machine.productionAt100).toFixed(5) : 'N/A'}
+                        </span>
+                      )}
+                    </TableCell>
+                    {/* Status field */}
+                    <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
+                      {editingMachine?.id === machine.id ? (
+                        <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={editingMachine.isActive}
+                            onChange={(e) => setEditingMachine({ ...editingMachine, isActive: e.target.checked })}
+                            className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:focus:ring-indigo-400"
+                          />
+                          <Label className="text-sm text-gray-700 dark:text-gray-300">Active</Label>
+                        </div>
+                      ) : (
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${machine.isActive
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                          : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                          }`}>
+                          {machine.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="px-4 py-4 text-right whitespace-nowrap sm:px-6">
+                      <div className="flex justify-end gap-2">
+                        {editingMachine?.id === machine.id ? (
+                          <>
+                            <Button
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSaveEdit();
+                              }}
+                              disabled={loading}
+                              className="p-1 text-white bg-green-600 rounded-md hover:bg-green-700 focus:ring-green-500"
+                            >
+                              <Save className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingMachine(null);
+                              }}
+                              className="p-1 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 focus:ring-gray-400 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200"
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEdit(machine);
+                              }}
+                              className="p-1 text-blue-600 border-transparent bg-transparent hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(machine.id);
+                              }}
+                              className="p-1 text-red-600 border-transparent bg-transparent hover:bg-red-50 dark:hover:bg-red-900/20"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
         </div>
       </div>
 
@@ -685,7 +624,14 @@ const MachineManager: React.FC = () => {
           />
         </div>
       )}
-    </>
+
+      <MachineFormModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onSubmit={handleMachineCreate}
+        loading={loading}
+      />
+    </div>
   );
 };
 

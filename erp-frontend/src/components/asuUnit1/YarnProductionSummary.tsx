@@ -1,15 +1,15 @@
 // src/components/asuUnit1/YarnProductionSummary.tsx
 // 
-// Current Yarn Type Production Summary Component
+// Yarn Type Production Summary Component
 // 
 // This component displays production data organized by date and yarn type,
-// showing ONLY the current yarn types configured on machines.
+// showing ALL yarn types that have ever been recorded in production entries.
 // 
 // Key Features:
-// - Shows daily production amounts for current machine yarn types only
-// - When machine yarn types change, past production data is filtered to current types
-// - Zero values shown when no production exists for current yarn type on specific dates
-// - No historical yarn type data - focuses on current machine configurations
+// - Shows daily production amounts for all yarn types from production history
+// - Yarn types currently on active machines are marked with "ACTIVE" badge
+// - Displays historical yarn types even if they're no longer on active machines
+// - Zero values shown when no production exists for a yarn type on specific dates
 //
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -37,10 +37,10 @@ const normalizeYarnType = (type: string | undefined): string => {
 // Format yarn type for display (capitalize words)
 const formatYarnTypeDisplay = (yarnType: string | undefined): string => {
   if (!yarnType) return "Unknown";
-  
+
   // Common abbreviations that should remain uppercase
   const upperCaseWords = ['pp', 'cvc', 'pc'];
-  
+
   return yarnType
     .split(' ')
     .map(word => {
@@ -56,10 +56,10 @@ const formatYarnTypeDisplay = (yarnType: string | undefined): string => {
 // Helper function to get yarn type color
 const getYarnTypeColor = (type: string | undefined): string => {
   if (!type) return "bg-gray-500";
-  
+
   // Normalize the type by trimming and converting to lowercase
   const normalizedType = normalizeYarnType(type);
-  
+
   // Extended color mapping for various yarn types
   const colorMap: Record<string, string> = {
     // Base yarn types
@@ -74,29 +74,29 @@ const getYarnTypeColor = (type: string | undefined): string => {
     silk: "bg-cyan-500",
     nylon: "bg-indigo-500",
     acrylic: "bg-orange-500",
-    
+
     // Common blends and variations
     "poly-cotton": "bg-teal-500",
     "cotton-poly": "bg-teal-500",
     "poly/cotton": "bg-teal-500",
     "cotton/poly": "bg-teal-500",
-    
+
     // Fallback
     default: "bg-gray-500",
   };
-  
+
   // Check for partial matches if exact match not found
   if (colorMap[normalizedType]) {
     return colorMap[normalizedType];
   }
-  
+
   // Try to find partial matches
   for (const [key, value] of Object.entries(colorMap)) {
     if (normalizedType.includes(key)) {
       return value;
     }
   }
-  
+
   return colorMap.default;
 };
 
@@ -157,7 +157,7 @@ const YarnProductionSummary: React.FC = () => {
     });
     return totals;
   }, [summaryData]);
-  const grandTotal = useMemo(() => Object.values(yarnTotals).reduce((a,b)=>a+b,0), [yarnTotals]);
+  const grandTotal = useMemo(() => Object.values(yarnTotals).reduce((a, b) => a + b, 0), [yarnTotals]);
   // Production-weighted overall average efficiency (more accurate than simple mean of daily averages)
   const productionWeightedAvgEfficiency = useMemo(() => {
     let weightedSum = 0;
@@ -172,7 +172,7 @@ const YarnProductionSummary: React.FC = () => {
     // fallback: simple mean if no production totals
     const valid = summaryData.filter(r => !isNaN(r.averageEfficiency));
     if (!valid.length) return 0;
-    return valid.reduce((s,r)=>s+r.averageEfficiency,0)/valid.length;
+    return valid.reduce((s, r) => s + r.averageEfficiency, 0) / valid.length;
   }, [summaryData]);
 
   // Helper function to format date
@@ -263,7 +263,7 @@ const YarnProductionSummary: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       // Scope to Unit 1 endpoints and fetch raw entries; aggregate on the client using entry.yarnType
       const [machines, paged] = await Promise.all([
         asuUnit1Api.getAllMachines(),
@@ -292,11 +292,12 @@ const YarnProductionSummary: React.FC = () => {
         .map((machine: Machine) => normalizeYarnType(machine.yarnType));
       setActiveMachineYarnTypes(activeMachineYarnTypes);
 
-      const currentYarnTypes = activeMachines
-        .filter((machine: Machine) => machine.yarnType)
-        .map((machine: Machine) => normalizeYarnType(machine.yarnType))
+      // CHANGED: Collect ALL distinct yarn types from production entries (historical data)
+      // instead of only from active machines
+      const allYarnTypesFromEntries = entries
+        .flatMap(entry => Object.keys(entry.yarnBreakdown))
         .filter(Boolean);
-      const normalizedYarnTypes = [...new Set(currentYarnTypes)].sort((a, b) => a.localeCompare(b));
+      const normalizedYarnTypes = [...new Set(allYarnTypesFromEntries)].sort((a, b) => a.localeCompare(b));
       setDistinctYarnTypes(normalizedYarnTypes);
 
       const summary = processProductionData(entries, normalizedYarnTypes);
@@ -326,14 +327,13 @@ const YarnProductionSummary: React.FC = () => {
           } else if (err.response.status === 404) {
             const endpoint = err.config?.url || "";
             if (endpoint.includes("asu-machines") || endpoint.includes("/asu-unit1/asu-machines")) {
-               errorMessage = "Machine configuration data not found.";
-             } else {
-               errorMessage = "Yarn production data not found.";
-             }
+              errorMessage = "Machine configuration data not found.";
+            } else {
+              errorMessage = "Yarn production data not found.";
+            }
           } else {
-            errorMessage = `Server error: ${
-              err.response.data?.message || err.message
-            }`;
+            errorMessage = `Server error: ${err.response.data?.message || err.message
+              }`;
           }
         } else if (err.request) {
           // The request was made but no response was received
@@ -363,7 +363,7 @@ const YarnProductionSummary: React.FC = () => {
     if (efficiency === null || efficiency === undefined || isNaN(efficiency)) {
       return "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300";
     }
-    
+
     if (efficiency >= 90) {
       return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300";
     } else if (efficiency >= 80) {
@@ -381,7 +381,7 @@ const YarnProductionSummary: React.FC = () => {
     if (efficiency === null || efficiency === undefined || isNaN(efficiency)) {
       return "bg-gray-500";
     }
-    
+
     if (efficiency >= 90) {
       return "bg-green-500";
     } else if (efficiency >= 80) {
@@ -584,16 +584,16 @@ const YarnProductionSummary: React.FC = () => {
                         <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400 w-[120px]">
                           Date
                         </TableHead>
-                        {/* Dynamic yarn type columns - only for current machine yarn types */}
+                        {/* Dynamic yarn type columns - all yarn types from production history */}
                         {distinctYarnTypes.map((yarnType, index) => {
                           // Format the display name using our helper function
                           const displayName = formatYarnTypeDisplay(yarnType);
-                          
-                          // All yarn types in distinctYarnTypes are current machine yarn types
-                          const isActiveMachineYarn = true;
-                          
+
+                          // Check if this yarn type is currently on an active machine
+                          const isActiveMachineYarn = activeMachineYarnTypes.includes(yarnType);
+
                           return (
-                            <TableHead 
+                            <TableHead
                               key={`yarn-type-${yarnType}-${index}`}
                               className="px-4 py-3 text-xs font-medium tracking-wider text-center text-gray-500 uppercase sm:px-6 dark:text-gray-400 w-[100px]"
                             >
@@ -604,10 +604,12 @@ const YarnProductionSummary: React.FC = () => {
                                 <span className="font-semibold">
                                   {displayName}
                                 </span>
-                                {/* Add CURRENT badge to indicate these are current yarn types */}
-                                <span className="ml-1 px-1 py-0.5 text-[10px] rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-                                  CURRENT
-                                </span>
+                                {/* Show ACTIVE badge for yarn types currently on active machines */}
+                                {isActiveMachineYarn && (
+                                  <span className="ml-1 px-1 py-0.5 text-[10px] rounded bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                                    ACTIVE
+                                  </span>
+                                )}
                               </div>
                             </TableHead>
                           );
@@ -737,13 +739,13 @@ const YarnProductionSummary: React.FC = () => {
                   </Table>
                 </div>
               )}
-              
+
               {/* Legend for the yarn type indicators */}
               {showLegend && (
                 <div className="mt-4 px-4 py-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                   <div className="flex justify-between items-center mb-2">
                     <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Legend</h4>
-                    <button 
+                    <button
                       onClick={() => setShowLegend(false)}
                       className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                     >
@@ -753,15 +755,15 @@ const YarnProductionSummary: React.FC = () => {
                   <div className="flex flex-wrap gap-x-6 gap-y-2">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                      <span className="text-xs text-gray-600 dark:text-gray-400">Current Machine Yarn Types Only</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">All Yarn Types from Production History</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="px-1 py-0.5 text-[10px] rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">CURRENT</span>
-                      <span className="text-xs text-gray-600 dark:text-gray-400">Shows production for current yarn type only</span>
+                      <span className="px-1 py-0.5 text-[10px] rounded bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">ACTIVE</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">Currently on active machines</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">123.45</span>
-                      <span className="text-xs text-gray-600 dark:text-gray-400">Production amount for current yarn type on this date</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">Production amount for this yarn type on this date</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-gray-400 dark:text-gray-500">0.00</span>
@@ -770,17 +772,17 @@ const YarnProductionSummary: React.FC = () => {
                   </div>
                   <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800">
                     <p className="text-xs text-blue-700 dark:text-blue-300">
-                      📝 <strong>Note:</strong> This view shows production data mapped to current machine yarn types only. 
-                      If a machine's yarn type was changed, past production data will only be visible if it matches the current yarn type.
+                      📝 <strong>Note:</strong> This view shows production data for all yarn types that have been recorded,
+                      including historical yarn types. Yarn types marked with "ACTIVE" are currently configured on active machines.
                     </p>
                   </div>
                 </div>
               )}
-              
+
               {/* Show legend button when hidden */}
               {!showLegend && (
                 <div className="mt-4 text-center">
-                  <button 
+                  <button
                     onClick={() => setShowLegend(true)}
                     className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
                   >

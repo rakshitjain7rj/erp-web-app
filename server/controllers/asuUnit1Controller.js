@@ -29,7 +29,7 @@ const getASUMachines = async (req, res) => {
 const getAllMachines = async (req, res) => {
   try {
     // Find all machines with unit 1 (both active and inactive)
-  const machines = await ASUMachine.findAll({
+    const machines = await ASUMachine.findAll({
       where: {
         unit: 1
       },
@@ -54,11 +54,11 @@ const getProductionEntries = async (req, res) => {
     const offset = (page - 1) * limit;
 
     const where = { unit: 1 };
-    
+
     if (machineNumber) {
       where.machineNumber = parseInt(machineNumber);
     }
-    
+
     if (dateFrom && dateTo) {
       where.date = { [Op.between]: [dateFrom, dateTo] };
     } else if (dateFrom) {
@@ -100,13 +100,13 @@ const getProductionEntries = async (req, res) => {
 // Create new production entry
 const createProductionEntry = async (req, res) => {
   try {
-    const { 
+    const {
       // Removed unit param - always use unit 1
-      machineNumber, 
-      date, 
-      shift, 
-      actualProduction, 
-      theoreticalProduction, 
+      machineNumber,
+      date,
+      shift,
+      actualProduction,
+      theoreticalProduction,
       remarks,
       yarnType // Added yarnType parameter
     } = req.body;
@@ -116,17 +116,17 @@ const createProductionEntry = async (req, res) => {
     console.log('yarnType value:', yarnType);
 
     if (!machineNumber || !date || !shift) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Machine number, date, and shift are required' 
+      return res.status(400).json({
+        success: false,
+        error: 'Machine number, date, and shift are required'
       });
     }
 
     // Validate shift
     if (!['day', 'night'].includes(shift)) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Shift must be either "day" or "night"' 
+      return res.status(400).json({
+        success: false,
+        error: 'Shift must be either "day" or "night"'
       });
     }
 
@@ -136,31 +136,31 @@ const createProductionEntry = async (req, res) => {
       let finalTheoreticalProduction = theoreticalProduction;
       let machine = null;
       let machineYarnType = null;
-      
+
       // Find the machine
       try {
         machine = await ASUMachine.findOne({
-          where: { 
+          where: {
             machineNo: parseInt(machineNumber),
-            unit: 1 
+            unit: 1
           },
           transaction: t
         });
-        
+
         if (!machine) {
           throw new Error(`Machine number ${machineNumber} not found`);
         }
-        
+
         if (machine.productionAt100) {
           finalTheoreticalProduction = machine.productionAt100;
         }
-        
+
         machineYarnType = machine.yarnType || 'Cotton';
       } catch (error) {
         console.error('Error finding machine for theoretical production:', error);
         throw error;
       }
-      
+
       // Calculate efficiency
       let efficiency = null;
       if (actualProduction && finalTheoreticalProduction && finalTheoreticalProduction > 0) {
@@ -169,11 +169,11 @@ const createProductionEntry = async (req, res) => {
 
       // Check if entry already exists for this combination
       const existingEntry = await ASUProductionEntry.findOne({
-        where: { 
+        where: {
           unit: 1,
-          machineNumber: parseInt(machineNumber), 
-          date, 
-          shift 
+          machineNumber: parseInt(machineNumber),
+          date,
+          shift
         },
         transaction: t
       });
@@ -197,7 +197,7 @@ const createProductionEntry = async (req, res) => {
         efficiency,
         remarks: remarks || null
       }, { transaction: t });
-      
+
       console.log('Production entry created:', {
         id: entry.id,
         machineNumber: entry.machineNumber,
@@ -207,38 +207,38 @@ const createProductionEntry = async (req, res) => {
         actualProduction: entry.actualProduction,
         type: typeof entry.actualProduction
       });
-      
+
       // Only save machine configuration if there's actual production
       // This ensures we only save configurations that were actually used in production
       if (actualProduction > 0 && machine) {
         const MachineConfiguration = require('../models/MachineConfiguration');
-        
+
         // Check if we need to save a new machine configuration
         // Get the most recent configuration for this machine
         const latestConfig = await MachineConfiguration.findOne({
-          where: { 
+          where: {
             machineId: machine.id
           },
           order: [['createdAt', 'DESC']],
           transaction: t
         });
-        
+
         // Function to normalize values for comparison (avoids issues like 343 vs 343.00000)
         const normalizeNumber = (value) => {
           if (value === null || value === undefined) return 0;
           return parseFloat(parseFloat(value).toFixed(5));
         };
-        
+
         // Check if the configuration has changed since last saved - use normalized values
-        const shouldSaveNewConfig = !latestConfig || 
-          normalizeNumber(latestConfig.spindleCount) !== normalizeNumber(machine.spindles) || 
-          (latestConfig.yarnType || '').trim() !== (machine.yarnType || '').trim() || 
+        const shouldSaveNewConfig = !latestConfig ||
+          normalizeNumber(latestConfig.spindleCount) !== normalizeNumber(machine.spindles) ||
+          (latestConfig.yarnType || '').trim() !== (machine.yarnType || '').trim() ||
           normalizeNumber(latestConfig.productionAt100) !== normalizeNumber(machine.productionAt100);
-        
+
         // If configuration changed, save a new one
         if (shouldSaveNewConfig) {
           console.log('Saving new machine configuration with production entry');
-          
+
           // If there's an active config (with null endDate), close it
           if (latestConfig && latestConfig.endDate === null) {
             await latestConfig.update(
@@ -246,19 +246,19 @@ const createProductionEntry = async (req, res) => {
               { transaction: t }
             );
           }
-          
+
           // Create a new machine configuration record
           await MachineConfiguration.create({
             machineId: machine.id,
             spindleCount: machine.spindles || 0,
             yarnType: machine.yarnType || 'Default',
-            efficiencyAt100Percent: machine.productionAt100 || 0,
+            productionAt100: machine.productionAt100 || 0,
             startDate: date, // Use production entry date as start date
             endDate: null    // This is the new active configuration
           }, { transaction: t });
         }
       }
-      
+
       return entry;
     });
 
@@ -289,23 +289,23 @@ const updateProductionEntry = async (req, res) => {
       // Calculate new efficiency using the ORIGINAL production@100% value stored with the entry
       let efficiency = entry.efficiency;
       const newActual = actualProduction !== undefined ? parseFloat(actualProduction) : entry.actualProduction;
-      
+
       // IMPORTANT: Use the entry's stored productionAt100 value for efficiency calculation
       // This ensures efficiency calculations remain accurate regardless of machine configuration changes
       let theoreticalForCalculation = entry.productionAt100 || entry.theoreticalProduction;
-      
+
       // If we still don't have a theoretical value, fall back to machine's current value
       // but this should only happen for old entries created before this fix
       if (!theoreticalForCalculation) {
         try {
           const machine = await ASUMachine.findOne({
-            where: { 
+            where: {
               machineNo: entry.machineNumber,
-              unit: 1 
+              unit: 1
             },
             transaction: t
           });
-          
+
           if (machine && machine.productionAt100) {
             theoreticalForCalculation = machine.productionAt100;
             // Also update the entry's productionAt100 field for future consistency
@@ -315,7 +315,7 @@ const updateProductionEntry = async (req, res) => {
           console.error('Error finding machine for theoretical production on update:', error);
         }
       }
-      
+
       // Calculate efficiency using the historical production@100% value
       if (newActual && theoreticalForCalculation && theoreticalForCalculation > 0) {
         efficiency = parseFloat(((newActual / theoreticalForCalculation) * 100).toFixed(2));
@@ -327,7 +327,7 @@ const updateProductionEntry = async (req, res) => {
       if (theoreticalProduction !== undefined) updateData.theoreticalProduction = parseFloat(theoreticalProduction);
       if (remarks !== undefined) updateData.remarks = remarks;
       if (date !== undefined) updateData.date = date;
-      
+
       // IMPORTANT: Add yarnType to the update data if provided
       if (yarnType !== undefined) {
         console.log(`Updating yarnType to: ${yarnType}`);
@@ -337,44 +337,44 @@ const updateProductionEntry = async (req, res) => {
         console.log(`Entry has no yarnType, setting from machine: ${machine.yarnType}`);
         updateData.yarnType = machine.yarnType || 'Cotton';
       }
-      
+
       updateData.efficiency = efficiency;
 
       await entry.update(updateData, { transaction: t });
-      
+
       // Only consider saving machine configuration if:
       // 1. We have found the machine
       // 2. The entry now has actual production (wasn't 0 before or isn't being set to 0)
       // 3. The actualProduction value has changed from 0 to a positive number
       if (machine && newActual > 0 && (entry.actualProduction === 0 || entry.actualProduction === null)) {
         const MachineConfiguration = require('../models/MachineConfiguration');
-        
+
         // Check if we need to save a new machine configuration
         // Get the most recent configuration for this machine
         const latestConfig = await MachineConfiguration.findOne({
-          where: { 
+          where: {
             machineId: machine.id
           },
           order: [['createdAt', 'DESC']],
           transaction: t
         });
-        
+
         // Function to normalize values for comparison (avoids issues like 343 vs 343.00000)
         const normalizeNumber = (value) => {
           if (value === null || value === undefined) return 0;
           return parseFloat(parseFloat(value).toFixed(5));
         };
-        
+
         // Check if the configuration has changed since last saved - use normalized values
-        const shouldSaveNewConfig = !latestConfig || 
-          normalizeNumber(latestConfig.spindleCount) !== normalizeNumber(machine.spindles) || 
-          (latestConfig.yarnType || '').trim() !== (machine.yarnType || '').trim() || 
+        const shouldSaveNewConfig = !latestConfig ||
+          normalizeNumber(latestConfig.spindleCount) !== normalizeNumber(machine.spindles) ||
+          (latestConfig.yarnType || '').trim() !== (machine.yarnType || '').trim() ||
           normalizeNumber(latestConfig.productionAt100) !== normalizeNumber(machine.productionAt100);
-        
+
         // If configuration changed, save a new one
         if (shouldSaveNewConfig) {
           console.log('Saving new machine configuration with updated production entry');
-          
+
           // If there's an active config (with null endDate), close it
           if (latestConfig && latestConfig.endDate === null) {
             await latestConfig.update(
@@ -382,19 +382,19 @@ const updateProductionEntry = async (req, res) => {
               { transaction: t }
             );
           }
-          
+
           // Create a new machine configuration record
           await MachineConfiguration.create({
             machineId: machine.id,
             spindleCount: machine.spindles || 0,
             yarnType: machine.yarnType || 'Default',
-            efficiencyAt100Percent: machine.productionAt100 || 0,
+            productionAt100: machine.productionAt100 || 0,
             startDate: entry.date, // Use production entry date as start date
             endDate: null    // This is the new active configuration
           }, { transaction: t });
         }
       }
-      
+
       return entry;
     });
 
@@ -469,7 +469,7 @@ const getProductionStats = async (req, res) => {
     `, { type: QueryTypes.SELECT });
 
     const unitColumnExists = columnCheck.length > 0;
-    
+
     // If unit column doesn't exist, add it
     if (!unitColumnExists) {
       console.log('Adding unit column to asu_production_entries table');
@@ -480,13 +480,13 @@ const getProductionStats = async (req, res) => {
       `);
       console.log('Added unit column to the table');
     }
-    
+
     // Build SQL conditions
     let conditions = '';
     if (machineNumber) {
       conditions += ` AND machine_no = ${parseInt(machineNumber)}`;
     }
-    
+
     // Date conditions
     let defaultDate = '';
     if (dateFrom && dateTo) {
@@ -498,10 +498,10 @@ const getProductionStats = async (req, res) => {
       defaultDate = thirtyDaysAgo.toISOString().split('T')[0];
       conditions += ` AND date >= '${defaultDate}'`;
     }
-    
+
     // Hardcoded to unit 1 only
     conditions += ` AND unit = 1`;
-    
+
     // Get total and active machines count for unit 1 using raw SQL
     const [machinesResult] = await sequelize.query(`
       SELECT 
@@ -510,7 +510,7 @@ const getProductionStats = async (req, res) => {
       FROM asu_machines
       WHERE unit = 1
     `, { type: QueryTypes.SELECT });
-    
+
     const totalMachines = parseInt(machinesResult.total_machines || 0);
     const activeMachines = parseInt(machinesResult.active_machines || 0);
 
@@ -521,7 +521,7 @@ const getProductionStats = async (req, res) => {
       FROM asu_production_entries
       WHERE date = '${today}' AND unit = 1
     `, { type: QueryTypes.SELECT });
-    
+
     const todayEntries = parseInt(todayResult.today_entries || 0);
 
     // Get aggregated statistics with null checks using raw SQL
@@ -574,7 +574,7 @@ const getProductionStats = async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching production stats:', error);
-    
+
     // Provide helpful error message for missing tables
     if (error.message && error.message.includes('does not exist')) {
       return res.status(500).json({
@@ -583,7 +583,7 @@ const getProductionStats = async (req, res) => {
         details: error.message
       });
     }
-    
+
     res.status(500).json({ success: false, error: error.message });
   }
 };
@@ -591,37 +591,37 @@ const getProductionStats = async (req, res) => {
 // Create a new ASU Machine
 const createMachine = async (req, res) => {
   try {
-    const { 
-      machineNo, 
+    const {
+      machineNo,
       machine_name, // Added machine_name extraction
-      count, 
+      count,
       yarnType,
-      spindles, 
-      speed, 
+      spindles,
+      speed,
       productionAt100
     } = req.body;
-    
+
     // Ensure machineNo is properly parsed as a number
     const parsedMachineNo = typeof machineNo === 'string' ? parseInt(machineNo, 10) : Number(machineNo);
     console.log(`Creating machine - received machineNo: ${machineNo}, parsed as: ${parsedMachineNo}`);
 
     // Validate required fields
     if (!machineNo || !count) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Machine number and count are required' 
+      return res.status(400).json({
+        success: false,
+        error: 'Machine number and count are required'
       });
     }
 
     // Log the machine creation request for debugging
-    console.log('Creating machine with data:', { 
-      machineNo, 
-      machine_name, 
-      count, 
-      yarnType, 
-      spindles, 
-      speed, 
-      productionAt100 
+    console.log('Creating machine with data:', {
+      machineNo,
+      machine_name,
+      count,
+      yarnType,
+      spindles,
+      speed,
+      productionAt100
     });
 
     // Create machine with unit always set to 1
@@ -643,7 +643,7 @@ const createMachine = async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating ASU machine:', error);
-    
+
     // Check for unique constraint violation
     if (error.name === 'SequelizeUniqueConstraintError') {
       return res.status(409).json({
@@ -651,7 +651,7 @@ const createMachine = async (req, res) => {
         error: `Machine with number ${req.body.machineNo} already exists`
       });
     }
-    
+
     res.status(500).json({ success: false, error: error.message });
   }
 };
@@ -661,25 +661,25 @@ const updateMachine = async (req, res) => {
   try {
     const { id } = req.params;
     // Extract fields with support for both frontend and backend naming conventions
-    const { 
-      machineNo, 
+    const {
+      machineNo,
       machine_number, // Frontend might send machine_number instead of machineNo
       machine_name, // Additional frontend field
-      count, 
+      count,
       yarnType,
-      spindles, 
-      speed, 
+      spindles,
+      speed,
       productionAt100,
       isActive,
       status // Frontend might send status instead of isActive
     } = req.body;
 
     const machine = await ASUMachine.findByPk(id);
-    
+
     if (!machine) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Machine not found' 
+      return res.status(404).json({
+        success: false,
+        error: 'Machine not found'
       });
     }
 
@@ -697,30 +697,30 @@ const updateMachine = async (req, res) => {
       speed,
       productionAt100
     });
-    
+
     // Prepare update data, handling both frontend and backend field names
     const updateData = {
-      machineNo: machineNo !== undefined ? machineNo : 
-                 machine_number !== undefined ? (isNaN(Number(machine_number)) ? machine.machineNo : Number(machine_number)) : 
-                 machine.machineNo,
+      machineNo: machineNo !== undefined ? machineNo :
+        machine_number !== undefined ? (isNaN(Number(machine_number)) ? machine.machineNo : Number(machine_number)) :
+          machine.machineNo,
       count: count !== undefined ? count : machine.count,
       yarnType: yarnType || machine.yarnType,
       spindles: spindles !== undefined ? spindles : machine.spindles,
       speed: speed !== undefined ? speed : machine.speed,
       productionAt100: productionAt100 !== undefined ? productionAt100 : machine.productionAt100,
-      isActive: isActive !== undefined ? Boolean(isActive) : 
-                status !== undefined ? String(status).toLowerCase() === 'active' : 
-                machine.isActive,
+      isActive: isActive !== undefined ? Boolean(isActive) :
+        status !== undefined ? String(status).toLowerCase() === 'active' :
+          machine.isActive,
       // Always store machine_name in the database (we've confirmed the column exists)
       // No need to check if the model has the field since we've fixed the model
       machineName: machine_name || machine.machineName || `Machine ${machineNo || machine_number || machine.machineNo}`
     };
-    
+
     // Log what we're updating to
     console.log('Updating machine with data:', updateData);
-    
+
     await machine.update(updateData);
-    
+
     // Log the updated machine for verification
     console.log('Machine updated successfully:', machine.toJSON());
 
@@ -730,7 +730,7 @@ const updateMachine = async (req, res) => {
     });
   } catch (error) {
     console.error('Error updating ASU machine:', error);
-    
+
     // Check for unique constraint violation
     if (error.name === 'SequelizeUniqueConstraintError') {
       return res.status(409).json({
@@ -738,7 +738,7 @@ const updateMachine = async (req, res) => {
         error: `Machine with number ${req.body.machineNo} already exists`
       });
     }
-    
+
     res.status(500).json({ success: false, error: error.message });
   }
 };
@@ -751,9 +751,9 @@ const updateMachineYarnTypeAndCount = async (req, res) => {
 
     // Validate input
     if (!yarnType && count === undefined && productionAt100 === undefined) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'At least one of yarnType, count, or productionAt100 must be provided' 
+      return res.status(400).json({
+        success: false,
+        error: 'At least one of yarnType, count, or productionAt100 must be provided'
       });
     }
 
@@ -764,45 +764,45 @@ const updateMachineYarnTypeAndCount = async (req, res) => {
         unit: 1
       }
     });
-    
+
     if (!machine) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Machine not found' 
+      return res.status(404).json({
+        success: false,
+        error: 'Machine not found'
       });
     }
 
     // Prepare update data
     const updateData = {};
-    
+
     if (yarnType !== undefined) {
       // Validate yarnType is a non-empty string
       if (typeof yarnType !== 'string' || !yarnType.trim()) {
-        return res.status(400).json({ 
-          success: false, 
-          error: 'yarnType must be a non-empty string' 
+        return res.status(400).json({
+          success: false,
+          error: 'yarnType must be a non-empty string'
         });
       }
       updateData.yarnType = yarnType;
     }
-    
+
     if (count !== undefined) {
       // Validate count is a number (allow decimals)
       if (isNaN(parseFloat(count))) {
-        return res.status(400).json({ 
-          success: false, 
-          error: 'count must be a number' 
+        return res.status(400).json({
+          success: false,
+          error: 'count must be a number'
         });
       }
       updateData.count = parseFloat(count);
     }
-    
+
     if (productionAt100 !== undefined) {
       // Validate productionAt100 is a number
       if (isNaN(parseFloat(productionAt100))) {
-        return res.status(400).json({ 
-          success: false, 
-          error: 'productionAt100 must be a number' 
+        return res.status(400).json({
+          success: false,
+          error: 'productionAt100 must be a number'
         });
       }
       updateData.productionAt100 = parseFloat(productionAt100);
@@ -826,7 +826,7 @@ const deleteMachine = async (req, res) => {
   try {
     const { id } = req.params;
     const { force } = req.query;
-    
+
     if (!id) {
       return res.status(400).json({
         success: false,
@@ -836,7 +836,7 @@ const deleteMachine = async (req, res) => {
 
     // Find the machine first
     const machine = await ASUMachine.findByPk(id);
-    
+
     if (!machine) {
       return res.status(404).json({
         success: false,
@@ -848,7 +848,7 @@ const deleteMachine = async (req, res) => {
     // ASUProductionEntry is already imported at the top of the file
     // Find the machine's machineNo first
     const machineNo = machine.machineNo;
-    
+
     const relatedEntries = await ASUProductionEntry.count({
       where: { machineNumber: machineNo, unit: 1 }
     });
@@ -871,7 +871,7 @@ const deleteMachine = async (req, res) => {
 
     // Delete the machine
     await machine.destroy();
-    
+
     return res.status(200).json({
       success: true,
       message: `Machine with ID ${id} has been deleted${force === 'true' ? ' along with all its production entries' : ''}`
@@ -892,7 +892,7 @@ const deleteMachine = async (req, res) => {
 const archiveMachine = async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     if (!id) {
       return res.status(400).json({
         success: false,
@@ -902,7 +902,7 @@ const archiveMachine = async (req, res) => {
 
     // Find the machine first
     const machine = await ASUMachine.findByPk(id);
-    
+
     if (!machine) {
       return res.status(404).json({
         success: false,
@@ -916,7 +916,7 @@ const archiveMachine = async (req, res) => {
       archivedAt: new Date(),
       status: 'ARCHIVED'
     });
-    
+
     return res.status(200).json({
       success: true,
       message: `Machine with ID ${id} has been archived`

@@ -1,5 +1,20 @@
-// Base load of default .env (development)
-require('dotenv').config();
+const path = require('path');
+const dotenvPath = path.join(__dirname, '../.env');
+const result = require('dotenv').config({ path: dotenvPath });
+
+if (process.env.DEBUG_SEQUELIZE_CONFIG === '1') {
+  console.log('[SequelizeConfig] Loading .env from:', dotenvPath);
+  if (result.error) {
+    console.log('[SequelizeConfig] Error loading .env:', result.error.message);
+  } else {
+    console.log('[SequelizeConfig] .env loaded successfully');
+    console.log('[SequelizeConfig] DB_HOST:', process.env.DB_HOST);
+    console.log('[SequelizeConfig] DB_PORT:', process.env.DB_PORT);
+    console.log('[SequelizeConfig] POSTGRES_URI exists:', !!process.env.POSTGRES_URI);
+    console.log('[SequelizeConfig] POSTGRES_URL exists:', !!process.env.POSTGRES_URL);
+    console.log('[SequelizeConfig] DATABASE_URL exists:', !!process.env.DATABASE_URL);
+  }
+}
 
 // If running in production (NODE_ENV or SEQUELIZE_ENV) and no URI yet, attempt to load
 // .env.production.local then .env.production (supporting export syntax) so sequelize-cli
@@ -18,7 +33,7 @@ if ((envHint === 'production') && !process.env.POSTGRES_URI && !process.env.POST
           raw.split(/\n+/).forEach(line => {
             const m = line.match(/^export\s+([A-Z0-9_]+)=("?)(.*)\2$/);
             if (m) {
-              const [, k,, v] = m;
+              const [, k, , v] = m;
               if (!process.env[k]) process.env[k] = v;
             }
           });
@@ -50,7 +65,16 @@ const common = {
 };
 
 module.exports = {
-  development: resolved ? { use_env_variable: URL_ENV, ...common } : {
+  development: resolved ? {
+    use_env_variable: URL_ENV,
+    ...common,
+    dialectOptions: {
+      ssl: (resolved.includes('localhost') || resolved.includes('127.0.0.1')) ? false : {
+        require: true,
+        rejectUnauthorized: false
+      }
+    }
+  } : {
     username: process.env.DB_USER || 'postgres',
     password: process.env.DB_PASSWORD || 'password',
     database: process.env.DB_NAME || 'yarn_erp',

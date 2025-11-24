@@ -251,6 +251,10 @@ app.use('/api/dashboard', require('./routes/dashboardRoutes'));
 
 // Machine performance routes
 app.use('/api/machines', require('./routes/machinePerformanceRoutes'));
+
+// Admin routes for database fixes
+app.use('/api/admin', require('./routes/adminRoutes'));
+
 app.use('/api', machineConfigRoutes);
 
 // Test route for debugging

@@ -25,7 +25,7 @@ const DailyProduction: React.FC = () => {
   const [editingEntry, setEditingEntry] = useState<EditingEntry | null>(null);
   // Add state for historical yarn type data
   const [machineYarnHistory, setMachineYarnHistory] = useState<{
-    [machineId: number]: {date: string, yarnType: string}[]
+    [machineId: number]: { date: string, yarnType: string }[]
   }>({});
   const [formData, setFormData] = useState<CreateProductionEntryData>({
     machineId: 0,
@@ -45,10 +45,10 @@ const DailyProduction: React.FC = () => {
       // Use getAllMachines to ensure we get all machines including newly added ones
       const machines = await asuUnit1Api.getAllMachines();
       console.log("Fetched machines:", machines); // Debug to verify all machines are fetched
-      
+
       // Show ALL machines in the dropdown, don't filter
       setMachines(machines || []);
-      
+
       // If we have machines and no selected machine, select the first one by default
       if (machines && machines.length > 0 && !selectedMachine) {
         const firstMachine = machines[0];
@@ -66,7 +66,7 @@ const DailyProduction: React.FC = () => {
 
   // Helper function to sort production entries by date (newest first)
   const sortEntriesByDate = (entries: ASUProductionEntry[]) => {
-    return [...entries].sort((a, b) => 
+    return [...entries].sort((a, b) =>
       new Date(b.date).getTime() - new Date(a.date).getTime()
     );
   };
@@ -86,7 +86,7 @@ const DailyProduction: React.FC = () => {
   }, []);
 
   // Function to save machine yarn history to localStorage
-  const saveMachineYarnHistory = useCallback((history: {[machineId: number]: {date: string, yarnType: string}[]}) => {
+  const saveMachineYarnHistory = useCallback((history: { [machineId: number]: { date: string, yarnType: string }[] }) => {
     try {
       localStorage.setItem('machineYarnHistory', JSON.stringify(history));
       console.log('Saved machine yarn history to localStorage:', history);
@@ -99,27 +99,27 @@ const DailyProduction: React.FC = () => {
   const findHistoricalYarnType = (machineId: number, date: string): string | undefined => {
     // If no machine ID or date provided, return undefined
     if (!machineId || !date) return undefined;
-    
+
     try {
       // Check if this machine has history entries
       if (!machineYarnHistory[machineId] || machineYarnHistory[machineId].length === 0) {
         return undefined;
       }
-      
+
       // Find machine configuration history for this specific date
       const exactMatch = machineYarnHistory[machineId].find(entry => entry.date === date);
       if (exactMatch) {
         return exactMatch.yarnType;
       }
-      
+
       // If no exact match, find the most recent history entry before this date
       const entryDate = new Date(date);
-      
+
       // Sort history by date in descending order (newest first)
       const sortedHistory = [...machineYarnHistory[machineId]].sort(
         (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
       );
-      
+
       // Find the most recent configuration before or on the entry date
       for (const historyEntry of sortedHistory) {
         const historyDate = new Date(historyEntry.date);
@@ -127,13 +127,13 @@ const DailyProduction: React.FC = () => {
           return historyEntry.yarnType;
         }
       }
-      
+
       // If all history entries are after this date, use the oldest history entry
       // This is a fallback option
       const oldestEntry = [...machineYarnHistory[machineId]].sort(
         (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
       )[0];
-      
+
       return oldestEntry?.yarnType;
     } catch (error) {
       console.error("Error finding historical yarn type:", error);
@@ -143,10 +143,10 @@ const DailyProduction: React.FC = () => {
 
   const loadProductionEntries = useCallback(async () => {
     if (!selectedMachine) return;
-    
+
     try {
       setLoading(true);
-      
+
       // Log machine details to help diagnose the issue
       console.log('Loading production entries for machine:', {
         id: selectedMachine.id,
@@ -154,20 +154,20 @@ const DailyProduction: React.FC = () => {
         machine_number: selectedMachine.machine_number,
         yarnType: selectedMachine.yarnType
       });
-      
+
       // Make sure the selected machine has a valid machineNo
       if (!selectedMachine.machineNo && !selectedMachine.machine_number) {
         console.warn(`Selected machine (ID: ${selectedMachine.id}) has no valid machine number`);
       }
-      
+
       const data = await asuUnit1Api.getProductionEntries({
         machineId: selectedMachine.id,
         limit: 300
       });
-      
+
       // Add debug logging to verify data integrity
       console.log('Loaded production entries:', data.items);
-      
+
       // Update yarn history if not already present for this machine
       if (selectedMachine.yarnType && (!machineYarnHistory[selectedMachine.id] || machineYarnHistory[selectedMachine.id].length === 0)) {
         // If we don't have any history for this machine, create an initial history entry with today's date
@@ -181,66 +181,66 @@ const DailyProduction: React.FC = () => {
         saveMachineYarnHistory(newHistory);
         console.log(`Created initial yarn history for machine ${selectedMachine.id}:`, newHistory[selectedMachine.id]);
       }
-      
-        // Process entries to enhance with historical yarn type data
-        data.items.forEach((entry: ASUProductionEntry) => {
-          // Log entry details
-          console.log(`Processing entry for date ${entry.date}:`, {
-            id: entry.id,
-            machineId: entry.machineId,
-            dayShift: entry.dayShift,
-            nightShift: entry.nightShift,
-            nightShiftType: typeof entry.nightShift,
-            total: entry.total,
-            yarnType: entry.yarnType, // Log the entry's own yarn type if present
-            machineYarnType: entry.machine?.yarnType // Log machine's current yarn type
-          });
-          
-          // IMPORTANT: If the entry has its own yarn type, prioritize it over machine's yarn type
-          // This ensures historical accuracy
-          if (entry.yarnType && entry.machineId) {
-            console.log(`Entry has its own yarn type: ${entry.yarnType} for date ${entry.date}`);
-            
-            // Still maintain history for backward compatibility
-            const machineHistory = machineYarnHistory[entry.machineId] || [];
-            const existingEntry = machineHistory.find(h => h.date === entry.date);
-            
-            if (!existingEntry) {
-              console.log(`Adding entry's yarn type ${entry.yarnType} to history for date ${entry.date}`);
-              const newMachineHistory = [
-                ...machineHistory,
-                { date: entry.date, yarnType: entry.yarnType }
-              ];
-              
-              const newHistory = {
-                ...machineYarnHistory,
-                [entry.machineId]: newMachineHistory
-              };
-              
-              setMachineYarnHistory(newHistory);
-              saveMachineYarnHistory(newHistory);
-            }
-          }
-          // Only fall back to machine yarn type if entry doesn't have one
-          else if (entry.machine?.yarnType && !entry.yarnType && !findHistoricalYarnType(entry.machineId, entry.date)) {
-            console.log(`Entry missing yarn type, adding machine's yarn type for date ${entry.date}:`, entry.machine.yarnType);
-            const machineHistory = machineYarnHistory[entry.machineId] || [];
+
+      // Process entries to enhance with historical yarn type data
+      data.items.forEach((entry: ASUProductionEntry) => {
+        // Log entry details
+        console.log(`Processing entry for date ${entry.date}:`, {
+          id: entry.id,
+          machineId: entry.machineId,
+          dayShift: entry.dayShift,
+          nightShift: entry.nightShift,
+          nightShiftType: typeof entry.nightShift,
+          total: entry.total,
+          yarnType: entry.yarnType, // Log the entry's own yarn type if present
+          machineYarnType: entry.machine?.yarnType // Log machine's current yarn type
+        });
+
+        // IMPORTANT: If the entry has its own yarn type, prioritize it over machine's yarn type
+        // This ensures historical accuracy
+        if (entry.yarnType && entry.machineId) {
+          console.log(`Entry has its own yarn type: ${entry.yarnType} for date ${entry.date}`);
+
+          // Still maintain history for backward compatibility
+          const machineHistory = machineYarnHistory[entry.machineId] || [];
+          const existingEntry = machineHistory.find(h => h.date === entry.date);
+
+          if (!existingEntry) {
+            console.log(`Adding entry's yarn type ${entry.yarnType} to history for date ${entry.date}`);
             const newMachineHistory = [
               ...machineHistory,
-              { date: entry.date, yarnType: entry.machine.yarnType }
+              { date: entry.date, yarnType: entry.yarnType }
             ];
-            
+
             const newHistory = {
               ...machineYarnHistory,
               [entry.machineId]: newMachineHistory
             };
-            
+
             setMachineYarnHistory(newHistory);
             saveMachineYarnHistory(newHistory);
           }
-        });      // Sort entries by date in descending order (newest first)
+        }
+        // Only fall back to machine yarn type if entry doesn't have one
+        else if (entry.machine?.yarnType && !entry.yarnType && !findHistoricalYarnType(entry.machineId, entry.date)) {
+          console.log(`Entry missing yarn type, adding machine's yarn type for date ${entry.date}:`, entry.machine.yarnType);
+          const machineHistory = machineYarnHistory[entry.machineId] || [];
+          const newMachineHistory = [
+            ...machineHistory,
+            { date: entry.date, yarnType: entry.machine.yarnType }
+          ];
+
+          const newHistory = {
+            ...machineYarnHistory,
+            [entry.machineId]: newMachineHistory
+          };
+
+          setMachineYarnHistory(newHistory);
+          saveMachineYarnHistory(newHistory);
+        }
+      });      // Sort entries by date in descending order (newest first)
       const sortedEntries = sortEntriesByDate(data.items);
-      
+
       setProductionEntries(sortedEntries);
     } catch (error) {
       console.error('Error loading production entries:', error);
@@ -280,26 +280,26 @@ const DailyProduction: React.FC = () => {
       setFormData(prev => ({ ...prev, machineId: 0, yarnType: '' }));
       return;
     }
-    
+
     const machineIdNum = parseInt(machineId);
     const machine = machines.find(m => m.id === machineIdNum);
-    
+
     if (machine) {
       console.log("Machine selected:", machine);
-      
+
       // Check if this is a different machine than the previously selected one
       const isNewMachine = !selectedMachine || selectedMachine.id !== machine.id;
-      
+
       // Update selected machine
       setSelectedMachine(machine);
-      
+
       // Update form with machine ID and current yarn type (not historical)
-      setFormData(prev => ({ 
-        ...prev, 
+      setFormData(prev => ({
+        ...prev,
         machineId: machineIdNum,
         yarnType: machine.yarnType || 'Cotton' // Always use current machine yarn type
       }));
-      
+
       // If this is a new machine selection and it has a yarn type, make sure we have history for it
       if (isNewMachine && machine.yarnType) {
         // Check if we already have history for this machine
@@ -312,13 +312,13 @@ const DailyProduction: React.FC = () => {
               { date: today, yarnType: machine.yarnType }
             ]
           };
-          
+
           setMachineYarnHistory(newHistory);
           saveMachineYarnHistory(newHistory);
           console.log(`Created initial yarn history for machine ${machine.id}:`, newHistory[machine.id]);
         }
       }
-      
+
       console.log(`Machine selected: ${machineIdNum}`);
     } else {
       console.warn(`Machine with ID ${machineId} not found in machines list`);
@@ -332,7 +332,7 @@ const DailyProduction: React.FC = () => {
       toast.error('Please select a machine');
       return;
     }
-    
+
     // Verify that machine has a machineNo (needed for production entries foreign key)
     if (!selectedMachine.machineNo && !selectedMachine.machine_number) {
       toast.error('Selected machine does not have a valid machine number');
@@ -341,108 +341,108 @@ const DailyProduction: React.FC = () => {
 
     try {
       setLoading(true);
-      
+
       // Add the productionAt100 value explicitly to ensure it's available
       // This helps prevent the "Missing productionAt100" error
       const prodAt100Value = getProductionAt100({ machine: selectedMachine } as ASUProductionEntry, selectedMachine);
-      
+
       // For NEW production entries, ALWAYS use the current machine configuration's yarn type
       // This ensures that when machine configurations change, new entries reflect the current state
       const entryYarnType = selectedMachine.yarnType || 'Cotton';
-      
+
       console.log('Creating new production entry with current machine yarn type:', {
         machineId: selectedMachine.id,
         currentMachineYarnType: selectedMachine.yarnType,
         entryYarnType,
         date: formData.date
       });
-      
+
       // Add yarn type history entry for this date with current machine configuration
       const machineHistory = machineYarnHistory[selectedMachine.id] || [];
-      
+
       // Check if we already have an entry for this exact date
       const existingHistoryEntry = machineHistory.find(h => h.date === formData.date);
-      
+
       if (!existingHistoryEntry) {
         const newMachineHistory = [
           ...machineHistory,
           { date: formData.date, yarnType: entryYarnType }
         ];
-        
+
         const newHistory = {
           ...machineYarnHistory,
           [selectedMachine.id]: newMachineHistory
         };
-        
+
         setMachineYarnHistory(newHistory);
         saveMachineYarnHistory(newHistory);
         console.log(`Added yarn type history for date ${formData.date}:`, entryYarnType);
       } else {
         // Update existing history entry with current machine yarn type
-        const updatedHistory = machineHistory.map(h => 
+        const updatedHistory = machineHistory.map(h =>
           h.date === formData.date ? { ...h, yarnType: entryYarnType } : h
         );
-        
+
         const newHistory = {
           ...machineYarnHistory,
           [selectedMachine.id]: updatedHistory
         };
-        
+
         setMachineYarnHistory(newHistory);
         saveMachineYarnHistory(newHistory);
         console.log(`Updated yarn type history for date ${formData.date}:`, entryYarnType);
-       }
-      
+      }
+
       // Explicitly convert night shift value to ensure it's properly handled
       // Full detailed logging of night shift value processing
       const rawNightShift = formData.nightShift;
-      
+
       console.log('Processing night shift for submission:', {
         rawValue: rawNightShift,
         type: typeof rawNightShift
       });
-      
+
       // Use regular parseFloat to be consistent with day shift handling
       const nightShiftValue = parseFloat(String(rawNightShift)) || 0;
-      
+
       console.log('Processed night shift value:', {
         value: nightShiftValue,
         type: typeof nightShiftValue,
         isZero: nightShiftValue === 0,
         isFalsy: !nightShiftValue
       });
-      
+
       // Check if there's already an entry for this date and machine
-      const existingEntries = productionEntries.filter(entry => 
+      const existingEntries = productionEntries.filter(entry =>
         entry.machineId === selectedMachine.id && entry.date === formData.date
       );
-      
+
       if (existingEntries.length > 0) {
         // Entry already exists, ask user if they want to update instead
         const confirm = window.confirm(
           `A production entry for ${selectedMachine.machineName || 'Machine ' + selectedMachine.machineNo} on ${formData.date} already exists. Do you want to update it instead?`
         );
-        
+
         if (confirm) {
           // Update the existing entry
           const existingEntry = existingEntries[0];
-          
+
           // For updates, use current machine yarn type to reflect any configuration changes
           const entryYarnType = selectedMachine.yarnType || 'Cotton';
-          
+
           const updateData = {
             dayShift: parseFloat(String(formData.dayShift)) || 0,
             nightShift: nightShiftValue,
             productionAt100: prodAt100Value || 87,
             yarnType: entryYarnType // Use current machine yarn type for updates
           };
-          
+
           console.log('Updating existing entry:', existingEntry.id, updateData);
-          
+
           await asuUnit1Api.updateProductionEntry(existingEntry.id, updateData);
           toast.success('Production entry updated successfully');
           await loadProductionEntries();
-          
+
           // Reset form with current machine yarn type
           setFormData({
             machineId: selectedMachine.id,
@@ -452,7 +452,7 @@ const DailyProduction: React.FC = () => {
             yarnType: selectedMachine.yarnType || 'Cotton', // Use current machine yarn type
             productionAt100: 0
           });
-          
+
           setLoading(false);
           return;
         } else {
@@ -462,17 +462,17 @@ const DailyProduction: React.FC = () => {
           return;
         }
       }
-      
+
       const submissionData = {
         machineId: formData.machineId,
         date: formData.date,
         dayShift: parseFloat(String(formData.dayShift)) || 0,
         nightShift: nightShiftValue,
-        productionAt100: prodAt100Value || 87, 
+        productionAt100: prodAt100Value || 87,
         // Include yarn type explicitly for historical record - use historical yarn type if available
         yarnType: entryYarnType
       };
-      
+
       console.log('Creating production entry with data:', submissionData);
       console.log('Form night shift details:', {
         originalFormValue: formData.nightShift,
@@ -489,18 +489,18 @@ const DailyProduction: React.FC = () => {
         productionAt100: prodAt100Value,
         yarnType: selectedMachine.yarnType
       });
-      
+
       // CRITICAL DEBUG: Log the exact data being sent to the API
       console.log('=== CRITICAL DEBUG: Data being sent to createProductionEntry ===');
       console.log('submissionData object:', JSON.stringify(submissionData, null, 2));
       console.log('submissionData.nightShift value:', submissionData.nightShift);
       console.log('submissionData.nightShift type:', typeof submissionData.nightShift);
       console.log('=== END CRITICAL DEBUG ===');
-      
+
       await asuUnit1Api.createProductionEntry(submissionData);
-      
+
       toast.success('Production entry created successfully');
-      
+
       // Reset the form data after submission with current machine yarn type
       setFormData({
         machineId: selectedMachine.id,
@@ -510,13 +510,13 @@ const DailyProduction: React.FC = () => {
         yarnType: selectedMachine.yarnType || 'Cotton', // Use current machine yarn type
         productionAt100: 0  // This field is only kept for API compatibility
       });
-      
+
       console.log('About to reload production entries...');
-      
+
       // Force a complete machine reload first to ensure we have the latest machine data
       // This is important for newly created machines
       await loadMachines();
-      
+
       // Small delay to ensure machines are loaded first
       setTimeout(async () => {
         await loadProductionEntries();
@@ -533,8 +533,8 @@ const DailyProduction: React.FC = () => {
           typeof error === 'object' && error !== null && 'response' in error
             ? (error as any).response?.data?.error || (error as any).message || 'Failed to create production entry'
             : error instanceof Error
-            ? error.message
-            : 'Failed to create production entry';
+              ? error.message
+              : 'Failed to create production entry';
         toast.error(errorMessage);
       }
     } finally {
@@ -557,17 +557,17 @@ const DailyProduction: React.FC = () => {
 
     try {
       setLoading(true);
-      
+
       // Find the original entry to get its yarn type
       const originalEntry = productionEntries.find(entry => entry.id === editingEntry.id);
-      
+
       // Get the yarn type from the original entry, or use a fallback
-      const yarnTypeToUse = 
-        originalEntry?.yarnType || 
-        findHistoricalYarnType(originalEntry?.machineId || 0, editingEntry.date) || 
-        selectedMachine?.yarnType || 
+      const yarnTypeToUse =
+        originalEntry?.yarnType ||
+        findHistoricalYarnType(originalEntry?.machineId || 0, editingEntry.date) ||
+        selectedMachine?.yarnType ||
         'Cotton';
-      
+
       // Log the values before sending to API
       console.log('Saving edited entry:', {
         id: editingEntry.id,
@@ -577,7 +577,7 @@ const DailyProduction: React.FC = () => {
         nightShiftType: typeof editingEntry.nightShift,
         yarnType: yarnTypeToUse
       });
-      
+
       // Ensure values are properly formatted as numbers
       const dataToUpdate = {
         dayShift: parseFloat(String(editingEntry.dayShift)) || 0,
@@ -586,14 +586,14 @@ const DailyProduction: React.FC = () => {
         // Include the original yarn type in the update
         yarnType: yarnTypeToUse
       };
-      
+
       console.log('Sending update data:', dataToUpdate);
-      
+
       await asuUnit1Api.updateProductionEntry(editingEntry.id, dataToUpdate);
 
       toast.success('Production entry updated successfully');
       setEditingEntry(null);
-      
+
       // Ensure production entries are reloaded and sorted
       await loadProductionEntries();
       loadStats();
@@ -614,19 +614,19 @@ const DailyProduction: React.FC = () => {
     try {
       setLoading(true);
       console.log('Deleting production entry with ID:', id);
-      
+
       // Find the entry in our local state
       const entryToDelete = productionEntries.find(entry => entry.id === id);
       console.log('Entry to delete from local state:', entryToDelete);
-      
+
       if (!entryToDelete) {
         throw new Error('Entry not found in local state');
       }
-      
+
       // The asuUnit1Api.deleteProductionEntry function now handles the deletion of both
       // day and night shift entries if they exist
       await asuUnit1Api.deleteProductionEntry(id);
-      
+
       toast.success('Production entry deleted successfully');
       await loadProductionEntries();
       loadStats();
@@ -654,10 +654,10 @@ const DailyProduction: React.FC = () => {
       }
       return 0;
     };
-    
+
     const dayValue = convertToNumber(dayShift);
     const nightValue = convertToNumber(nightShift);
-    
+
     return dayValue + nightValue;
   };
 
@@ -665,9 +665,9 @@ const DailyProduction: React.FC = () => {
     // Safely convert to numbers
     const totalValue = parseFloat(String(total)) || 0;
     const prodAt100 = parseFloat(String(productionAt100)) || 0;
-    
+
     if (prodAt100 <= 0) return 0;
-    
+
     const percentage = (totalValue / prodAt100) * 100;
     return isNaN(percentage) ? 0 : percentage;
   };
@@ -676,22 +676,22 @@ const DailyProduction: React.FC = () => {
   const getProductionAt100 = (entry: ASUProductionEntry, fallbackMachine?: ASUMachine | null) => {
     // PRIORITIZE the entry's stored productionAt100 value for historical accuracy
     if (entry.productionAt100 !== undefined && entry.productionAt100 !== null) {
-      const storedValue = typeof entry.productionAt100 === 'string' 
-        ? parseFloat(entry.productionAt100) 
+      const storedValue = typeof entry.productionAt100 === 'string'
+        ? parseFloat(entry.productionAt100)
         : entry.productionAt100;
       if (!isNaN(storedValue) && storedValue > 0) {
         return storedValue;
       }
     }
-    
+
     // Fall back to machine's current value for older entries or new entry creation
     const machine = entry.machine || fallbackMachine;
-    
+
     if (!machine) return 400; // Default fallback value
-    
+
     // Handle both string and number types of productionAt100
     let productionValue = 0;
-    
+
     if (machine.productionAt100 !== undefined && machine.productionAt100 !== null) {
       if (typeof machine.productionAt100 === 'string') {
         productionValue = parseFloat(machine.productionAt100);
@@ -699,7 +699,7 @@ const DailyProduction: React.FC = () => {
         productionValue = machine.productionAt100 as number;
       }
     }
-    
+
     // Default to a sensible value if the value is invalid
     return !isNaN(productionValue) && productionValue > 0 ? productionValue : 400; // Increased default fallback
   };
@@ -720,7 +720,7 @@ const DailyProduction: React.FC = () => {
   // Helper function to format yarn type display
   const formatYarnType = (yarnType: string | undefined): string => {
     if (!yarnType) return 'Unknown';
-    
+
     // Format the yarn type to look better (capitalize first letter of each word)
     return yarnType
       .split(' ')
@@ -835,21 +835,21 @@ const DailyProduction: React.FC = () => {
   const handleAddCurrentYarn = () => {
     // Add a new entry with today's date and current yarn type
     if (!selectedMachine?.id || !selectedMachine?.yarnType) return;
-    
+
     const today = new Date().toISOString().split('T')[0];
     const machineId = selectedMachine.id;
     const yarnType = selectedMachine.yarnType;
-    
+
     // Create a new history entry
     const machineHistory = machineYarnHistory[machineId] || [];
     const newMachineHistory = [
       ...machineHistory,
       { date: today, yarnType }
     ];
-    
+
     const newHistory = { ...machineYarnHistory };
     (newHistory as any)[machineId] = newMachineHistory;
-    
+
     setMachineYarnHistory(newHistory);
     saveMachineYarnHistory(newHistory);
     toast.success(`Added yarn type "${yarnType}" for today's date`);
@@ -859,532 +859,332 @@ const DailyProduction: React.FC = () => {
   const handleRemoveYarnHistory = (index: number) => {
     // Remove this entry from history
     if (!selectedMachine?.id) return;
-    
+
     const machineId = selectedMachine.id;
     const machineHistory = [...(machineYarnHistory[machineId] || [])];
-    
+
     // Remove the entry at this index
     machineHistory.splice(index, 1);
-    
+
     const newHistory = { ...machineYarnHistory };
     (newHistory as any)[machineId] = machineHistory;
-    
+
     setMachineYarnHistory(newHistory);
     saveMachineYarnHistory(newHistory);
     toast.success("Removed yarn type history entry");
   };
 
   return (
-    <>
+    <div className="space-y-6">
       {/* Stats Cards */}
       {stats && (
-        <div className="grid grid-cols-1 gap-6 mb-8 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="relative p-6 overflow-hidden transition-all duration-300 bg-white border-0 shadow-lg rounded-2xl dark:bg-gray-800 group hover:shadow-xl">
-            <div className="flex flex-col">
-              <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Machines</span>
-              <span className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">{stats.totalMachines}</span>
-            </div>
-            <div className="absolute bottom-0 right-0 p-2 text-blue-500 opacity-10 -rotate-12">
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="4" y="4" width="16" height="16" rx="2"></rect>
-                <rect x="9" y="9" width="6" height="6"></rect>
-                <line x1="9" y1="1" x2="9" y2="4"></line>
-                <line x1="15" y1="1" x2="15" y2="4"></line>
-                <line x1="9" y1="20" x2="9" y2="23"></line>
-                <line x1="15" y1="20" x2="15" y2="23"></line>
-                <line x1="20" y1="9" x2="23" y2="9"></line>
-                <line x1="20" y1="14" x2="23" y2="14"></line>
-                <line x1="1" y1="9" x2="4" y2="9"></line>
-                <line x1="1" y1="14" x2="4" y2="14"></line>
-              </svg>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Machines</p>
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{stats.totalMachines}</h3>
+              </div>
+              <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-blue-600 dark:text-blue-400">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+              </div>
             </div>
           </div>
-          
-          <div className="relative p-6 overflow-hidden transition-all duration-300 bg-white border-0 shadow-lg rounded-2xl dark:bg-gray-800 group hover:shadow-xl">
-            <div className="flex flex-col">
-              <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Active Machines</span>
-              <span className="mt-2 text-3xl font-bold text-emerald-600 dark:text-emerald-400">{stats.activeMachines}</span>
-            </div>
-            <div className="absolute bottom-0 right-0 p-2 text-emerald-500 opacity-10 -rotate-12">
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                <polyline points="22 4 12 14.01 9 11.01"></polyline>
-              </svg>
-            </div>
-          </div>
-          
-          <div className="relative p-6 overflow-hidden transition-all duration-300 bg-white border-0 shadow-lg rounded-2xl dark:bg-gray-800 group hover:shadow-xl">
-            <div className="flex flex-col">
-              <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Today's Entries</span>
-              <span className="mt-2 text-3xl font-bold text-orange-600 dark:text-orange-400">{stats.todayEntries}</span>
-            </div>
-            <div className="absolute bottom-0 right-0 p-2 text-orange-500 opacity-10 -rotate-12">
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                <line x1="16" y1="2" x2="16" y2="6"></line>
-                <line x1="8" y1="2" x2="8" y2="6"></line>
-                <line x1="3" y1="10" x2="21" y2="10"></line>
-              </svg>
+
+          <div className="p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Active Machines</p>
+                <h3 className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{stats.activeMachines}</h3>
+              </div>
+              <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg text-emerald-600 dark:text-emerald-400">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+              </div>
             </div>
           </div>
-          
-          <div className="relative p-6 overflow-hidden transition-all duration-300 bg-white border-0 shadow-lg rounded-2xl dark:bg-gray-800 group hover:shadow-xl">
-            <div className="flex flex-col">
-              <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Average Efficiency</span>
-              <span className="mt-2 text-3xl font-bold text-blue-600 dark:text-blue-400">{stats.averageEfficiency.toFixed(1)}%</span>
+
+          <div className="p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Today's Entries</p>
+                <h3 className="text-2xl font-bold text-orange-600 dark:text-orange-400 mt-1">{stats.todayEntries}</h3>
+              </div>
+              <div className="p-2 bg-orange-50 dark:bg-orange-900/20 rounded-lg text-orange-600 dark:text-orange-400">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+              </div>
             </div>
-            <div className="absolute bottom-0 right-0 p-2 text-blue-500 opacity-10 -rotate-12">
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 20V10"></path>
-                <path d="M18 20V4"></path>
-                <path d="M6 20v-4"></path>
-              </svg>
+          </div>
+
+          <div className="p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Avg Efficiency</p>
+                <h3 className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">{stats.averageEfficiency.toFixed(1)}%</h3>
+              </div>
+              <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-blue-600 dark:text-blue-400">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20V10"></path><path d="M18 20V4"></path><path d="M6 20v-4"></path></svg>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Machine Selection & Production Entry Form */}
-      {/* Production Entry Form */}
-      <div className="mb-6 overflow-hidden bg-white border border-gray-200 shadow-sm dark:bg-gray-800 dark:border-gray-700 rounded-lg">
-        <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 dark:border-gray-700 flex justify-between items-center">
-          <h2 className="text-base font-medium text-gray-900 dark:text-gray-100">Daily Production Entry</h2>
-          <div className="flex items-center gap-2">
-            <div className="text-xs text-gray-700 dark:text-gray-300">Record today's production</div>
-            <label className={`px-2 py-1 rounded cursor-pointer ${importing ? 'bg-gray-300' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
-              {importing ? 'Importing…' : 'Import CSV'}
-              <input type="file" accept=".csv" className="hidden" onChange={(e) => e.target.files?.[0] && handleImportCSV(e.target.files[0])} disabled={importing || !selectedMachine} />
-            </label>
+      {/* Main Content Area */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+        {/* Header & Machine Selection */}
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
+          <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+            <div className="flex-1 w-full md:w-auto">
+              <Label htmlFor="machine-select" className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">Select Machine</Label>
+              <div className="flex gap-2">
+                <Select
+                  onValueChange={handleMachineSelect}
+                  value={selectedMachine ? selectedMachine.id.toString() : ""}
+                >
+                  <SelectTrigger
+                    className="w-full md:w-[300px] bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 focus:ring-blue-500"
+                  >
+                    <SelectValue placeholder="Select a machine..." />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    {machines && machines.length > 0 ? (
+                      machines.map(machine => (
+                        <SelectItem key={machine.id} value={machine.id.toString()}>
+                          <span className="font-medium">{machine.machineName || `Machine ${machine.machineNo}`}</span>
+                          <span className="text-gray-400 mx-2">|</span>
+                          <span className="text-gray-500">{machine.count} Count</span>
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="no-machines">No machines available</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+
+                <label className={`flex items-center justify-center px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer border ${importing ? 'bg-gray-100 text-gray-400 border-gray-200' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700'}`}>
+                  {importing ? 'Importing...' : 'Import CSV'}
+                  <input type="file" accept=".csv" className="hidden" onChange={(e) => e.target.files?.[0] && handleImportCSV(e.target.files[0])} disabled={importing || !selectedMachine} />
+                </label>
+              </div>
+            </div>
+
+            {selectedMachine && (
+              <div className="flex gap-4 text-sm bg-white dark:bg-gray-900 p-2 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+                <div className="px-2">
+                  <span className="block text-xs text-gray-500">Count</span>
+                  <span className="font-semibold text-gray-900 dark:text-white">{selectedMachine.count}</span>
+                </div>
+                <div className="px-2 border-l border-gray-200 dark:border-gray-700">
+                  <span className="block text-xs text-gray-500">Yarn</span>
+                  <span className="font-semibold text-blue-600 dark:text-blue-400">{selectedMachine.yarnType || 'Cotton'}</span>
+                </div>
+                <div className="px-2 border-l border-gray-200 dark:border-gray-700">
+                  <span className="block text-xs text-gray-500">Speed</span>
+                  <span className="font-semibold text-gray-900 dark:text-white">{selectedMachine.speed} RPM</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-        <div className="p-5">
-          <div className="max-w-4xl mx-auto">
-            <form onSubmit={handleFormSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                <div className="lg:col-span-2">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <Label htmlFor="machine" className="text-sm font-medium text-gray-700 dark:text-gray-300">Select Machine</Label>
-                    {loading && <span className="w-4 h-4 border-b-2 border-blue-500 rounded-full animate-spin"></span>}
-                  </div>
-                  <Select 
-                    onValueChange={handleMachineSelect}
-                    value={selectedMachine ? selectedMachine.id.toString() : ""}
-                  >
-                    <SelectTrigger 
-                      className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600"
-                    >
-                      {selectedMachine ? (
-                        <span className="block truncate dark:text-gray-200">
-                          {selectedMachine.machineName || `Machine ${selectedMachine.machineNo || '?'}`} - {selectedMachine.count || '?'} Count - {selectedMachine.yarnType || 'Cotton'}
-                        </span>
-                      ) : (
-                        <SelectValue placeholder="-- Select Machine --" />
-                      )}
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[300px] overflow-y-auto">
-                      {machines && machines.length > 0 ? (
-                        machines.map(machine => (
-                          <SelectItem 
-                            key={machine.id} 
-                            value={machine.id.toString()}
-                          >
-                            {machine.machineName || `Machine ${machine.machineNo || '?'}`} - {machine.count || '?'} Count - {machine.yarnType || 'Cotton'}
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <SelectItem value="no-machines">No machines available</SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
 
-                {selectedMachine && (
-                  <>
-                    <div className="lg:col-span-2">
-                      <div className="p-4 mb-5 border border-blue-100 rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 dark:border-blue-800/30">
-                        <h4 className="mb-3 text-sm font-semibold text-blue-800 dark:text-blue-300">Machine Details</h4>
-                        <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-3">
-                          <div className="flex items-center gap-2">
-                            <span className="p-1 bg-blue-100 rounded-full dark:bg-blue-800/30">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-blue-700 dark:text-blue-300" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
-                              </svg>
-                            </span>
-                            <span className="font-medium text-gray-700 dark:text-gray-300">Count: <span className="font-bold text-blue-700 dark:text-blue-300">{selectedMachine.count}</span></span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="p-1 bg-blue-100 rounded-full dark:bg-blue-800/30">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-blue-700 dark:text-blue-300" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z" />
-                              </svg>
-                            </span>
-                            <span className="font-medium text-gray-700 dark:text-gray-300">Yarn: <span className="font-bold text-blue-700 dark:text-blue-300">{selectedMachine.yarnType || 'Cotton'}</span></span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="p-1 bg-blue-100 rounded-full dark:bg-blue-800/30">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-blue-700 dark:text-blue-300" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-14a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V4z" clipRule="evenodd" />
-                              </svg>
-                            </span>
-                            <span className="font-medium text-gray-700 dark:text-gray-300">Spindles: <span className="font-bold text-blue-700 dark:text-blue-300">{selectedMachine.spindles}</span></span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="p-1 bg-blue-100 rounded-full dark:bg-blue-800/30">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-blue-700 dark:text-blue-300" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
-                              </svg>
-                            </span>
-                            <span className="font-medium text-gray-700 dark:text-gray-300">Speed: <span className="font-bold text-blue-700 dark:text-blue-300">{selectedMachine.speed} RPM</span></span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="p-1 bg-purple-100 rounded-full dark:bg-purple-800/30">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-purple-700 dark:text-purple-300" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                              </svg>
-                            </span>
-                            <span className="font-medium text-gray-700 dark:text-gray-300">Prod @ 100%: <span className="font-bold text-purple-700 dark:text-purple-300">
-                              {selectedMachine.productionAt100 ? Number(selectedMachine.productionAt100).toFixed(5) : 'N/A'}
-                            </span></span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Yarn Type History container intentionally removed as per requirement */}
-
-                    <div>
-                      <Label htmlFor="date" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Date</Label>
-                      <Input
-                        id="date"
-                        type="date"
-                        value={formData.date}
-                        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                        className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                        required
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="dayShift" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Day Shift (kg)</Label>
-                        <Input
-                          id="dayShift"
-                          type="number"
-                          step="0.01"
-                          value={formData.dayShift}
-                          onChange={(e) => setFormData({ ...formData, dayShift: parseFloat(e.target.value) || 0 })}
-                          className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                          required
-                        />
-                      </div>
-
-                      <div>
-                        <Label htmlFor="nightShift" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Night Shift (kg)</Label>
-                        <Input
-                          id="nightShift"
-                          type="number"
-                          step="0.01"
-                          value={formData.nightShift}
-                          onChange={(e) => {
-                            // Robust night shift input handling
-                            const inputValue = e.target.value;
-                            let nightShiftValue = 0;
-                            
-                            if (inputValue !== '' && inputValue !== null && inputValue !== undefined) {
-                              const parsed = parseFloat(inputValue);
-                              nightShiftValue = isNaN(parsed) ? 0 : parsed;
-                            }
-                            
-                            console.log('Night shift input change:', {
-                              inputValue,
-                              parsedValue: nightShiftValue,
-                              type: typeof nightShiftValue
-                            });
-                            
-                            setFormData({ ...formData, nightShift: nightShiftValue });
-                          }}
-                          className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                        />
-                      </div>
-                    </div>
-                    
-                    {/* Production summary section temporarily disabled */}
-                    {/* Submit row */}
-                    <div className="lg:col-span-2 flex items-center justify-end pt-2">
-                      <Button
-                        type="submit"
-                        disabled={loading || !selectedMachine}
-                        className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md disabled:opacity-60 disabled:cursor-not-allowed"
-                        title={!selectedMachine ? 'Select a machine first' : 'Add production entry'}
-                      >
-                        <Plus className="w-4 h-4" />
-                        Add Production Entry
-                      </Button>
-                    </div>
-                  </>
-                )}
+        {/* Entry Form */}
+        {selectedMachine && (
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-blue-50/30 dark:bg-blue-900/10">
+            <form onSubmit={handleFormSubmit} className="flex flex-col md:flex-row gap-4 items-end">
+              <div className="w-full md:w-auto">
+                <Label htmlFor="date" className="text-xs font-medium text-gray-500 mb-1.5 block">Date</Label>
+                <Input
+                  id="date"
+                  type="date"
+                  value={formData.date}
+                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                  className="w-full md:w-40 bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600"
+                  required
+                />
               </div>
+              <div className="w-full md:w-32">
+                <Label htmlFor="dayShift" className="text-xs font-medium text-gray-500 mb-1.5 block">Day Shift (kg)</Label>
+                <Input
+                  id="dayShift"
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={formData.dayShift || ''}
+                  onChange={(e) => setFormData({ ...formData, dayShift: parseFloat(e.target.value) || 0 })}
+                  className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600"
+                />
+              </div>
+              <div className="w-full md:w-32">
+                <Label htmlFor="nightShift" className="text-xs font-medium text-gray-500 mb-1.5 block">Night Shift (kg)</Label>
+                <Input
+                  id="nightShift"
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={formData.nightShift || ''}
+                  onChange={(e) => setFormData({ ...formData, nightShift: parseFloat(e.target.value) || 0 })}
+                  className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600"
+                />
+              </div>
+              <Button
+                type="submit"
+                disabled={loading}
+                className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Entry
+              </Button>
             </form>
           </div>
-        </div>
-      </div>
+        )}
 
-      {/* Production Entries Table */}
-      <div className="overflow-hidden bg-white border border-gray-200 shadow-sm rounded-lg dark:bg-gray-800 dark:border-gray-700">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-orange-100 dark:bg-orange-900/20 dark:border-gray-700">
-          <h2 className="text-base font-medium text-orange-900 dark:text-orange-200">
-            Production History
-            {selectedMachine && ` - ${selectedMachine.machineName || `Machine ${selectedMachine.machineNo}`}`}
-          </h2>
-          {selectedMachine && (
-            <Badge variant="outline" className="text-xs px-1.5 py-0.5 rounded-sm border border-orange-200 bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:border-orange-800 dark:text-orange-300">
-              {selectedMachine.isActive ? 'Active' : 'Inactive'}
-            </Badge>
-          )}
-        </div>
-        <div className="p-4">
-          {loading ? (
-            <div className="flex items-center justify-center py-6">
-              <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
-                <div className="w-5 h-5 border-b-2 border-orange-500 rounded-full animate-spin"></div>
-                <span className="text-sm">Loading entries...</span>
-              </div>
-            </div>
-          ) : productionEntries.length === 0 ? (
-            <div className="flex flex-col items-center justify-center px-4 py-8 text-center">
-              <div className="p-2 mb-3 rounded-full bg-orange-50 dark:bg-orange-900/30">
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-orange-500 dark:text-orange-400" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <p className="text-base font-medium text-gray-700 dark:text-gray-300">
-                {selectedMachine ? 'No production entries found' : 'Select a machine to view entries'}
-              </p>
-              <p className="max-w-md mt-1 text-sm text-gray-500 dark:text-gray-400">
-                {selectedMachine ? 'Add production data using the form above.' : 'Choose a machine from the dropdown first.'}
-              </p>
-            </div>
-          ) : (
-            <div className="w-full overflow-x-auto">
-              <Table className="w-full min-w-full">
-                <TableHeader className="bg-gray-50 dark:bg-gray-800">
-                  <TableRow className="border-b dark:border-gray-700">
-                    <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400">Date</TableHead>
-                    <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400">Yarn Type</TableHead>
-                    <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400">Day Shift</TableHead>
-                    <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400">Night Shift</TableHead>
-                    <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400">Total</TableHead>
-                    <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase sm:px-6 dark:text-gray-400">Efficiency</TableHead>
-                    <TableHead className="px-4 py-3 text-xs font-medium tracking-wider text-right text-gray-500 uppercase sm:px-6 dark:text-gray-400">Actions</TableHead>
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+              <TableRow className="hover:bg-transparent border-none">
+                <TableHead className="w-[120px] py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</TableHead>
+                <TableHead className="py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Yarn Type</TableHead>
+                <TableHead className="text-right py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Day Shift</TableHead>
+                <TableHead className="text-right py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Night Shift</TableHead>
+                <TableHead className="text-right py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Total</TableHead>
+                <TableHead className="text-center py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Efficiency</TableHead>
+                <TableHead className="text-right py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody className="divide-y divide-gray-100 dark:divide-gray-800">
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-24 text-center">
+                    <div className="flex justify-center items-center gap-2 text-gray-500">
+                      <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                      Loading...
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : !selectedMachine ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-32 text-center text-gray-500">
+                    Select a machine to view production entries
+                  </TableCell>
+                </TableRow>
+              ) : productionEntries.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-32 text-center text-gray-500">
+                    No entries found for this machine
+                  </TableCell>
+                </TableRow>
+              ) : (
+                productionEntries.map(entry => (
+                  <TableRow key={entry.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                    <TableCell className="font-medium text-gray-900 dark:text-gray-100">
+                      {editingEntry?.id === entry.id ? (
+                        <Input
+                          type="date"
+                          value={editingEntry.date}
+                          onChange={(e) => setEditingEntry({ ...editingEntry, date: e.target.value })}
+                          className="h-8 w-full"
+                        />
+                      ) : (
+                        new Date(entry.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const displayYarnType = entry.yarnType || findHistoricalYarnType(entry.machineId, entry.date) || entry.machine?.yarnType || 'Cotton';
+                        const isHistorical = displayYarnType !== (selectedMachine?.yarnType || 'Cotton');
+                        return (
+                          <div className="flex items-center gap-2">
+                            <span className={`text-sm ${isHistorical ? 'text-purple-600 font-medium' : 'text-gray-700 dark:text-gray-300'}`}>
+                              {formatYarnType(displayYarnType)}
+                            </span>
+                            {isHistorical && (
+                              <Badge variant="secondary" className="text-[10px] px-1 h-5 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">Hist</Badge>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {editingEntry?.id === entry.id ? (
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={editingEntry.dayShift}
+                          onChange={(e) => setEditingEntry({ ...editingEntry, dayShift: parseFloat(e.target.value) || 0 })}
+                          className="h-8 w-24 text-right ml-auto"
+                        />
+                      ) : (
+                        <span className="text-gray-600 dark:text-gray-400">{parseFloat(String(entry.dayShift || 0)).toFixed(2)}</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {editingEntry?.id === entry.id ? (
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={editingEntry.nightShift}
+                          onChange={(e) => setEditingEntry({ ...editingEntry, nightShift: parseFloat(e.target.value) || 0 })}
+                          className="h-8 w-24 text-right ml-auto"
+                        />
+                      ) : (
+                        <span className="text-gray-600 dark:text-gray-400">{formatShiftValue(entry.nightShift)}</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold text-gray-900 dark:text-white">
+                      {editingEntry?.id === entry.id
+                        ? calculateTotal(editingEntry.dayShift, editingEntry.nightShift).toFixed(2)
+                        : calculateTotal(entry.dayShift, entry.nightShift).toFixed(2)
+                      }
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {(() => {
+                        const total = editingEntry?.id === entry.id
+                          ? calculateTotal(editingEntry.dayShift, editingEntry.nightShift)
+                          : calculateTotal(entry.dayShift, entry.nightShift);
+                        const productionAt100 = getProductionAt100(entry, selectedMachine);
+                        const percentage = calculatePercentage(total, productionAt100);
+                        return (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${percentage >= 85 ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+                            percentage >= 70 ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' :
+                              'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                            }`}>
+                            {percentage.toFixed(1)}%
+                          </span>
+                        );
+                      })()}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        {editingEntry?.id === entry.id ? (
+                          <>
+                            <Button size="sm" onClick={handleSaveEdit} className="h-7 w-7 p-0 bg-green-600 hover:bg-green-700 text-white rounded-md">
+                              <Save className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button size="sm" onClick={() => setEditingEntry(null)} className="h-7 w-7 p-0 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md">
+                              <X className="w-3.5 h-3.5" />
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button size="sm" variant="outline" onClick={() => handleEdit(entry)} className="h-7 w-7 p-0 text-blue-600 border-transparent bg-transparent hover:bg-blue-50 dark:hover:bg-blue-900/20">
+                              <Edit className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => handleDelete(entry.id)} className="h-7 w-7 p-0 text-red-600 border-transparent bg-transparent hover:bg-red-50 dark:hover:bg-red-900/20">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {productionEntries.map(entry => (
-                    <TableRow key={entry.id} className="transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
-                        {editingEntry?.id === entry.id ? (
-                          <Input
-                            type="date"
-                            value={editingEntry.date}
-                            onChange={(e) => setEditingEntry({ ...editingEntry, date: e.target.value })}
-                            className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                          />
-                        ) : (
-                          <span className="font-medium text-gray-900 dark:text-gray-100">
-                            {new Date(entry.date).toLocaleDateString()}
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
-                        <div className="flex items-center">
-                          {(() => {
-                            // Determine which yarn type to display
-                            let displayYarnType = 'Cotton'; // Default to Cotton
-                            
-                            // First check if the entry has its own yarnType field (most reliable source)
-                            if (entry.yarnType) {
-                              // Entry has its own yarn type (explicitly saved with the entry)
-                              displayYarnType = entry.yarnType;
-                              console.log(`Using entry's own yarn type: ${displayYarnType}`);
-                            } else {
-                              // Try to find a historical yarn type for this date
-                              const historicalYarnType = findHistoricalYarnType(entry.machineId, entry.date);
-                              
-                              if (historicalYarnType) {
-                                displayYarnType = historicalYarnType;
-                                console.log(`Using historical yarn type: ${displayYarnType}`);
-                              } else {
-                                // Fall back to machine's current yarn type
-                                displayYarnType = entry.machine?.yarnType || selectedMachine?.yarnType || 'Cotton';
-                                console.log(`Using machine's current yarn type: ${displayYarnType}`);
-                              }
-                            }
-                            
-                            // Current yarn type from machine
-                            const currentYarnType = entry.machine?.yarnType || selectedMachine?.yarnType || 'Cotton';
-                            
-                            // Check if this is different from the current yarn type
-                            const isHistoricalYarnType = displayYarnType !== currentYarnType;
-                            
-                            return (
-                              <>
-                                <div className={`w-2 h-2 mr-2 rounded-full ${isHistoricalYarnType ? 'bg-purple-500' : 'bg-blue-500'}`}></div>
-                                <span className={`font-medium ${isHistoricalYarnType ? 'text-purple-600 dark:text-purple-400' : 'text-blue-600 dark:text-blue-400'}`}>
-                                  {formatYarnType(displayYarnType)}
-                                </span>
-                                {isHistoricalYarnType && (
-                                  <span className="ml-2 px-1.5 py-0.5 text-xs rounded-md bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
-                                    Historical
-                                  </span>
-                                )}
-                              </>
-                            );
-                          })()}
-                        </div>
-                      </TableCell>
-                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
-                        {editingEntry?.id === entry.id ? (
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={editingEntry.dayShift}
-                            onChange={(e) => setEditingEntry({ ...editingEntry, dayShift: parseFloat(e.target.value) || 0 })}
-                            className="w-24 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                          />
-                        ) : (
-                          <span className="text-gray-700 dark:text-gray-300">
-                            {parseFloat(String(entry.dayShift || 0)).toFixed(2)} <span className="text-xs text-gray-500 dark:text-gray-400">kg</span>
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
-                        {editingEntry?.id === entry.id ? (
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={editingEntry.nightShift}
-                            onChange={(e) => setEditingEntry({ ...editingEntry, nightShift: parseFloat(e.target.value) || 0 })}
-                            className="w-24 border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                          />
-                        ) : (
-                          <span className="text-gray-700 dark:text-gray-300">
-                            {formatShiftValue(entry.nightShift)} <span className="text-xs text-gray-500 dark:text-gray-400">kg</span>
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="px-4 py-4 font-medium whitespace-nowrap sm:px-6">
-                        {editingEntry?.id === entry.id 
-                          ? <span className="text-blue-600 dark:text-blue-400">
-                              {calculateTotal(editingEntry.dayShift, editingEntry.nightShift).toFixed(2)} <span className="text-xs text-gray-500 dark:text-gray-400">kg</span>
-                            </span>
-                          : <span className="text-blue-600 dark:text-blue-400">
-                              {calculateTotal(entry.dayShift, entry.nightShift).toFixed(2)} <span className="text-xs text-gray-500 dark:text-gray-400">kg</span>
-                            </span>
-                        }
-                      </TableCell>
-                      <TableCell className="px-4 py-4 whitespace-nowrap sm:px-6">
-                        {editingEntry?.id === entry.id && selectedMachine
-                          ? (() => {
-                              const total = calculateTotal(editingEntry.dayShift, editingEntry.nightShift);
-                              const productionAt100 = getProductionAt100({ machine: selectedMachine } as ASUProductionEntry, selectedMachine);
-                              const percentage = calculatePercentage(total, productionAt100);
-                              return (
-                                <Badge className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${getEfficiencyBadgeClass(percentage)}`}>
-
-                                  {percentage.toFixed(1)}%
-                                </Badge>
-                              );
-                            })()
-                          : (() => {
-                              const total = calculateTotal(entry.dayShift, entry.nightShift);
-                              const productionAt100 = getProductionAt100(entry, selectedMachine);
-                              const percentage = calculatePercentage(total, productionAt100);
-                              return (
-                                <Badge className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${getEfficiencyBadgeClass(percentage)}`}>
-                                  {percentage.toFixed(1)}%
-                                </Badge>
-                              );
-                            })()
-                        }
-                      </TableCell>
-                      <TableCell className="px-4 py-4 text-right whitespace-nowrap sm:px-6">
-                        <div className="flex justify-end gap-2">
-                          {editingEntry?.id === entry.id ? (
-                            <>
-                              <Button 
-                                size="sm" 
-                                onClick={handleSaveEdit} 
-                                disabled={loading} 
-                                className="p-1 text-white bg-green-600 rounded-md hover:bg-green-700 focus:ring-green-500"
-                              >
-                                <Save className="w-4 h-4" />
-                              </Button>
-                              <Button 
-                                size="sm" 
-                                onClick={() => setEditingEntry(null)} 
-                                className="p-1 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 focus:ring-gray-400 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200"
-                              >
-                                <X className="w-4 h-4" />
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Button 
-                                size="sm" 
-                                onClick={() => handleEdit(entry)}
-                                className="p-1 text-blue-700 rounded-md bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-800/50 dark:text-blue-300"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                              <Button 
-                                size="sm" 
-                                onClick={() => handleDelete(entry.id)}
-                                className="p-1 text-white rounded-md bg-red-600 hover:bg-red-700 border border-red-700 dark:bg-red-900/70 dark:hover:bg-red-800 dark:text-red-200"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-          
-          {/* Legend for yarn type indicators */}
-          {productionEntries.length > 0 && (
-            <div className="mt-4 px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/50">
-              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Legend</h3>
-              <div className="flex flex-wrap gap-x-6 gap-y-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                  <span className="text-xs text-gray-600 dark:text-gray-400">Current Yarn Type</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
-                  <span className="text-xs text-gray-600 dark:text-gray-400">Historical Yarn Type</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="ml-2 px-1.5 py-0.5 text-xs rounded-md bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
-                    Historical
-                  </span>
-                  <span className="text-xs text-gray-600 dark:text-gray-400">Production with previous machine configuration</span>
-                </div>
-              </div>
-              <div className="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700">
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  <strong>Note:</strong> Production entries store the yarn type used at the time of creation. 
-                  If a machine's yarn type is changed later, historical entries will still show the original yarn type.
-                </p>
-              </div>
-            </div>
-          )}
+                ))
+              )}
+            </TableBody>
+          </Table>
         </div>
       </div>
-    </>
+    </div>
   );
 };
 
