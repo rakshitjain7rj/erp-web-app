@@ -1427,22 +1427,18 @@ const DyeingOrders: React.FC = () => {
       return "--";
     }
 
-    // Coerce incoming value to a finite number before formatting
-    const numericQuantity = typeof quantity === 'number'
-      ? quantity
-      : typeof quantity === 'string'
-        ? parseFloat(quantity.replace(/,/g, '').trim())
-        : Number(quantity);
+    // Normalize incoming value to a finite number before formatting
+    const numericQuantity = Number.parseFloat(String(quantity).replace(/,/g, '').trim());
 
     if (!Number.isFinite(numericQuantity)) {
       return "--";
     }
 
-    const displayValue = Number.isInteger(numericQuantity)
-      ? numericQuantity.toString()
-      : numericQuantity.toFixed(1);
+    const roundedQuantity = Number.isInteger(numericQuantity)
+      ? numericQuantity
+      : Math.round(numericQuantity * 10) / 10;
 
-    return `${displayValue} kg`;
+    return `${roundedQuantity.toString()} kg`;
   };
 
   const handleExportCSV = () => {
