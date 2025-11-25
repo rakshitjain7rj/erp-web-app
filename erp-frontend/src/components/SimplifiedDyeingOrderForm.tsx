@@ -78,6 +78,12 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
   const [selectedFirmIndex, setSelectedFirmIndex] = useState(-1);
   const firmDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Party dropdown states
+  const [showPartyDropdown, setShowPartyDropdown] = useState(false);
+  const [partyFilter, setPartyFilter] = useState("");
+  const [selectedPartyIndex, setSelectedPartyIndex] = useState(-1);
+  const partyDropdownRef = useRef<HTMLDivElement>(null);
+
   // Count suggestions dropdown states
   const [showCountDropdown, setShowCountDropdown] = useState(false);
   const countDropdownRef = useRef<HTMLDivElement>(null);
@@ -118,6 +124,11 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
   // Filter existing firms based on input (use dynamic firms from database)
   const filteredFirms = liveFirms.filter(firm =>
     firm.toLowerCase().includes(firmFilter.toLowerCase())
+  );
+
+  // Filter party names based on input
+  const filteredParties = partyNames.filter(party =>
+    party.toLowerCase().includes(partyFilter.toLowerCase())
   );
 
   // Build unique counts from dyeing records (store) and count products (localStorage)
@@ -230,6 +241,7 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
 
       setFormData(dataToSet);
       setFirmFilter(orderToEdit.dyeingFirm);
+      setPartyFilter(orderToEdit.partyName || "");
 
       // Verify the state was set correctly
       setTimeout(() => {
@@ -242,6 +254,7 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
       console.log('🆕 Setting form data to initial state');
       setFormData(getInitialState());
       setFirmFilter("");
+      setPartyFilter("");
     }
     setErrors({});
   }, [orderToEdit]);
@@ -255,6 +268,13 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
       }
       if (countDropdownRef.current && !countDropdownRef.current.contains(event.target as Node)) {
         setShowCountDropdown(false);
+      }
+      if (countDropdownRef.current && !countDropdownRef.current.contains(event.target as Node)) {
+        setShowCountDropdown(false);
+      }
+      if (partyDropdownRef.current && !partyDropdownRef.current.contains(event.target as Node)) {
+        setShowPartyDropdown(false);
+        setSelectedPartyIndex(-1);
       }
     };
 
@@ -378,6 +398,58 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
         toast.warning(`Failed to save firm "${firm}" to database, but you can continue with the form`);
       }
     }
+  };
+
+  const handlePartyInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setPartyFilter(value);
+    setFormData(prev => ({ ...prev, partyName: value }));
+    setShowPartyDropdown(true);
+    setSelectedPartyIndex(-1);
+
+    if (errors.partyName) {
+      const newErrors = { ...errors };
+      delete newErrors.partyName;
+      setErrors(newErrors);
+    }
+  };
+
+  const handlePartyKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showPartyDropdown) return;
+
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        setSelectedPartyIndex(prev =>
+          prev < filteredParties.length ? prev + 1 : 0
+        );
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setSelectedPartyIndex(prev =>
+          prev > 0 ? prev - 1 : filteredParties.length
+        );
+        break;
+      case "Enter":
+        e.preventDefault();
+        if (selectedPartyIndex === 0) {
+          selectParty("Direct Supply");
+        } else if (selectedPartyIndex > 0 && filteredParties[selectedPartyIndex - 1]) {
+          selectParty(filteredParties[selectedPartyIndex - 1]);
+        }
+        break;
+      case "Escape":
+        setShowPartyDropdown(false);
+        setSelectedPartyIndex(-1);
+        break;
+    }
+  };
+
+  const selectParty = (party: string) => {
+    setFormData(prev => ({ ...prev, partyName: party }));
+    setPartyFilter(party);
+    setShowPartyDropdown(false);
+    setSelectedPartyIndex(-1);
   };
 
   const validateForm = (): boolean => {
@@ -666,6 +738,7 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
     console.log('🔄 handleReset called');
     setFormData(getInitialState());
     setFirmFilter("");
+    setPartyFilter("");
     setErrors({});
     setShowFirmDropdown(false);
     setSelectedFirmIndex(-1);
@@ -983,26 +1056,68 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
           </div>
 
           {/* Party/Middleman */}
-          <div className="space-y-1">
+          <div className="space-y-1 relative" ref={partyDropdownRef}>
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block">
               Party/Middleman *
             </label>
-            <select
-              name="partyName"
-              value={formData.partyName || ""}
-              onChange={handleInputChange}
-              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors ${errors.partyName
-                ? 'border-red-500 focus:ring-red-500'
-                : 'border-gray-300 dark:border-gray-600'
-                }`}
-            >
-              <option value="">Select a party...</option>
-              {partyNames.map((party) => (
-                <option key={party} value={party}>
-                  {party}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <input
+                type="text"
+                name="partyName"
+                value={partyFilter}
+                onChange={handlePartyInputChange}
+                onKeyDown={handlePartyKeyDown}
+                onFocus={() => setShowPartyDropdown(true)}
+                onBlur={() => setTimeout(() => setShowPartyDropdown(false), 200)}
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors pr-8 ${errors.partyName
+                  ? 'border-red-500 focus:ring-red-500'
+                  : 'border-gray-300 dark:border-gray-600'
+                  }`}
+                placeholder="Search or enter party name"
+                autoComplete="off"
+              />
+              <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+
+              {showPartyDropdown && (
+                <div className="absolute top-full left-0 right-0 z-20 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto mt-1">
+                  {/* Direct Supply Option */}
+                  <div
+                    className={`px-3 py-2 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-700 ${selectedPartyIndex === 0 ? 'bg-blue-100 dark:bg-blue-900' : ''}`}
+                    onMouseDown={() => selectParty("Direct Supply")}
+                  >
+                    <span className="font-medium text-blue-600 dark:text-blue-400">Direct Supply</span>
+                  </div>
+
+                  {filteredParties.length > 0 ? (
+                    filteredParties.map((party, index) => (
+                      <div
+                        key={party}
+                        className={`px-3 py-2 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 text-gray-900 dark:text-white ${index + 1 === selectedPartyIndex ? 'bg-blue-100 dark:bg-blue-900' : ''
+                          }`}
+                        onMouseDown={() => selectParty(party)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span>{party}</span>
+                          {party === formData.partyName && (
+                            <Check className="w-4 h-4 text-blue-600" />
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    partyFilter.trim() && (
+                      <div
+                        className="px-3 py-2 cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400 flex items-center font-medium"
+                        onMouseDown={() => selectParty(partyFilter)}
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Use "{partyFilter}"
+                      </div>
+                    )
+                  )}
+                </div>
+              )}
+            </div>
             {errors.partyName && (
               <p className="text-xs text-red-500">{errors.partyName}</p>
             )}
