@@ -161,7 +161,20 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
       try {
         const names = await getAllPartyNames();
         if (Array.isArray(names)) {
-          setPartyNames(names.sort());
+          const normalizedNames = names
+            .map((entry: any) => {
+              if (typeof entry === 'string') {
+                return entry.trim();
+              }
+              if (entry && typeof entry === 'object') {
+                if (typeof entry.name === 'string') return entry.name.trim();
+                if (typeof entry.partyName === 'string') return entry.partyName.trim();
+              }
+              return null;
+            })
+            .filter((name): name is string => !!name);
+
+          setPartyNames(Array.from(new Set(normalizedNames)).sort((a, b) => a.localeCompare(b)));
         }
       } catch (error) {
         console.error('Failed to fetch party names:', error);
