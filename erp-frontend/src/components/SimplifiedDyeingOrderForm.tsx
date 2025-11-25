@@ -516,10 +516,11 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
     if (!validateForm()) {
       toast.error("Please fix the validation errors");
       return;
-    }
-
-    setIsSubmitting(true);
-
+        <div>
+          <h1>Simplified Dyeing Order Form</h1>
+          <input type="text" placeholder="New Order Field" />
+          <button type="submit">Submit New Order</button>
+        </div>
     // CRITICAL DEBUG: Let's check EVERYTHING about the edit mode detection
     console.log('🔍 CRITICAL DEBUG - Form submission analysis:');
     console.log('  - orderToEdit prop:', orderToEdit);

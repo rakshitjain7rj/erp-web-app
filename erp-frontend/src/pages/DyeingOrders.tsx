@@ -10,7 +10,7 @@ import {
 } from "../api/dyeingApi";
 import { CountProduct, getAllCountProducts, deleteCountProduct, updateCountProduct } from "../api/countProductApi";
 import { DyeingRecord, SimplifiedDyeingDisplayRecord, CreateDyeingRecordRequest } from "../types/dyeing";
-import SimplifiedDyeingOrderForm from "../components/SimplifiedDyeingOrderForm";
+import { AddDyeingOrderModal } from "../components/AddDyeingOrderModal";
 import { HorizontalAddOrderForm } from "../components/HorizontalAddOrderForm";
 import { Button } from "../components/ui/Button";
 import { ChevronDown, ChevronUp, MoreVertical, Check, X } from "lucide-react";
@@ -35,6 +35,7 @@ const getSafeString = (val: any): string => {
 const DyeingOrders: React.FC = () => {
   const [records, setRecords] = useState<DyeingRecord[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [orderToEdit, setOrderToEdit] = useState<any | null>(null);
   const [expandedFirm, setExpandedFirm] = useState<string | null>(null);
   const [isFollowUpModalOpen, setIsFollowUpModalOpen] = useState(false);
@@ -663,7 +664,7 @@ const DyeingOrders: React.FC = () => {
     console.log('📝 [EDIT] Are they the same?', originalQuantity === sentToDye);
     console.log('📝 [EDIT] Has originalQuantity in remarks?', trackingInfo.originalQuantity !== undefined);
 
-    // Convert DyeingRecord to SimplifiedDyeingOrderForm format with all fields properly mapped
+    // Convert DyeingRecord to DyeingOrderQuickForm format with all fields properly mapped
     const simplifiedOrder = {
       // Include the record ID for editing
       id: record.id,
@@ -1761,7 +1762,7 @@ const DyeingOrders: React.FC = () => {
             </div>
           )}
           <Button onClick={handleExportCSV} variant="outline" className="text-sm">Export CSV</Button>
-          <Button onClick={() => { setOrderToEdit(null); setIsFormOpen(true); }} className="text-sm">+ Add Order</Button>
+          <Button onClick={() => { setOrderToEdit(null); setIsAddModalOpen(true); }} className="text-sm">+ Add Order</Button>
 
           {!isMultiDeleteMode ? (
             <Button
@@ -1822,17 +1823,6 @@ const DyeingOrders: React.FC = () => {
         </select>
       </div>
 
-      {isFormOpen && (
-        <div className="animate-fadeIn">
-          <SimplifiedDyeingOrderForm
-            orderToEdit={orderToEdit}
-            onCancel={() => { setIsFormOpen(false); setOrderToEdit(null); }}
-            onSuccess={handleOrderSuccess}
-            existingFirms={pageFirms}
-          />
-        </div>
-      )}
-
       <div className="space-y-6" key={refreshKey}>
         {isRefreshing && (
           <div className="text-center py-8">
@@ -1888,12 +1878,24 @@ const DyeingOrders: React.FC = () => {
         dyeingRecord={selectedRecord}
         onFollowUpAdded={async () => await dyeingDataStore.loadRecords(true)}
       />
+
+      {/* Add Dyeing Order Modal */}
+      <AddDyeingOrderModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onSuccess={async (newProduct) => {
+          console.log("🎯 New dyeing order added:", newProduct);
+          // Refresh data
+          await fetchCountProducts();
+          await dyeingDataStore.loadRecords(true);
+          setRefreshKey(prev => prev + 1);
+          setIsAddModalOpen(false);
+        }}
+        currentFirm={expandedFirm || ""}
+      />
     </div>
   );
 };
-
-export default DyeingOrders;
-
 
 
 

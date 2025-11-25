@@ -7,7 +7,7 @@ import {
     deleteCountProduct,
 } from "../api/countProductApi";
 import { Button } from "../components/ui/Button";
-import { HorizontalAddOrderForm } from "../components/HorizontalAddOrderForm";
+import { CountProductQuickForm } from "../components/CountProductQuickForm";
 import type { CountProduct } from "../api/countProductApi";
 
 const SimplifiedCountProductOverview: React.FC = () => {
@@ -125,7 +125,7 @@ const SimplifiedCountProductOverview: React.FC = () => {
         setEditValues(prev => ({ ...prev, [field]: parseFloat(value) || 0 }));
     };
 
-    const handleFormSuccess = () => {
+    const handleFormSuccess = (_?: CountProduct) => {
         setIsFormOpen(false);
         setProductToEdit(null);
         setRefreshKey(prev => prev + 1);
@@ -185,8 +185,8 @@ const SimplifiedCountProductOverview: React.FC = () => {
 
             {/* Form */}
             {isFormOpen && (
-                <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-                    <HorizontalAddOrderForm
+                <div className="mb-6">
+                    <CountProductQuickForm
                         editMode={!!productToEdit}
                         productToEdit={productToEdit || undefined}
                         onSuccess={handleFormSuccess}

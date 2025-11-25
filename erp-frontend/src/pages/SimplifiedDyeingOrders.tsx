@@ -8,7 +8,7 @@ import {
 } from "../api/dyeingApi";
 import { getAllCountProducts, updateCountProduct, deleteCountProduct } from "../api/countProductApi";
 import { Button } from "../components/ui/Button";
-import SimplifiedDyeingOrderForm from "../components/SimplifiedDyeingOrderForm";
+import DyeingOrderQuickForm from "../components/DyeingOrderQuickForm";
 import { dyeingDataStore } from "../stores/dyeingDataStore";
 import type { DyeingRecord } from "../types/dyeing";
 import type { CountProduct } from "../api/countProductApi";
@@ -316,7 +316,7 @@ const SimplifiedDyeingOrders: React.FC = () => {
             {/* Form */}
             {isFormOpen && (
                 <div className="mb-6">
-                    <SimplifiedDyeingOrderForm
+                    <DyeingOrderQuickForm
                         orderToEdit={orderToEdit}
                         onCancel={() => { setIsFormOpen(false); setOrderToEdit(null); }}
                         onSuccess={() => {

@@ -9,7 +9,7 @@ import { exportDataToCSV } from "../utils/exportUtils";
 import FloatingActionDropdown from "../components/FloatingActionDropdown";
 import CountProductFollowUpModal from "../components/CountProductFollowUpModal";
 import { HorizontalAddOrderForm } from "../components/HorizontalAddOrderForm";
-import SimplifiedDyeingOrderForm from "../components/SimplifiedDyeingOrderForm";
+import DyeingOrderQuickForm from "../components/DyeingOrderQuickForm";
 import { 
   getAllCountProducts, 
   createCountProduct, 
@@ -2071,7 +2071,7 @@ const CountProductOverview: React.FC = () => {
               </button>
             </div>
             <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
-              <SimplifiedDyeingOrderForm
+              <DyeingOrderQuickForm
                 onCancel={() => {
                   setIsDyeingEditModalOpen(false);
                   setDyeingRecordToEdit(null);
