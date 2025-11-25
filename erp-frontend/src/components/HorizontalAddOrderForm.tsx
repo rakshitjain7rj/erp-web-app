@@ -2,22 +2,22 @@ import React, { useState, useEffect, useRef } from "react";
 import { Button } from "../components/ui/Button";
 import { ChevronDown, Check, X, Calendar, Package, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { 
-  createCountProduct, 
+import {
+  createCountProduct,
   updateCountProduct,
   CreateCountProductRequest,
   CountProduct
 } from "../api/countProductApi";
-import { 
-  getAllDyeingFirms, 
-  createDyeingFirm, 
+import {
+  getAllDyeingFirms,
+  createDyeingFirm,
   findOrCreateDyeingFirm,
-  DyeingFirm, 
-  CreateDyeingFirmRequest 
+  DyeingFirm,
+  CreateDyeingFirmRequest
 } from "../api/dyeingFirmApi";
-import { 
-  getAllPartyNames, 
-  createParty 
+import {
+  getAllPartyNames,
+  createParty
 } from "../api/partyApi";
 import { dyeingDataStore } from '../stores/dyeingDataStore';
 
@@ -101,7 +101,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
   const [errors, setErrors] = useState<FormErrors>({});
   const [showPartyDropdown, setShowPartyDropdown] = useState(false);
   const [showFirmDropdown, setShowFirmDropdown] = useState(false);
-  
+
   // Data state
   const [dyeingFirms, setDyeingFirms] = useState<DyeingFirm[]>(existingFirms.map((name, idx) => ({ id: idx + 1, name })) as DyeingFirm[]);
   const [partyOptions, setPartyOptions] = useState<string[]>([]);
@@ -118,7 +118,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
   useEffect(() => {
     const fetchInitialData = async () => {
       setIsLoadingData(true);
-      
+
       // Fetch dyeing firms
       try {
         if (existingFirms.length === 0) {
@@ -163,11 +163,16 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
         console.log('🔄 Fetching party names...');
         const partyNames = await getAllPartyNames();
         console.log('📝 Fetched party names:', partyNames);
-        
+
         if (Array.isArray(partyNames)) {
           const validPartyNames = partyNames
-            .filter(party => typeof party === 'string' || (party && typeof party.name === 'string'))
-            .map(party => typeof party === 'string' ? party : party.name);
+            .map((party: any) => {
+              if (typeof party === 'string') return party;
+              if (party && typeof party.name === 'string') return party.name;
+              if (party && typeof party.partyName === 'string') return party.partyName;
+              return null;
+            })
+            .filter((name): name is string => !!name);
           setPartyOptions(validPartyNames);
         } else {
           throw new Error('Invalid party names format');
@@ -201,7 +206,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
           const cps = JSON.parse(raw);
           cpCounts = Array.from(new Set((cps || []).map((p: any) => (p?.count || '').toString().trim()).filter(Boolean)));
         }
-      } catch {}
+      } catch { }
       const recCounts = Array.from(new Set((records || []).map(r => (r?.count || '').toString().trim()).filter(Boolean)));
       const merged = Array.from(new Set([...cpCounts, ...recCounts])).sort();
       setLiveCounts(merged);
@@ -254,21 +259,21 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
   useEffect(() => {
     if (existingFirms.length > 0) return; // lock to page-provided list
     let unsubscribe: (() => void) | null = null;
-    
+
     const setupSubscription = async () => {
       try {
         unsubscribe = await dyeingDataStore.subscribeFirms((firms) => {
           console.log('📡 HorizontalAddOrderForm received firm sync update:', firms.map(f => f.name));
           setDyeingFirms(firms);
-          try { localStorage.setItem('dyeingFirms', JSON.stringify(firms)); } catch {}
+          try { localStorage.setItem('dyeingFirms', JSON.stringify(firms)); } catch { }
         });
       } catch (error) {
         console.error('❌ Error setting up firm subscription:', error);
       }
     };
-    
+
     setupSubscription();
-    
+
     return () => {
       if (unsubscribe && typeof unsubscribe === 'function') {
         unsubscribe();
@@ -307,7 +312,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
   // Handle input change
   const handleInputChange = (field: keyof FormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    
+
     // Clear error when user starts typing
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: "" }));
@@ -319,12 +324,12 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
     try {
       const newFirmData: CreateDyeingFirmRequest = { name: firmName };
       const createdFirm = await createDyeingFirm(newFirmData);
-      
+
       // Update local state
       setDyeingFirms(prev => [...prev, createdFirm]);
-      
+
       // Note: Using unified store now - sync handled automatically
-      
+
       handleInputChange('dyeingFirm', createdFirm.name);
       setSelectedFirmId(createdFirm.id);
       setSelectedFirmOriginalName(createdFirm.name);
@@ -343,16 +348,16 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
       const newPartyData = {
         name: partyName
       };
-      
+
       const createdParty = await createParty(newPartyData);
-      
+
       // Add the new party to the local state
       setPartyOptions(prev => [...prev, partyName]);
-      
+
       // Select the newly created party
       handleInputChange('partyName', partyName);
       setShowPartyDropdown(false);
-      
+
       toast.success(`Party "${partyName}" created successfully!`);
     } catch (error) {
       console.error("Failed to create party:", error);
@@ -364,7 +369,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
   const ensureDyeingFirmExists = async (firmName: string) => {
     if (!firmName || firmName.trim() === "") return;
     const trimmed = firmName.trim();
-    
+
     try {
       const createdFirm = await dyeingDataStore.ensureFirm(trimmed);
       setSelectedFirmId(createdFirm.id);
@@ -381,23 +386,23 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
   // Check and auto-save new party if not exists
   const ensurePartyExists = async (partyName: string) => {
     if (!partyName || partyName.trim() === "" || partyName.toLowerCase() === "direct") return;
-    
-    const existingParty = partyOptions.find(party => 
+
+    const existingParty = partyOptions.find(party =>
       party.toLowerCase() === partyName.toLowerCase()
     );
-    
+
     if (!existingParty) {
       console.log(`👥 Auto-creating new party: ${partyName}`);
       try {
         const newPartyData = {
           name: partyName.trim()
         };
-        
+
         await createParty(newPartyData);
-        
+
         // Add the new party to the local state
         setPartyOptions(prev => [...prev, partyName.trim()]);
-        
+
         toast.success(`New party "${partyName}" saved automatically!`);
         return partyName.trim();
       } catch (error) {
@@ -411,7 +416,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
   // Handle submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     console.log('🚀 Starting form submission...');
     console.log('📝 Form data:', formData);
     console.log('� Edit mode:', editMode);
@@ -424,7 +429,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
       });
     }
     console.log('�🔍 Form validation check...');
-    
+
     if (!validateForm()) {
       console.log('❌ Validation failed, errors:', errors);
       toast.error("Please fix validation errors");
@@ -433,17 +438,17 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
 
     console.log('✅ Validation passed, proceeding with submission');
     setIsSubmitting(true);
-    
+
     try {
       // Auto-save new dyeing firm and party before creating/updating the order
       console.log('🔍 Checking and auto-saving new firms/parties...');
       await ensureDyeingFirmExists(formData.dyeingFirm);
       await ensurePartyExists(formData.partyName);
-      
+
       if (editMode && productToEdit) {
         // Update existing product
         console.log('✏️ Updating existing product with ID:', productToEdit.id);
-        
+
         const updateData = {
           partyName: formData.partyName || "Direct",
           dyeingFirm: formData.dyeingFirm,
@@ -460,19 +465,19 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
           middleman: formData.middleman || "Direct", // Fix: Use middleman field instead of partyName
           remarks: formData.remarks?.trim() || ''
         };
-        
+
         console.log('\n🔥 PREPARING UPDATE DATA');
         console.log('📦 Update data object:', updateData);
         console.log('🔍 FIELD CHECK:');
         console.log(`   updateData.customerName: "${updateData.customerName}"`);
         console.log(`   updateData.partyName: "${updateData.partyName}"`);
         console.log(`   updateData.middleman: "${updateData.middleman}"`);
-        
+
         console.log('🔍 Form data source verification:');
         console.log(`   formData.customerName: "${formData.customerName}"`);
         console.log(`   formData.partyName: "${formData.partyName}"`);
         console.log('🔥 SENDING TO API...\n');
-        
+
         console.log('📦 Updating count product with data:', updateData);
         console.log('🔍 Key fields being updated:', {
           customerName: updateData.customerName,
@@ -483,7 +488,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
           formDataCustomerName: formData.customerName,
           formDataPartyName: formData.partyName
         });
-        
+
         const updatedProduct = await updateCountProduct(productToEdit.id, updateData);
         console.log('✅ Count product updated successfully:', updatedProduct);
         console.log('🔍 API response details:', {
@@ -491,7 +496,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
           returnedPartyName: updatedProduct.partyName,
           returnedMiddleman: updatedProduct.middleman
         });
-        
+
         // Call success callback with enhanced data including dyeing firm
         const successData = {
           ...updatedProduct,
@@ -500,7 +505,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
         console.log('📞 Calling success callback with enhanced updated product data:', successData);
         onSuccess(successData);
         toast.success("Dyeing order updated successfully!");
-        
+
         console.log('🎉 Form update completed successfully');
       } else {
         // Create new product
@@ -529,10 +534,10 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
         };
 
         console.log('📦 Creating count product with data:', newCountProductData);
-        
+
         const createdProduct = await createCountProduct(newCountProductData);
         console.log('✅ Count product created successfully:', createdProduct);
-        
+
         // Call success callback with enhanced data including dyeing firm
         const successData = {
           ...createdProduct,
@@ -541,10 +546,10 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
         console.log('📞 Calling success callback with enhanced product data:', successData);
         onSuccess(successData);
         toast.success("Dyeing order added successfully!");
-        
+
         console.log('🎉 Form submission completed successfully');
       }
-      
+
       // Reset form data only if not in edit mode
       if (!editMode) {
         setFormData({
@@ -566,7 +571,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
       }
     } catch (error) {
       console.error('❌ Failed to create dyeing order:', error);
-      
+
       // Check for various types of API failures that should trigger demo mode
       const shouldUseDemoMode = (
         (error instanceof Error && error.message.includes('does not exist')) ||
@@ -576,10 +581,10 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
         (error as any)?.code === 'ECONNREFUSED' ||
         (error as any)?.response?.status >= 500
       );
-      
+
       if (shouldUseDemoMode) {
         console.log('🔧 API unavailable or database issue, using demo mode');
-        
+
         if (editMode && productToEdit) {
           // Demo mode for update
           const mockUpdatedProduct: CountProduct = {
@@ -598,7 +603,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
             middleman: formData.middleman || "Direct", // Fix: Use middleman field instead of partyName
             remarks: formData.remarks?.trim() || ''
           };
-          
+
           console.log('📞 Calling success callback with demo updated product:', mockUpdatedProduct);
           console.log('🔍 Demo mode product details:', {
             demoCustomerName: mockUpdatedProduct.customerName,
@@ -607,7 +612,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
           });
           onSuccess(mockUpdatedProduct);
           toast.success("Dyeing order updated successfully! (Demo mode - database not connected)");
-          
+
           console.log('🎉 Demo mode update completed successfully');
         } else {
           // Demo mode for create
@@ -635,14 +640,14 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
             dispatchQuantity: formData.dispatch ? parseFloat(formData.dispatch) : 0,
             middleman: formData.middleman || "Direct" // Fix: Use middleman field instead of partyName
           };
-          
+
           console.log('📞 Calling success callback with demo product:', mockProduct);
           onSuccess(mockProduct);
           toast.success("Dyeing order added successfully! (Demo mode - database not connected)");
-          
+
           console.log('🎉 Demo mode submission completed successfully');
         }
-        
+
         // Reset form data only if not in edit mode
         if (!editMode) {
           setFormData({
@@ -692,7 +697,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
       dispatch: "",
       dispatchDate: "",
       partyName: "",
-  middleman: "",
+      middleman: "",
       dyeingFirm: "",
       remarks: ""
     });
@@ -704,7 +709,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
     try {
       if (!Array.isArray(partyOptions)) return [];
       return partyOptions.filter(party =>
-        typeof party === 'string' && 
+        typeof party === 'string' &&
         party.toLowerCase().includes((formData.partyName || '').toLowerCase())
       );
     } catch (error) {
@@ -717,7 +722,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
     try {
       if (!Array.isArray(dyeingFirms)) return [];
       return dyeingFirms.filter(firm =>
-        firm && firm.name && 
+        firm && firm.name &&
         firm.name.toLowerCase().includes((formData.dyeingFirm || '').toLowerCase())
       );
     } catch (error) {
@@ -745,7 +750,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
           </div>
         )}
       </div>
-      
+
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* First Row - Required Fields */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -760,11 +765,10 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
               step="0.01"
               value={formData.quantity}
               onChange={(e) => handleInputChange('quantity', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors ${
-                errors.quantity 
-                  ? 'border-red-500 focus:ring-red-500' 
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors ${errors.quantity
+                  ? 'border-red-500 focus:ring-red-500'
                   : 'border-gray-300 dark:border-gray-600'
-              }`}
+                }`}
               placeholder="0.00"
             />
             {errors.quantity && (
@@ -784,19 +788,18 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
                 // Special handling to ensure customer name is always different from party name
                 const newCustomerName = e.target.value;
                 handleInputChange('customerName', newCustomerName);
-                
+
                 // Add warning if values are the same
                 if (newCustomerName && newCustomerName === formData.partyName) {
                   console.warn('⚠️ [HorizontalAddOrderForm] Warning: Customer name and party name are the same!');
                 }
               }}
-              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors ${
-                errors.customerName 
-                  ? 'border-red-500 focus:ring-red-500' 
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors ${errors.customerName
+                  ? 'border-red-500 focus:ring-red-500'
                   : formData.customerName && formData.customerName === formData.partyName
                     ? 'border-yellow-500 focus:ring-yellow-500' // Warning indicator
                     : 'border-gray-300 dark:border-gray-600'
-              }`}
+                }`}
               placeholder="Enter customer name"
             />
             {errors.customerName && (
@@ -820,11 +823,10 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
               onChange={(e) => { handleInputChange('count', e.target.value); setShowCountDropdown(true); }}
               onFocus={() => setShowCountDropdown(true)}
               onBlur={() => setTimeout(() => setShowCountDropdown(false), 180)}
-              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors ${
-                errors.count 
-                  ? 'border-red-500 focus:ring-red-500' 
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors ${errors.count
+                  ? 'border-red-500 focus:ring-red-500'
                   : 'border-gray-300 dark:border-gray-600'
-              }`}
+                }`}
               placeholder="e.g. 20s, 30s, Standard"
             />
             {showCountDropdown && (
@@ -870,11 +872,10 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
               step="0.01"
               value={formData.sentToDye}
               onChange={(e) => handleInputChange('sentToDye', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors ${
-                errors.sentToDye 
-                  ? 'border-red-500 focus:ring-red-500' 
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors ${errors.sentToDye
+                  ? 'border-red-500 focus:ring-red-500'
                   : 'border-gray-300 dark:border-gray-600'
-              }`}
+                }`}
               placeholder="0.00"
             />
             {errors.sentToDye && (
@@ -892,11 +893,10 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
                 type="date"
                 value={formData.sentDate}
                 onChange={(e) => handleInputChange('sentDate', e.target.value)}
-                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors ${
-                  errors.sentDate 
-                    ? 'border-red-500 focus:ring-red-500' 
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors ${errors.sentDate
+                    ? 'border-red-500 focus:ring-red-500'
                     : 'border-gray-300 dark:border-gray-600'
-                }`}
+                  }`}
               />
               <Calendar className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             </div>
@@ -990,15 +990,14 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
                 }}
                 onFocus={() => setShowFirmDropdown(true)}
                 onBlur={() => setTimeout(() => setShowFirmDropdown(false), 200)}
-                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors pr-8 ${
-                  errors.dyeingFirm 
-                    ? 'border-red-500 focus:ring-red-500' 
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors pr-8 ${errors.dyeingFirm
+                    ? 'border-red-500 focus:ring-red-500'
                     : 'border-gray-300 dark:border-gray-600'
-                }`}
+                  }`}
                 placeholder="Enter or select dyeing firm"
               />
               <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-              
+
               {showFirmDropdown && (
                 <div className="absolute top-full left-0 right-0 z-20 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-40 overflow-y-auto">
                   {filteredDyeingFirms.length > 0 ? (
@@ -1071,7 +1070,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
                 placeholder="Enter party/middleman name"
               />
               <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-              
+
               {showPartyDropdown && (
                 <div className="absolute top-full left-0 right-0 z-20 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-32 overflow-y-auto">
                   {filteredParties.length > 0 ? (
@@ -1102,20 +1101,20 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
                     )
                   )}
                   {/* Show create option even when there are matches, if the typed value doesn't exist */}
-                  {formData.partyName && 
-                   formData.partyName.trim() !== "" && 
-                   formData.partyName.toLowerCase() !== "direct" && 
-                   !partyOptions.some(party => party.toLowerCase() === formData.partyName.toLowerCase()) && (
-                    <div
-                      className="px-3 py-2 cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400 border-t border-gray-200 dark:border-gray-600 flex items-center font-medium"
-                      onMouseDown={() => {
-                        handleCreateParty(formData.partyName.trim());
-                      }}
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Create "{formData.partyName}"
-                    </div>
-                  )}
+                  {formData.partyName &&
+                    formData.partyName.trim() !== "" &&
+                    formData.partyName.toLowerCase() !== "direct" &&
+                    !partyOptions.some(party => party.toLowerCase() === formData.partyName.toLowerCase()) && (
+                      <div
+                        className="px-3 py-2 cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400 border-t border-gray-200 dark:border-gray-600 flex items-center font-medium"
+                        onMouseDown={() => {
+                          handleCreateParty(formData.partyName.trim());
+                        }}
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Create "{formData.partyName}"
+                      </div>
+                    )}
                   {/* Always show manual add option */}
                   <div
                     className="px-3 py-2 cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400 border-t border-gray-200 dark:border-gray-600 flex items-center font-medium"
@@ -1142,7 +1141,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
           </label>
           <textarea
             value={formData.remarks}
-            onChange={(e)=>handleInputChange('remarks', e.target.value)}
+            onChange={(e) => handleInputChange('remarks', e.target.value)}
             className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             placeholder="Enter any additional notes"
             rows={3}

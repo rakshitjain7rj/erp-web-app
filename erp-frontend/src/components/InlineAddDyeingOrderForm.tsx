@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { Check, X, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
-import { 
-  createCountProduct, 
-  CreateCountProductRequest 
+import {
+  createCountProduct,
+  CreateCountProductRequest
 } from "../api/countProductApi";
 import { getAllDyeingFirms, DyeingFirm } from "../api/dyeingFirmApi";
+import { getAllPartyNames } from "../api/partyApi";
 
 interface InlineAddDyeingOrderFormProps {
   onSuccess: (newProduct: any) => void;
@@ -53,19 +54,22 @@ export const InlineAddDyeingOrderForm: React.FC<InlineAddDyeingOrderFormProps> =
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
 
-  // Fetch party options from existing products or API
+  // Fetch party options from API
   useEffect(() => {
     const fetchPartyOptions = async () => {
       try {
-        // You can replace this with actual party API if available
-        const sampleParties = [
-          "Global Yarn Traders",
-          "Textile Hub Co",
-          "Quality Yarn Solutions",
-          "Metro Distribution",
-          "Premier Textiles"
-        ];
-        setPartyOptions(sampleParties);
+        const partyNames = await getAllPartyNames();
+        if (Array.isArray(partyNames)) {
+          const validPartyNames = partyNames
+            .map((party: any) => {
+              if (typeof party === 'string') return party;
+              if (party && typeof party.name === 'string') return party.name;
+              if (party && typeof party.partyName === 'string') return party.partyName;
+              return null;
+            })
+            .filter((name): name is string => !!name);
+          setPartyOptions(validPartyNames);
+        }
       } catch (error) {
         console.error("Failed to fetch party options:", error);
       }
@@ -100,7 +104,7 @@ export const InlineAddDyeingOrderForm: React.FC<InlineAddDyeingOrderFormProps> =
       ...prev,
       [field]: value
     }));
-    
+
     // Clear error when user starts typing
     if (errors[field]) {
       setErrors(prev => ({
@@ -141,10 +145,10 @@ export const InlineAddDyeingOrderForm: React.FC<InlineAddDyeingOrderFormProps> =
         sentToDye: true,
         sentDate: formData.sentDate,
         received: formData.received > 0,
-  receivedDate: formData.receivedDate || undefined,
+        receivedDate: formData.receivedDate || undefined,
         receivedQuantity: formData.received,
         dispatch: formData.dispatch > 0,
-  dispatchDate: formData.dispatchDate || undefined,
+        dispatchDate: formData.dispatchDate || undefined,
         dispatchQuantity: formData.dispatch,
         middleman: formData.partyName || "Direct"
       };
@@ -179,9 +183,8 @@ export const InlineAddDyeingOrderForm: React.FC<InlineAddDyeingOrderFormProps> =
               step="0.01"
               value={formData.quantity}
               onChange={(e) => handleInputChange('quantity', parseFloat(e.target.value) || 0)}
-              className={`w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white ${
-                errors.quantity ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
-              }`}
+              className={`w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white ${errors.quantity ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                }`}
               placeholder="kg"
             />
             {errors.quantity && (
@@ -198,9 +201,8 @@ export const InlineAddDyeingOrderForm: React.FC<InlineAddDyeingOrderFormProps> =
               type="text"
               value={formData.customerName}
               onChange={(e) => handleInputChange('customerName', e.target.value)}
-              className={`w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white ${
-                errors.customerName ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
-              }`}
+              className={`w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white ${errors.customerName ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                }`}
               placeholder="Customer name"
             />
             {errors.customerName && (
@@ -219,9 +221,8 @@ export const InlineAddDyeingOrderForm: React.FC<InlineAddDyeingOrderFormProps> =
               step="0.01"
               value={formData.sentToDye}
               onChange={(e) => handleInputChange('sentToDye', parseFloat(e.target.value) || 0)}
-              className={`w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white ${
-                errors.sentToDye ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
-              }`}
+              className={`w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white ${errors.sentToDye ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                }`}
               placeholder="kg"
             />
             {errors.sentToDye && (
@@ -238,9 +239,8 @@ export const InlineAddDyeingOrderForm: React.FC<InlineAddDyeingOrderFormProps> =
               type="date"
               value={formData.sentDate}
               onChange={(e) => handleInputChange('sentDate', e.target.value)}
-              className={`w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white ${
-                errors.sentDate ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
-              }`}
+              className={`w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white ${errors.sentDate ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                }`}
             />
             {errors.sentDate && (
               <p className="text-xs text-red-500">{errors.sentDate}</p>
@@ -324,7 +324,7 @@ export const InlineAddDyeingOrderForm: React.FC<InlineAddDyeingOrderFormProps> =
                 placeholder="Party name"
               />
               <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
-              
+
               {/* Dropdown */}
               {showPartyDropdown && (
                 <div className="absolute top-full left-0 right-0 z-20 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-b shadow-lg max-h-32 overflow-y-auto">
