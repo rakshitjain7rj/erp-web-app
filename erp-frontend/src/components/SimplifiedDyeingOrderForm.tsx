@@ -160,21 +160,37 @@ const SimplifiedDyeingOrderForm: React.FC<SimplifiedDyeingOrderFormProps> = ({
     const fetchPartyNames = async () => {
       try {
         const names = await getAllPartyNames();
+        console.log('🎉 Raw party names from API:', names);
+
         if (Array.isArray(names)) {
           const normalizedNames = names
             .map((entry: any) => {
+              // Handle direct strings
               if (typeof entry === 'string') {
                 return entry.trim();
               }
+              // Handle objects with name or partyName property
               if (entry && typeof entry === 'object') {
                 if (typeof entry.name === 'string') return entry.name.trim();
                 if (typeof entry.partyName === 'string') return entry.partyName.trim();
+
+                // CRITICAL FIX: If the object itself is being passed but has no known string property,
+                // do NOT return the object. Return null to filter it out.
+                console.warn('⚠️ Invalid party object found:', entry);
+                return null;
               }
               return null;
             })
-            .filter((name): name is string => !!name);
+            .filter((name): name is string => {
+              const isValid = typeof name === 'string' && name.length > 0;
+              if (!isValid && name !== null) console.warn('⚠️ Filtered out invalid party name:', name);
+              return isValid;
+            });
 
+          console.log('✅ Normalized party names:', normalizedNames);
           setPartyNames(Array.from(new Set(normalizedNames)).sort((a, b) => a.localeCompare(b)));
+        } else {
+          console.warn('⚠️ getAllPartyNames did not return an array:', names);
         }
       } catch (error) {
         console.error('Failed to fetch party names:', error);

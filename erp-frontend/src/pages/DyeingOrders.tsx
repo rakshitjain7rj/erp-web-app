@@ -22,6 +22,16 @@ import SimpleActionDropdown from "../components/SimpleActionDropdown";
 import { DyeingFirm } from "../api/dyeingFirmApi";
 import { dyeingDataStore } from "../stores/dyeingDataStore";
 
+// Helper to safely extract string from potential objects
+const getSafeString = (val: any): string => {
+  if (!val) return "";
+  if (typeof val === 'string') return val;
+  if (typeof val === 'object') {
+    return val.partyName || val.name || val.customerName || JSON.stringify(val);
+  }
+  return String(val);
+};
+
 const DyeingOrders: React.FC = () => {
   const [records, setRecords] = useState<DyeingRecord[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -245,7 +255,7 @@ const DyeingOrders: React.FC = () => {
     const trackingInfo = parseTrackingInfo(record.remarks);
 
     // PRESERVE USER INPUT: Show customer name exactly as user entered it
-    let customerName = record.customerName || "Unknown Customer";
+    let customerName = getSafeString(record.customerName) || "Unknown Customer";
 
     const mappedRecord = {
       id: record.id,
@@ -276,7 +286,7 @@ const DyeingOrders: React.FC = () => {
   // ================= COUNT PRODUCT MAPPING FUNCTION =================
   const mapCountProductToSimplifiedDisplay = (countProduct: CountProduct): SimplifiedDyeingDisplayRecord => {
     // PRESERVE USER INPUT: Show customer name exactly as user entered it
-    let customerName = countProduct.customerName;
+    let customerName = getSafeString(countProduct.customerName);
 
     // DEBUG: Log customer name details
     console.log(`🔍 Mapping CountProduct ID ${countProduct.id}: customerName="${customerName}"`);
@@ -292,7 +302,7 @@ const DyeingOrders: React.FC = () => {
       receivedDate: countProduct.receivedDate || undefined,
       dispatch: countProduct.dispatch ? countProduct.dispatchQuantity : undefined,
       dispatchDate: countProduct.dispatchDate || undefined,
-      partyNameMiddleman: countProduct.middleman || countProduct.partyName, // Use middleman if available, otherwise fall back to partyName
+      partyNameMiddleman: countProduct.middleman || getSafeString(countProduct.partyName), // Use middleman if available, otherwise fall back to partyName
       dyeingFirm: countProduct.dyeingFirm,
       remarks: countProduct.remarks || ''
     };

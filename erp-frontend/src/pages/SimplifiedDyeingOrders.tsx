@@ -30,6 +30,17 @@ interface SimplifiedDisplayRecord {
     originalRecord: DyeingRecord | CountProduct;
 }
 
+// Helper to safely extract string from potential objects
+const getSafeString = (val: any): string => {
+    if (!val) return "";
+    if (typeof val === 'string') return val;
+    if (typeof val === 'object') {
+        // Try common properties if it's an object
+        return val.partyName || val.name || val.customerName || JSON.stringify(val);
+    }
+    return String(val);
+};
+
 const SimplifiedDyeingOrders: React.FC = () => {
     const [records, setRecords] = useState<SimplifiedDisplayRecord[]>([]);
     const [filteredRecords, setFilteredRecords] = useState<SimplifiedDisplayRecord[]>([]);
@@ -87,7 +98,7 @@ const SimplifiedDyeingOrders: React.FC = () => {
             receivedDate: trackingInfo.receivedDate,
             dispatch: trackingInfo.dispatch || 0,
             dispatchDate: trackingInfo.dispatchDate,
-            partyNameMiddleman: trackingInfo.middleman || record.partyName || "Direct",
+            partyNameMiddleman: trackingInfo.middleman || getSafeString(record.partyName) || "Direct",
             type: 'dyeing',
             originalRecord: record,
         };
@@ -96,7 +107,7 @@ const SimplifiedDyeingOrders: React.FC = () => {
     const mapCountProduct = (product: CountProduct): SimplifiedDisplayRecord => {
         return {
             id: product.id,
-            customerName: product.customerName || product.partyName || "Unknown",
+            customerName: getSafeString(product.customerName) || getSafeString(product.partyName) || "Unknown",
             dyeingFirm: product.dyeingFirm || "Unknown",
             count: product.count || "Standard",
             quantity: product.quantity || 0,
@@ -106,7 +117,7 @@ const SimplifiedDyeingOrders: React.FC = () => {
             receivedDate: product.receivedDate,
             dispatch: (product as any).dispatchQuantity || 0,
             dispatchDate: product.dispatchDate,
-            partyNameMiddleman: product.middleman || product.partyName || "Direct",
+            partyNameMiddleman: product.middleman || getSafeString(product.partyName) || "Direct",
             type: 'countProduct',
             originalRecord: product,
         };
