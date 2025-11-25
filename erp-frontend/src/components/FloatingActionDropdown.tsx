@@ -1,13 +1,13 @@
 import React from "react";
 import {
-  FaEdit,
-  FaTrash,
-  FaBell,
-  FaCheckCircle,
-  FaRecycle,
-  FaCalculator,
-} from "react-icons/fa";
-import { MoreVertical } from "lucide-react";
+  Edit,
+  Trash2,
+  Bell,
+  CheckCircle,
+  RefreshCw,
+  Calculator,
+  MoreVertical
+} from "lucide-react";
 import useFloatingDropdown from "../hooks/useFloatingDropdown";
 
 interface ActionDropdownProps {
@@ -128,7 +128,7 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({
                   className="flex items-center w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700"
                   role="menuitem"
                 >
-                  <FaEdit className="mr-3 text-blue-500 w-4 h-4" />
+                  <Edit className="mr-3 text-blue-500 w-4 h-4" />
                   Edit
                 </button>
 
@@ -143,7 +143,7 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({
                     className="flex items-center w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700"
                     role="menuitem"
                   >
-                    <FaCalculator className="mr-3 text-orange-500 w-4 h-4" />
+                    <Calculator className="mr-3 text-orange-500 w-4 h-4" />
                     Update Quantities
                   </button>
                 )}
@@ -158,7 +158,7 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({
                   className="flex items-center w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700"
                   role="menuitem"
                 >
-                  <FaTrash className="mr-3 text-red-500 w-4 h-4" />
+                  <Trash2 className="mr-3 text-red-500 w-4 h-4" />
                   Delete
                 </button>
                 
@@ -174,7 +174,7 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({
                   className="flex items-center w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700"
                   role="menuitem"
                 >
-                  <FaBell className="mr-3 text-yellow-500 w-4 h-4" />
+                  <Bell className="mr-3 text-yellow-500 w-4 h-4" />
                   Follow Up
                 </button>
                 
@@ -184,7 +184,7 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({
                     className="flex items-center w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700"
                     role="menuitem"
                   >
-                    <FaCheckCircle className="mr-3 text-green-500 w-4 h-4" />
+                    <CheckCircle className="mr-3 text-green-500 w-4 h-4" />
                     Mark Arrived
                   </button>
                 )}
@@ -195,7 +195,7 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({
                     className="flex items-center w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700"
                     role="menuitem"
                   >
-                    <FaRecycle className="mr-3 text-purple-500 w-4 h-4" />
+                    <RefreshCw className="mr-3 text-purple-500 w-4 h-4" />
                     Reprocessing
                   </button>
                 )}

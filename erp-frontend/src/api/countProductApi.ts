@@ -47,6 +47,7 @@ export interface CreateCountProductRequest {
   customerName: string;
   sentToDye?: boolean;
   sentDate?: string;
+  sentQuantity?: number;
   received?: boolean;
   receivedDate?: string;
   receivedQuantity?: number;

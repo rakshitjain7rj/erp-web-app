@@ -597,10 +597,19 @@ const DailyProduction: React.FC = () => {
       // Ensure production entries are reloaded and sorted
       await loadProductionEntries();
       loadStats();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating production entry:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to update production entry';
-      toast.error(errorMessage);
+      
+      // Check if it's a 404 error (entry not found)
+      if (error.message && (error.message.includes('not found') || error.message.includes('404'))) {
+        toast.error('This entry no longer exists. Reloading list...');
+        setEditingEntry(null);
+        await loadProductionEntries();
+        loadStats();
+      } else {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to update production entry';
+        toast.error(errorMessage);
+      }
     } finally {
       setLoading(false);
     }

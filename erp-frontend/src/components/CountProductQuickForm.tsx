@@ -230,6 +230,7 @@ export const CountProductQuickForm: React.FC<CountProductQuickFormProps> = ({
             customerName: formState.customerName.trim(),
             sentToDye: sent > 0,
             sentDate: formState.sentDate || formState.completedDate,
+            sentQuantity: sent,
             received: received > 0,
             receivedDate: formState.receivedDate || undefined,
             receivedQuantity: received,

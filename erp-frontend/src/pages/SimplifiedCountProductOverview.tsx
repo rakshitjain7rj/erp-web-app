@@ -83,9 +83,9 @@ const SimplifiedCountProductOverview: React.FC = () => {
         setEditingProductId(product.id);
         setEditValues({
             quantity: product.quantity || 0,
-            sentQuantity: (product as any).sentQuantity || 0,
-            receivedQuantity: (product as any).receivedQuantity || 0,
-            dispatchQuantity: (product as any).dispatchQuantity || 0,
+            sentQuantity: product.sentQuantity || 0,
+            receivedQuantity: product.receivedQuantity || 0,
+            dispatchQuantity: product.dispatchQuantity || 0,
         });
     };
 
@@ -131,9 +131,11 @@ const SimplifiedCountProductOverview: React.FC = () => {
         setRefreshKey(prev => prev + 1);
     };
 
-    const formatQuantity = (value: number | undefined): string => {
-        if (value === undefined || value === null) return "--";
-        return `${value % 1 === 0 ? value.toString() : value.toFixed(1)} kg`;
+    const formatQuantity = (value: number | string | undefined): string => {
+        if (value === undefined || value === null || value === '') return "--";
+        const numValue = typeof value === 'string' ? parseFloat(value) : value;
+        if (isNaN(numValue)) return "--";
+        return `${numValue % 1 === 0 ? numValue.toString() : numValue.toFixed(1)} kg`;
     };
 
     const formatDate = (date?: string): string => {
@@ -250,21 +252,21 @@ const SimplifiedCountProductOverview: React.FC = () => {
                                                 {isEditing ? (
                                                     <input type="number" value={editValues.sentQuantity} onChange={(e) => handleEditValueChange('sentQuantity', e.target.value)} className="w-20 px-2 py-1 text-sm border rounded text-right dark:bg-gray-700" step="0.01" min="0" />
                                                 ) : (
-                                                    formatQuantity((product as any).sentQuantity || 0)
+                                                    formatQuantity(product.sentQuantity || 0)
                                                 )}
                                             </td>
                                             <td className="px-4 py-3 text-right">
                                                 {isEditing ? (
                                                     <input type="number" value={editValues.receivedQuantity} onChange={(e) => handleEditValueChange('receivedQuantity', e.target.value)} className="w-20 px-2 py-1 text-sm border rounded text-right dark:bg-gray-700" step="0.01" min="0" />
                                                 ) : (
-                                                    formatQuantity((product as any).receivedQuantity || 0)
+                                                    formatQuantity(product.receivedQuantity || 0)
                                                 )}
                                             </td>
                                             <td className="px-4 py-3 text-right">
                                                 {isEditing ? (
                                                     <input type="number" value={editValues.dispatchQuantity} onChange={(e) => handleEditValueChange('dispatchQuantity', e.target.value)} className="w-20 px-2 py-1 text-sm border rounded text-right dark:bg-gray-700" step="0.01" min="0" />
                                                 ) : (
-                                                    formatQuantity((product as any).dispatchQuantity || 0)
+                                                    formatQuantity(product.dispatchQuantity || 0)
                                                 )}
                                             </td>
                                             <td className="px-4 py-3 text-center text-xs text-gray-500">{formatDate(product.completedDate)}</td>

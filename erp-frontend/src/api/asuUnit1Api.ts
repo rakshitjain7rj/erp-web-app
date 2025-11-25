@@ -836,42 +836,121 @@ export const asuUnit1Api = {
     data: UpdateProductionEntryData
   ): Promise<ASUProductionEntry> => {
     try {
-      // First, get the existing entry to determine its shift
-  const entryResponse = await api.get(`${basePath}/production-entries/${id}`);
-      if (!entryResponse.data.success) {
+      console.log(`Updating production entry ${id} with data:`, data);
+      
+      // First, get the existing entry to determine its shift and machine details
+      let existingEntry;
+      try {
+        const entryResponse = await api.get(`${basePath}/production-entries/${id}`);
+        if (entryResponse.data.success) {
+          existingEntry = entryResponse.data.data;
+        }
+      } catch (error: any) {
+        if (error.response && error.response.status === 404) {
+          console.warn(`Entry ${id} not found in backend, checking if it's a combined entry issue`);
+          // If not found, it might be because the ID is from a different shift or something
+          // But we can't easily recover without more info.
+          // However, if we have date and machine info in 'data' (we don't have machineId in UpdateProductionEntryData),
+          // we might be stuck.
+          // Let's throw for now, but with a clear message.
+          throw new Error(`Production entry ${id} not found. It may have been deleted.`);
+        }
+        throw error;
+      }
+      
+      if (!existingEntry) {
         throw new Error('Failed to find production entry');
       }
       
-      const existingEntry = entryResponse.data.data;
-      const shift = existingEntry.shift; // 'day' or 'night'
+      const currentShift = existingEntry.shift; // 'day' or 'night'
+      const machineNumber = existingEntry.machineNumber;
+      const entryDate = existingEntry.date;
       
-      // Process the value being updated based on the shift
-      let productionValue;
-      if (shift === 'day') {
-        productionValue = parseFloat(String(data.dayShift)) || 0;
+      console.log(`Found existing entry: shift=${currentShift}, machine=${machineNumber}, date=${entryDate}`);
+      
+      // 1. Update the CURRENT entry (the one matching the ID)
+      let currentShiftValue = 0;
+      if (currentShift === 'day') {
+        currentShiftValue = parseFloat(String(data.dayShift)) || 0;
       } else { // night shift
-        productionValue = parseFloat(String(data.nightShift)) || 0;
+        currentShiftValue = parseFloat(String(data.nightShift)) || 0;
       }
       
-      console.log(`Updating ${shift} shift entry ${id}:`, {
-        originalValue: shift === 'day' ? data.dayShift : data.nightShift,
-        parsedValue: productionValue,
-        shift: shift
-      });
-      
-      // Prepare the update data based on the shift
       const updateData = {
         date: data.date || existingEntry.date,
-        actualProduction: productionValue,
+        actualProduction: currentShiftValue,
         yarnType: data.yarnType || existingEntry.yarnType
       };
       
-      console.log('Sending update data to API:', updateData);
+      console.log(`Updating current ${currentShift} entry ${id} with:`, updateData);
+      const response = await api.put(`${basePath}/production-entries/${id}`, updateData);
+      const updatedEntry = response.data.success ? response.data.data : response.data;
       
-      // Update the entry
-  const response = await api.put(`${basePath}/production-entries/${id}`, updateData);
-      return response.data.success ? response.data.data : response.data;
+      // 2. Handle the OTHER shift (update if exists, create if not)
+      const otherShift = currentShift === 'day' ? 'night' : 'day';
+      const otherShiftValue = otherShift === 'day' ? 
+        (parseFloat(String(data.dayShift)) || 0) : 
+        (parseFloat(String(data.nightShift)) || 0);
+        
+      console.log(`Handling other shift (${otherShift}) with value: ${otherShiftValue}`);
+      
+      // Find the other shift entry
+      // We need to query by machineNumber, date, and shift
+      // Since we don't have a direct endpoint for finding by criteria without pagination,
+      // we'll use the list endpoint with filters
+      const params = new URLSearchParams();
+      params.append('machineNumber', machineNumber.toString());
+      params.append('dateFrom', entryDate);
+      params.append('dateTo', entryDate);
+      params.append('limit', '10'); // Should be enough to find the 2 entries
+      
+      const listResponse = await api.get(`${basePath}/production-entries?${params.toString()}`);
+      
+      if (listResponse.data.success) {
+        const entries = listResponse.data.data.items;
+        const otherEntry = entries.find((e: any) => e.shift === otherShift && e.date === entryDate);
+        
+        if (otherEntry) {
+          console.log(`Found existing ${otherShift} entry ${otherEntry.id}, updating...`);
+          // Update existing other entry
+          await api.put(`${basePath}/production-entries/${otherEntry.id}`, {
+            date: data.date || otherEntry.date,
+            actualProduction: otherShiftValue,
+            yarnType: data.yarnType || otherEntry.yarnType
+          });
+          console.log(`Updated ${otherShift} entry ${otherEntry.id}`);
+        } else if (otherShiftValue > 0) {
+          console.log(`No existing ${otherShift} entry found, creating new one...`);
+          // Create new other entry
+          // We need theoreticalProduction (productionAt100)
+          // We can get it from the existing entry or machine
+          let theoreticalProduction = existingEntry.productionAt100 || existingEntry.theoreticalProduction;
+          
+          if (!theoreticalProduction) {
+             // Try to get from machine if not in entry
+             const machines = await asuUnit1Api.getAllMachines();
+             const machine = machines.find(m => m.machineNo === machineNumber);
+             theoreticalProduction = getProductionAt100(machine);
+          }
+          
+          await api.post(`${basePath}/production-entries`, {
+            machineNumber: machineNumber,
+            date: data.date || entryDate,
+            shift: otherShift,
+            actualProduction: otherShiftValue,
+            theoreticalProduction: theoreticalProduction || 400,
+            yarnType: data.yarnType || existingEntry.yarnType
+          });
+          console.log(`Created new ${otherShift} entry`);
+        } else {
+          console.log(`No existing ${otherShift} entry and value is 0, skipping creation`);
+        }
+      }
+      
+      return updatedEntry;
     } catch (error) {
+      console.error('Error in updateProductionEntry:', error);
+      
       // Check if this could be a localStorage entry by looking for entries with id matching
       // the pattern we use for local entries
       if (typeof id === 'number') {
