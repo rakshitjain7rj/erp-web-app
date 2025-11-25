@@ -14,6 +14,12 @@ router.post('/', auth, readOnlyForManagers, controller.create);           // POS
 router.put('/:id', auth, readOnlyForManagers, controller.update);        // PUT /api/inventory/:id
 router.delete('/:id', auth, readOnlyForManagers, controller.delete);     // DELETE /api/inventory/:id
 
+// Stock Management Routes
+router.get('/:id/logs', auth, controller.getStockLogs);
+router.post('/:id/stock-in', auth, readOnlyForManagers, controller.addStock);
+router.post('/:id/stock-out', auth, readOnlyForManagers, controller.removeStock);
+router.post('/:id/spoilage', auth, readOnlyForManagers, controller.logSpoilage);
+
 // Advanced metrics endpoints
 router.get('/metrics/balance', auth, controller.getCurrentYarnBalance);      // GET /api/inventory/metrics/balance
 router.get('/metrics/consumption', auth, controller.getProductConsumption);  // GET /api/inventory/metrics/consumption

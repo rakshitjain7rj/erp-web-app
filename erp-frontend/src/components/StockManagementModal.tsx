@@ -198,40 +198,55 @@ const StockManagementModal: React.FC<StockManagementModalProps> = ({
   };
 
   const getStockStats = () => {
-    const itemTotalIn = Number(item.totalYarnIn) || 0;
-    const itemTotalOut = Number(item.totalYarnOut) || 0;
-    const itemTotalSpoiled = Number(item.totalYarnSpoiled) || 0;
+    const initialQty = Number(item.initialQuantity) || 0;
+    
+    // Calculate consumption from production
+    const unitsProduced = Number(item.unitsProduced) || 0;
+    const effectiveYarn = Number(item.effectiveYarn) || 0;
+    const count = Number(item.count) || 0;
+    const consumed = unitsProduced * effectiveYarn * count / 1000;
 
-    if (itemTotalIn > 0 || itemTotalOut > 0 || itemTotalSpoiled > 0) {
-      const balance = itemTotalIn - itemTotalOut - itemTotalSpoiled;
-      return {
-        totalIn: itemTotalIn,
-        totalOut: itemTotalOut,
-        totalSpoiled: itemTotalSpoiled,
-        balance
-      };
+    // Try to use pre-calculated totals from item if available
+    // Note: totalYarnIn from backend is ONLY the added stock, not including initial
+    const itemAddedIn = Number(item.totalYarnIn) || 0;
+    const itemManualOut = Number(item.totalYarnOut) || 0;
+    const itemSpoiled = Number(item.totalYarnSpoiled) || 0;
+
+    // If we have logs but no item totals (shouldn't happen with new backend), calculate from logs
+    let addedIn = itemAddedIn;
+    let manualOut = itemManualOut;
+    let spoiled = itemSpoiled;
+
+    if (addedIn === 0 && manualOut === 0 && spoiled === 0 && stockLogs.length > 0) {
+       addedIn = stockLogs
+        .filter(log => log.type === 'in')
+        .reduce((sum, log) => sum + (Number(log.quantity) || 0), 0);
+
+       manualOut = stockLogs
+        .filter(log => log.type === 'out')
+        .reduce((sum, log) => sum + (Number(log.quantity) || 0), 0);
+
+       spoiled = stockLogs
+        .filter(log => log.type === 'spoilage')
+        .reduce((sum, log) => sum + (Number(log.quantity) || 0), 0);
     }
 
-    const initialQty = Number(item.initialQuantity) || 0;
-
-    const logsIn = stockLogs
-      .filter(log => log.type === 'in')
-      .reduce((sum, log) => sum + log.quantity, 0);
-
-    const logsOut = stockLogs
-      .filter(log => log.type === 'out')
-      .reduce((sum, log) => sum + log.quantity, 0);
-
-    const logsSpoiled = stockLogs
-      .filter(log => log.type === 'spoilage')
-      .reduce((sum, log) => sum + log.quantity, 0);
-
-    const totalIn = initialQty + logsIn;
-    const totalOut = logsOut;
-    const totalSpoiled = logsSpoiled;
+    const totalIn = initialQty + addedIn;
+    const totalOut = manualOut + consumed;
+    const totalSpoiled = spoiled;
     const balance = totalIn - totalOut - totalSpoiled;
 
-    return { totalIn, totalOut, totalSpoiled, balance };
+    return {
+      totalIn: Number(totalIn) || 0,
+      totalOut: Number(totalOut) || 0,
+      totalSpoiled: Number(totalSpoiled) || 0,
+      balance: Number(balance) || 0,
+      // Extra details for UI if needed
+      initialQty,
+      addedIn,
+      manualOut,
+      consumed
+    };
   };
 
   const formatDate = (dateString: string) => {
@@ -244,7 +259,7 @@ const StockManagementModal: React.FC<StockManagementModalProps> = ({
 
   if (!isOpen) return null;
 
-  const { totalIn, totalOut, totalSpoiled, balance } = getStockStats();
+  const { totalIn, totalOut, totalSpoiled, balance, consumed, manualOut } = getStockStats();
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -270,6 +285,10 @@ const StockManagementModal: React.FC<StockManagementModalProps> = ({
             <div>
               <div className="text-lg font-bold text-blue-600">{totalOut.toFixed(1)}kg</div>
               <div className="text-xs text-gray-500">Used</div>
+              <div className="text-[10px] text-gray-400 mt-1">
+                {consumed > 0 && <div>Prod: {consumed.toFixed(1)}</div>}
+                {manualOut > 0 && <div>Manual: {manualOut.toFixed(1)}</div>}
+              </div>
             </div>
             <div>
               <div className="text-lg font-bold text-red-600">{totalSpoiled.toFixed(1)}kg</div>

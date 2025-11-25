@@ -123,6 +123,32 @@ const Inventory = sequelize.define('Inventory', {
     type: DataTypes.ENUM('Available', 'Reserved', 'Out of Stock'),
     defaultValue: 'Available',
   },
+  // Stock Tracking Fields
+  totalYarnIn: {
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0,
+    validate: {
+      min: 0,
+    },
+  },
+  totalYarnOut: {
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0,
+    validate: {
+      min: 0,
+    },
+  },
+  totalYarnSpoiled: {
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0,
+    validate: {
+      min: 0,
+    },
+  },
+  lastStockUpdate: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
 }, {
   tableName: 'inventories',
   timestamps: true, // This adds createdAt and updatedAt

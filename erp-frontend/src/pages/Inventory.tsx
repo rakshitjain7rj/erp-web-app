@@ -309,20 +309,30 @@ const Inventory = () => {
 
   // Enhanced stock status calculation for visual indicators
   const getStockStatus = (item: InventoryItem) => {
-    const totalIn = item.totalYarnIn || item.initialQuantity || 0;
-    const totalOut = item.totalYarnOut || 0;
-    const totalSpoiled = item.totalYarnSpoiled || 0;
-    const balance = totalIn - totalOut - totalSpoiled;
+    const initial = Number(item.initialQuantity) || 0;
+    const added = Number(item.totalYarnIn) || 0;
+    const removed = Number(item.totalYarnOut) || 0;
+    const spoiled = Number(item.totalYarnSpoiled) || 0;
     
-    const usagePercent = totalIn > 0 ? ((totalOut + totalSpoiled) / totalIn) * 100 : 0;
-    const spoilagePercent = totalIn > 0 ? (totalSpoiled / totalIn) * 100 : 0;
+    // Calculate consumption from production
+    const unitsProduced = Number(item.unitsProduced) || 0;
+    const effectiveYarn = Number(item.effectiveYarn) || 0;
+    const count = Number(item.count) || 0;
+    const consumed = unitsProduced * effectiveYarn * count / 1000;
+
+    const totalIn = initial + added;
+    const totalOut = removed + consumed;
+    const balance = totalIn - totalOut - spoiled;
+    
+    const usagePercent = totalIn > 0 ? ((totalOut + spoiled) / totalIn) * 100 : 0;
+    const spoilagePercent = totalIn > 0 ? (spoiled / totalIn) * 100 : 0;
     
     return {
       balance,
       usagePercent,
       spoilagePercent,
       isLowStock: balance < LOW_STOCK_THRESHOLD_KG,
-      hasSpoilage: totalSpoiled > 0
+      hasSpoilage: spoiled > 0
     };
   };
 
@@ -1044,17 +1054,22 @@ const Inventory = () => {
                       const initialQuantity = Number(item.initialQuantity) || 0;
                       const costPerKg = Number(item.costPerKg) || 0;
                       
+                      // Stock adjustments
+                      const totalYarnIn = Number(item.totalYarnIn) || 0;
+                      const totalYarnOut = Number(item.totalYarnOut) || 0;
+                      const totalYarnSpoiled = Number(item.totalYarnSpoiled) || 0;
+
                       const consumed = unitsProduced * effectiveYarn * count / 1000;
-                      const left = initialQuantity - consumed;
+                      const left = initialQuantity + totalYarnIn - totalYarnOut - totalYarnSpoiled - consumed;
                       const perUnitYarn = effectiveYarn * count;
                       const estimatedCapacity = perUnitYarn > 0 ? (left * 1000) / perUnitYarn : 0;
                       const cost = consumed * costPerKg;
-                      const usagePercent = initialQuantity > 0 ? Math.min((consumed / initialQuantity) * 100, 100) : 0;
+                      const usagePercent = (initialQuantity + totalYarnIn) > 0 ? Math.min(((consumed + totalYarnOut) / (initialQuantity + totalYarnIn)) * 100, 100) : 0;
                       const isLowStock = left < LOW_STOCK_THRESHOLD_KG;
                       const isExpanded = expandedRows.has(item.id);
 
                       // Enhanced Production Capacity Calculations with proper number validation
-                      const currentYarnBalance = Number(item.currentQuantity) || Number(left) || 0; // Use current quantity if available, otherwise calculated left, fallback to 0
+                      const currentYarnBalance = left > 0 ? left : 0; // Use calculated left
                       const yarnPerUnitInGrams = (Number(item.effectiveYarn) || 0) * (Number(item.count) || 0); // grams per unit
                       const yarnPerUnitInKg = yarnPerUnitInGrams / 1000; // kg per unit
                       const estimatedProductionLeft = yarnPerUnitInKg > 0 ? Math.floor(currentYarnBalance / yarnPerUnitInKg) : 0;
@@ -1117,18 +1132,19 @@ const Inventory = () => {
                             <td className="px-6 py-4">
                               <div className="space-y-2">
                                 <div className="text-sm">
-                                  <span className="text-gray-600 dark:text-gray-400">Initial: </span>
-                                  <span className="font-medium">{initialQuantity} kg</span>
+                                  <span className="text-gray-600 dark:text-gray-400">Total Stock: </span>
+                                  <span className="font-medium">{(initialQuantity + totalYarnIn).toFixed(1)} kg</span>
+                                  {totalYarnIn > 0 && <span className="text-xs text-green-600 ml-1">(+{totalYarnIn} added)</span>}
                                 </div>
                                 
                                 {/* Enhanced Progress Bar with Stock Tracking */}
                                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
                                   <div className="flex h-full">
-                                    {/* Used (Production) */}
+                                    {/* Used (Production + Manual Out) */}
                                     <div 
                                       className="bg-blue-500 transition-all duration-300"
-                                      style={{ width: `${Math.min((consumed / initialQuantity) * 100, 100)}%` }}
-                                      title={`Used for production: ${consumed.toFixed(1)}kg`}
+                                      style={{ width: `${Math.min(((consumed + totalYarnOut) / (initialQuantity + totalYarnIn || 1)) * 100, 100)}%` }}
+                                      title={`Used: ${(consumed + totalYarnOut).toFixed(1)}kg (Prod: ${consumed.toFixed(1)}, Manual: ${totalYarnOut.toFixed(1)})`}
                                     ></div>
                                     {/* Spoiled (if any) */}
                                     {getStockStatus(item).hasSpoilage && (
@@ -1145,7 +1161,7 @@ const Inventory = () => {
                                   <div className="flex items-center space-x-2">
                                     <span className="flex items-center">
                                       <div className="w-2 h-2 bg-blue-500 rounded-full mr-1"></div>
-                                      Used: {consumed.toFixed(1)}kg
+                                      Used: {(consumed + totalYarnOut).toFixed(1)}kg
                                     </span>
                                     {getStockStatus(item).hasSpoilage && (
                                       <span className="flex items-center">

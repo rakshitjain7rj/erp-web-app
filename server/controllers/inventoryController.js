@@ -1,5 +1,7 @@
 // server/controllers/inventoryController.js
 const Inventory = require('../models/InventoryPostgres'); // Use PostgreSQL model
+const StockLog = require('../models/StockLog');
+const { sequelize } = require('../config/postgres');
 
 const inventoryController = {
   create: async (req, res) => {
@@ -134,6 +136,159 @@ const inventoryController = {
         message: 'Failed to delete inventory item',
         error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
       });
+    }
+  },
+
+  // Stock Management Methods
+  addStock: async (req, res) => {
+    const t = await sequelize.transaction();
+    try {
+      const { id } = req.params;
+      const { quantity, date, remarks, source } = req.body;
+
+      const inventory = await Inventory.findByPk(id, { transaction: t });
+      if (!inventory) {
+        await t.rollback();
+        return res.status(404).json({ success: false, message: 'Inventory item not found' });
+      }
+
+      // Create log
+      await StockLog.create({
+        inventoryId: id,
+        type: 'in',
+        quantity,
+        date,
+        remarks,
+        source
+      }, { transaction: t });
+
+      // Update inventory totals
+      const newTotalIn = (Number(inventory.totalYarnIn) || 0) + Number(quantity);
+      const currentQty = (Number(inventory.currentQuantity) || Number(inventory.initialQuantity) || 0) + Number(quantity);
+
+      await inventory.update({
+        totalYarnIn: newTotalIn,
+        currentQuantity: currentQty,
+        lastStockUpdate: new Date()
+      }, { transaction: t });
+
+      await t.commit();
+
+      res.status(200).json({
+        success: true,
+        message: 'Stock added successfully',
+        updatedItem: inventory
+      });
+    } catch (err) {
+      await t.rollback();
+      console.error('Error adding stock:', err);
+      res.status(500).json({ success: false, message: 'Failed to add stock', error: err.message });
+    }
+  },
+
+  removeStock: async (req, res) => {
+    const t = await sequelize.transaction();
+    try {
+      const { id } = req.params;
+      const { quantity, date, remarks, usagePurpose } = req.body;
+
+      const inventory = await Inventory.findByPk(id, { transaction: t });
+      if (!inventory) {
+        await t.rollback();
+        return res.status(404).json({ success: false, message: 'Inventory item not found' });
+      }
+
+      // Create log
+      await StockLog.create({
+        inventoryId: id,
+        type: 'out',
+        quantity,
+        date,
+        remarks,
+        usagePurpose
+      }, { transaction: t });
+
+      // Update inventory totals
+      const newTotalOut = (Number(inventory.totalYarnOut) || 0) + Number(quantity);
+      const currentQty = (Number(inventory.currentQuantity) || Number(inventory.initialQuantity) || 0) - Number(quantity);
+
+      await inventory.update({
+        totalYarnOut: newTotalOut,
+        currentQuantity: currentQty,
+        lastStockUpdate: new Date()
+      }, { transaction: t });
+
+      await t.commit();
+
+      res.status(200).json({
+        success: true,
+        message: 'Stock removed successfully',
+        updatedItem: inventory
+      });
+    } catch (err) {
+      await t.rollback();
+      console.error('Error removing stock:', err);
+      res.status(500).json({ success: false, message: 'Failed to remove stock', error: err.message });
+    }
+  },
+
+  logSpoilage: async (req, res) => {
+    const t = await sequelize.transaction();
+    try {
+      const { id } = req.params;
+      const { quantity, date, remarks, reason } = req.body;
+
+      const inventory = await Inventory.findByPk(id, { transaction: t });
+      if (!inventory) {
+        await t.rollback();
+        return res.status(404).json({ success: false, message: 'Inventory item not found' });
+      }
+
+      // Create log
+      await StockLog.create({
+        inventoryId: id,
+        type: 'spoilage',
+        quantity,
+        date,
+        remarks,
+        reason
+      }, { transaction: t });
+
+      // Update inventory totals
+      const newTotalSpoiled = (Number(inventory.totalYarnSpoiled) || 0) + Number(quantity);
+      const currentQty = (Number(inventory.currentQuantity) || Number(inventory.initialQuantity) || 0) - Number(quantity);
+
+      await inventory.update({
+        totalYarnSpoiled: newTotalSpoiled,
+        currentQuantity: currentQty,
+        lastStockUpdate: new Date()
+      }, { transaction: t });
+
+      await t.commit();
+
+      res.status(200).json({
+        success: true,
+        message: 'Spoilage logged successfully',
+        updatedItem: inventory
+      });
+    } catch (err) {
+      await t.rollback();
+      console.error('Error logging spoilage:', err);
+      res.status(500).json({ success: false, message: 'Failed to log spoilage', error: err.message });
+    }
+  },
+
+  getStockLogs: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const logs = await StockLog.findAll({
+        where: { inventoryId: id },
+        order: [['date', 'DESC'], ['createdAt', 'DESC']]
+      });
+      res.status(200).json(logs);
+    } catch (err) {
+      console.error('Error fetching stock logs:', err);
+      res.status(500).json({ success: false, message: 'Failed to fetch stock logs', error: err.message });
     }
   },
 

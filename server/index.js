@@ -129,6 +129,7 @@ const DyeingFirm = require('./models/DyeingFirm');
 const ASUMachine = require('./models/ASUMachine');
 const ASUProductionEntry = require('./models/ASUProductionEntry');
 const Inventory = require('./models/InventoryPostgres'); // Add PostgreSQL Inventory model
+const StockLog = require('./models/StockLog'); // Add StockLog model
 const Party = require('./models/Party'); // Add Party model
 const MachineConfiguration = require('./models/MachineConfiguration'); // Add Machine Configuration model
 
@@ -142,9 +143,14 @@ const models = {
   ASUMachine,
   ASUProductionEntry,
   Inventory, // Add Inventory to models
+  StockLog, // Add StockLog to models
   Party, // Add Party to models
   MachineConfiguration, // Add MachineConfiguration to models
 };
+
+// Define associations manually if not in model files
+Inventory.hasMany(StockLog, { foreignKey: 'inventoryId', as: 'stockLogs' });
+StockLog.belongsTo(Inventory, { foreignKey: 'inventoryId' });
 
 Object.keys(models).forEach((modelName) => {
   if (models[modelName].associate) {
@@ -376,6 +382,9 @@ connectPostgres()
 
         await Inventory.sync({ alter: true }); // This will create/update the table
         console.log('✅ Inventory table synced');
+
+        await StockLog.sync({ alter: true }); // This will create/update the StockLog table
+        console.log('✅ StockLog table synced');
 
         await Party.sync({ alter: true }); // This will create/update the Parties table
         console.log('✅ Party table synced');
