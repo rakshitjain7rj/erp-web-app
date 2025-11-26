@@ -599,7 +599,7 @@ const DailyProduction: React.FC = () => {
       loadStats();
     } catch (error: any) {
       console.error('Error updating production entry:', error);
-      
+
       // Check if it's a 404 error (entry not found)
       if (error.message && (error.message.includes('not found') || error.message.includes('404'))) {
         toast.error('This entry no longer exists. Reloading list...');
@@ -1164,23 +1164,41 @@ const DailyProduction: React.FC = () => {
                       })()}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
+                      <div className="flex justify-end gap-2">
                         {editingEntry?.id === entry.id ? (
                           <>
-                            <Button size="sm" onClick={handleSaveEdit} className="h-7 w-7 p-0 bg-green-600 hover:bg-green-700 text-white rounded-md">
-                              <Save className="w-3.5 h-3.5" />
+                            <Button
+                              size="sm"
+                              onClick={handleSaveEdit}
+                              className="h-9 w-9 p-0 bg-green-600 hover:bg-green-700 text-white rounded-md shadow-md border-2 border-green-700"
+                            >
+                              <Save className="w-5 h-5" />
                             </Button>
-                            <Button size="sm" onClick={() => setEditingEntry(null)} className="h-7 w-7 p-0 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md">
-                              <X className="w-3.5 h-3.5" />
+                            <Button
+                              size="sm"
+                              onClick={() => setEditingEntry(null)}
+                              className="h-9 w-9 p-0 bg-gray-400 hover:bg-gray-500 text-white dark:bg-gray-600 dark:hover:bg-gray-700 rounded-md shadow-md border-2 border-gray-500 dark:border-gray-700"
+                            >
+                              <X className="w-5 h-5" />
                             </Button>
                           </>
                         ) : (
                           <>
-                            <Button size="sm" variant="outline" onClick={() => handleEdit(entry)} className="h-7 w-7 p-0 text-blue-600 border-transparent bg-transparent hover:bg-blue-50 dark:hover:bg-blue-900/20">
-                              <Edit className="w-3.5 h-3.5" />
+                            <Button
+                              size="sm"
+                              onClick={() => handleEdit(entry)}
+                              className="h-9 w-9 p-0 bg-blue-500 hover:bg-blue-600 text-white rounded-md shadow-md border-2 border-blue-600 hover:border-blue-700 transition-all"
+                              title="Edit entry"
+                            >
+                              <Edit className="w-5 h-5" />
                             </Button>
-                            <Button size="sm" variant="outline" onClick={() => handleDelete(entry.id)} className="h-7 w-7 p-0 text-red-600 border-transparent bg-transparent hover:bg-red-50 dark:hover:bg-red-900/20">
-                              <Trash2 className="w-3.5 h-3.5" />
+                            <Button
+                              size="sm"
+                              onClick={() => handleDelete(entry.id)}
+                              className="h-9 w-9 p-0 bg-red-500 hover:bg-red-600 text-white rounded-md shadow-md border-2 border-red-600 hover:border-red-700 transition-all"
+                              title="Delete entry"
+                            >
+                              <Trash2 className="w-5 h-5" />
                             </Button>
                           </>
                         )}

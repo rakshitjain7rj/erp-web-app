@@ -97,6 +97,31 @@ const getProductionEntries = async (req, res) => {
   }
 };
 
+// Get single production entry
+const getProductionEntry = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const entry = await ASUProductionEntry.findByPk(id, {
+      include: [{
+        model: ASUMachine,
+        as: 'machine',
+        attributes: ['id', 'machineNo', 'productionAt100', 'isActive', 'spindles', 'speed', 'count', 'yarnType'],
+        where: { unit: 1 },
+        required: false
+      }]
+    });
+
+    if (!entry) {
+      return res.status(404).json({ success: false, error: 'Production entry not found' });
+    }
+
+    res.json({ success: true, data: entry });
+  } catch (error) {
+    console.error('Error fetching production entry:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 // Create new production entry
 const createProductionEntry = async (req, res) => {
   try {
@@ -179,7 +204,9 @@ const createProductionEntry = async (req, res) => {
       });
 
       if (existingEntry) {
-        throw new Error(`Production entry for Machine ${machineNumber} on ${date} (${shift} shift) already exists. Please edit the existing entry instead.`);
+        const error = new Error(`Production entry for Machine ${machineNumber} on ${date} (${shift} shift) already exists. Please edit the existing entry instead.`);
+        error.statusCode = 409;
+        throw error;
       }
 
       // Create the production entry
@@ -268,7 +295,8 @@ const createProductionEntry = async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating production entry:', error);
-    res.status(500).json({ success: false, error: error.message });
+    const statusCode = error.statusCode || 500;
+    res.status(statusCode).json({ success: false, error: error.message });
   }
 };
 
@@ -294,18 +322,26 @@ const updateProductionEntry = async (req, res) => {
       // This ensures efficiency calculations remain accurate regardless of machine configuration changes
       let theoreticalForCalculation = entry.productionAt100 || entry.theoreticalProduction;
 
+      // Declare machine variable at the transaction scope level so it's available throughout
+      let machine = null;
+      
+      // Try to find the machine for this entry
+      try {
+        machine = await ASUMachine.findOne({
+          where: {
+            machineNo: entry.machineNumber,
+            unit: 1
+          },
+          transaction: t
+        });
+      } catch (error) {
+        console.error('Error finding machine:', error);
+      }
+
       // If we still don't have a theoretical value, fall back to machine's current value
       // but this should only happen for old entries created before this fix
       if (!theoreticalForCalculation) {
         try {
-          const machine = await ASUMachine.findOne({
-            where: {
-              machineNo: entry.machineNumber,
-              unit: 1
-            },
-            transaction: t
-          });
-
           if (machine && machine.productionAt100) {
             theoreticalForCalculation = machine.productionAt100;
             // Also update the entry's productionAt100 field for future consistency
@@ -934,6 +970,7 @@ module.exports = {
   getASUMachines,
   getAllMachines,
   getProductionEntries,
+  getProductionEntry,
   createProductionEntry,
   updateProductionEntry,
   deleteProductionEntry,

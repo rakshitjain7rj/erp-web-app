@@ -6,7 +6,8 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Activity, Package, Settings, Gauge } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
-import DailyProduction from '../components/asuUnit1/DailyProduction';
+import NewDailyProduction from '../components/newASUUnit-1/NewDailyProduction';
+// import DailyProduction from '../components/asuUnit1/DailyProduction';
 import YarnSummary from '../components/asuUnit1/YarnSummary';
 import MachineManager from '../components/asuUnit1/MachineManager';
 import TotalASUUnit1YarnSummary from '../components/dashboard/TotalASUUnit1YarnSummary';
@@ -103,7 +104,7 @@ const ASUUnit1Page: React.FC = () => {
             <TotalASUUnit1YarnSummary days={31} showRefreshButton={true} />
           </div>
         )}
-        {activeTab === 'production' && <DailyProduction />}
+        {activeTab === 'production' && <NewDailyProduction />}
         {activeTab === 'summary' && <YarnSummary />}
         {activeTab === 'machines' && <MachineManager />}
       </div>

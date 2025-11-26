@@ -23,6 +23,7 @@ router.post('/asu-machines/:id/archive', readOnlyForManagers, asuUnit1Controller
 
 // Production Entry routes
 router.get('/production-entries', asuUnit1Controller.getProductionEntries);
+router.get('/production-entries/:id', asuUnit1Controller.getProductionEntry);
 router.post('/production-entries', readOnlyForManagers, asuUnit1Controller.createProductionEntry);
 router.put('/production-entries/:id', readOnlyForManagers, asuUnit1Controller.updateProductionEntry);
 router.delete('/production-entries/:id', readOnlyForManagers, asuUnit1Controller.deleteProductionEntry);
