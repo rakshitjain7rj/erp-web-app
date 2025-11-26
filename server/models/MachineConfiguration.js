@@ -18,6 +18,11 @@ const MachineConfiguration = sequelize.define('MachineConfiguration', {
     onUpdate: 'CASCADE',
     onDelete: 'CASCADE'
   },
+  count: {
+    type: DataTypes.DECIMAL(12, 5),
+    allowNull: true,
+    defaultValue: 0
+  },
   spindleCount: {
     type: DataTypes.INTEGER,
     allowNull: false,
@@ -30,12 +35,17 @@ const MachineConfiguration = sequelize.define('MachineConfiguration', {
     defaultValue: 'Cotton',
     field: 'yarn_type'
   },
+  speed: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: true,
+    defaultValue: 0
+  },
   productionAt100: {
-  type: DataTypes.DECIMAL(12, 5),
-  allowNull: false,
-  defaultValue: 0.00,
-  field: 'production_at_100'
- },
+    type: DataTypes.DECIMAL(12, 5),
+    allowNull: false,
+    defaultValue: 0.00,
+    field: 'production_at_100'
+  },
   startDate: {
     type: DataTypes.DATEONLY,
     allowNull: false,

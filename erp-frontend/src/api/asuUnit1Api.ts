@@ -7,31 +7,56 @@ import { PaginatedResponse } from '../types';
 const api = apiClient;
 const basePath = '/asu-unit1';
 
+// === PERFORMANCE OPTIMIZATIONS ===
+// Machine cache to avoid repeated API calls
+let machinesCache: ASUMachine[] | null = null;
+let machinesCacheTime = 0;
+const MACHINES_CACHE_TTL = 60000; // 1 minute cache
+
+// Dev mode check for conditional logging
+const isDev = import.meta.env?.DEV ?? false;
+const devLog = (...args: any[]) => isDev && console.log(...args);
+const devWarn = (...args: any[]) => isDev && console.warn(...args);
+
+// Invalidate machine cache (call after machine CRUD operations)
+export const invalidateMachinesCache = () => {
+  machinesCache = null;
+  machinesCacheTime = 0;
+};
+
+// Get cached machines or fetch if cache expired
+const getCachedMachines = async (): Promise<ASUMachine[]> => {
+  const now = Date.now();
+  if (machinesCache && (now - machinesCacheTime) < MACHINES_CACHE_TTL) {
+    return machinesCache;
+  }
+  
+  // Fetch fresh machines
+  const machines = await asuUnit1Api.getAllMachines();
+  machinesCache = machines;
+  machinesCacheTime = now;
+  return machines;
+};
+
 // Helper function to get a valid machine number from a machine object
 const getMachineNumber = (machine: ASUMachine | undefined): number | null => {
   if (!machine) return null;
 
-  console.log('Getting machine number from:', machine);
-
   // Handle machineNo field first - this is the primary field for database foreign key
   if (machine.machineNo !== undefined && machine.machineNo !== null) {
-    // If machineNo exists, convert it to a number if it's a string
     const machineNo = typeof machine.machineNo === 'string' ?
       parseInt(machine.machineNo, 10) :
       machine.machineNo;
 
     if (!isNaN(machineNo)) {
-      console.log(`Using machine.machineNo: ${machineNo}`);
       return machineNo;
     }
   }
 
   // Fallback to machine_number field
   if (machine.machine_number !== undefined && machine.machine_number !== null) {
-    // Convert to a number if it's a string
     const parsedNumber = parseInt(String(machine.machine_number), 10);
     if (!isNaN(parsedNumber)) {
-      console.log(`Using machine.machine_number: ${parsedNumber}`);
       return parsedNumber;
     }
   }
@@ -42,14 +67,12 @@ const getMachineNumber = (machine: ASUMachine | undefined): number | null => {
     if (matches && matches[0]) {
       const extractedNumber = parseInt(matches[0], 10);
       if (!isNaN(extractedNumber)) {
-        console.log(`Extracted number from machine name: ${extractedNumber}`);
         return extractedNumber;
       }
     }
   }
 
-  // No valid machine number found
-  console.warn('No valid machine number found for machine:', machine);
+  devWarn('No valid machine number found for machine:', machine);
   return null;
 };
 
@@ -64,26 +87,22 @@ const getProductionAt100 = (obj: ASUMachine | ASUProductionEntry | any): number 
       obj.machine.productionAt100;
 
     if (!isNaN(value) && value > 0) {
-      console.log(`Using obj.machine.productionAt100: ${value}`);
       return value;
     }
   }
 
   // Handle direct machine object
   if (obj.productionAt100 !== undefined && obj.productionAt100 !== null) {
-    // Convert to a number if it's a string
     const productionAt100Value = typeof obj.productionAt100 === 'string' ?
       parseFloat(obj.productionAt100) :
       obj.productionAt100;
 
     if (!isNaN(productionAt100Value) && productionAt100Value > 0) {
-      console.log(`Using obj.productionAt100: ${productionAt100Value}`);
       return productionAt100Value;
     }
   }
 
   // Fallback to default value if no valid productionAt100 found
-  console.warn('No valid productionAt100 found for object, using default value');
   return 400; // Default value as fallback
 };
 
@@ -215,8 +234,9 @@ export const asuUnit1Api = {
       speed: data.speed !== null ? Number(data.speed || 0) : 0
     };
 
-    console.log('Creating machine with sanitized data:', sanitizedData);
+    devLog('Creating machine with sanitized data:', sanitizedData);
     const response = await api.post(`${basePath}/machines`, sanitizedData);
+    invalidateMachinesCache(); // Invalidate cache after creating
     return response.data.success ? response.data.data : response.data;
   },
 
@@ -228,36 +248,48 @@ export const asuUnit1Api = {
     return response.data.success ? response.data.data : response.data;
   },
 
-  // New API endpoint for getting all machines (including inactive)
+  // New API endpoint for getting all machines (including inactive) - WITH CACHING
   getAllMachines: async (): Promise<ASUMachine[]> => {
+    // Return cached data if available and fresh
+    const now = Date.now();
+    if (machinesCache && (now - machinesCacheTime) < MACHINES_CACHE_TTL) {
+      return machinesCache;
+    }
+    
     try {
       // First try the /asu-machines endpoint
       try {
         const response = await api.get(`${basePath}/asu-machines`);
-        console.log('API response for getAllMachines from /asu-machines:', response.data);
 
         // Properly handle various response formats
         if (response.data.success && Array.isArray(response.data.data)) {
+          machinesCache = response.data.data;
+          machinesCacheTime = now;
           return response.data.data;
         } else if (Array.isArray(response.data)) {
+          machinesCache = response.data;
+          machinesCacheTime = now;
           return response.data;
         }
       } catch (primaryError) {
-        console.warn('Error with /asu-machines endpoint, trying fallback:', primaryError);
+        devWarn('Error with /asu-machines endpoint, trying fallback');
       }
 
       // Fallback to the /machines endpoint if the first one fails or returns invalid data
       const fallbackResponse = await api.get(`${basePath}/machines`);
-      console.log('Fallback API response from /machines:', fallbackResponse.data);
 
       if (fallbackResponse.data.success && Array.isArray(fallbackResponse.data.data)) {
+        machinesCache = fallbackResponse.data.data;
+        machinesCacheTime = now;
         return fallbackResponse.data.data;
       } else if (Array.isArray(fallbackResponse.data)) {
+        machinesCache = fallbackResponse.data;
+        machinesCacheTime = now;
         return fallbackResponse.data;
       }
 
       // If we get here, both endpoints failed to return valid data
-      console.warn('Neither endpoint returned valid machine data');
+      devWarn('Neither endpoint returned valid machine data');
       return [];
     } catch (error) {
       console.error('Error fetching machines from both endpoints:', error);
@@ -269,37 +301,31 @@ export const asuUnit1Api = {
   // Update machine yarn type and count only using /asu-machines/:id endpoint
   updateMachineYarnTypeAndCount: async (id: number, data: UpdateASUMachineData): Promise<ASUMachine> => {
     const response = await api.put(`${basePath}/asu-machines/${id}`, data);
+    invalidateMachinesCache(); // Invalidate cache after updating
     return response.data.success ? response.data.data : response.data;
   },
 
-  // Get production entries for a machine
+  // Get production entries for a machine - OPTIMIZED with caching
   getProductionEntries: async (
     filters: ProductionEntriesFilter
   ): Promise<PaginatedResponse<ASUProductionEntry>> => {
     const params = new URLSearchParams();
 
     // The backend expects machineNumber (the machine_no field), not machineId (the id field)
-    // So we need to look up the machine to get its machineNo
+    // Use cached machines to avoid extra API call
     if (filters.machineId) {
       try {
-        // Get the selected machine to find its actual machine number
-        const machines = await asuUnit1Api.getAllMachines();
+        // Get the selected machine from cache
+        const machines = await asuUnit1Api.getAllMachines(); // Now cached!
         const selectedMachine = machines.find(m => m.id === filters.machineId);
 
         if (selectedMachine) {
-          // Use machineNo (the actual machine number field) instead of the machine's ID
           const machineNumber = selectedMachine.machineNo ||
             (selectedMachine.machine_number ? parseInt(selectedMachine.machine_number) : null);
 
-          console.log(`Looking up entries for machine ID ${filters.machineId} with machine number: ${machineNumber}`);
-
           if (machineNumber) {
             params.append('machineNumber', machineNumber.toString());
-          } else {
-            console.error(`Machine with ID ${filters.machineId} has no valid machine number`);
           }
-        } else {
-          console.error(`Machine with ID ${filters.machineId} not found in machines list`);
         }
       } catch (error) {
         console.error('Error getting machine number:', error);
@@ -311,36 +337,7 @@ export const asuUnit1Api = {
     if (filters.page) params.append('page', filters.page.toString());
     if (filters.limit) params.append('limit', filters.limit.toString());
 
-    console.log(`Querying production entries with params: ${params.toString()}`);
     const response = await api.get(`${basePath}/production-entries?${params.toString()}`);
-
-    // Log the raw response data for debugging
-    console.log('Raw API response for production entries:', response.data);
-    if (response.data && response.data.data && response.data.data.items) {
-      console.log('Number of raw production entries:', response.data.data.items.length);
-
-      // Check if we have any night shift entries
-      const nightEntries = response.data.data.items.filter((entry: any) => entry.shift === 'night');
-      console.log('Number of night shift entries:', nightEntries.length);
-      console.log('Night shift entries details:', nightEntries.map((entry: any) => ({
-        id: entry.id,
-        date: entry.date,
-        shift: entry.shift,
-        actualProduction: entry.actualProduction,
-        machineNumber: entry.machineNumber
-      })));
-
-      // Check if we have any day shift entries
-      const dayEntries = response.data.data.items.filter((entry: any) => entry.shift === 'day');
-      console.log('Number of day shift entries:', dayEntries.length);
-      console.log('Day shift entries details:', dayEntries.map((entry: any) => ({
-        id: entry.id,
-        date: entry.date,
-        shift: entry.shift,
-        actualProduction: entry.actualProduction,
-        machineNumber: entry.machineNumber
-      })));
-    }
 
     // Transform the backend response into the expected frontend format
     // Backend returns separate entries for day and night shifts, frontend expects them combined
@@ -349,18 +346,13 @@ export const asuUnit1Api = {
       const entriesByDateAndMachine: Record<string, ASUProductionEntry> = {};
 
       if (!rawEntries || rawEntries.length === 0) {
-        console.log(`No production entries found for the query parameters: ${params.toString()}`);
-
         // Check if we have any entries in localStorage
         if (filters.machineId) {
           const localStorageKey = `local_production_entries_${filters.machineId}`;
           const localEntries = JSON.parse(localStorage.getItem(localStorageKey) || '[]');
 
           if (localEntries.length > 0) {
-            console.log(`Found ${localEntries.length} production entries in localStorage`);
-            // Transform localStorage entries into backend-like format
             rawEntries = localEntries.map((entry: any) => {
-              // Create a day entry if dayShift exists
               if (entry.dayShift > 0) {
                 return {
                   id: `${entry.id}_day`,
@@ -374,7 +366,6 @@ export const asuUnit1Api = {
                   updatedAt: entry.updatedAt
                 };
               }
-              // Create a night entry if nightShift exists
               return {
                 id: `${entry.id}_night`,
                 machineNumber: entry.machineId,
@@ -390,33 +381,24 @@ export const asuUnit1Api = {
           }
         }
       } else {
-        console.log(`Found ${rawEntries.length} production entries`);
-
-        // Analyze the entries to see if we have day and night shift entries
-        const entriesByDateAndMachine: Record<string, { day: boolean, night: boolean }> = {};
+        // Analyze entries to find missing night shifts
+        const shiftsByDateMachine: Record<string, { day: boolean, night: boolean }> = {};
         rawEntries.forEach((entry: any) => {
           const key = `${entry.date}_${entry.machineNumber}`;
-          if (!entriesByDateAndMachine[key]) {
-            entriesByDateAndMachine[key] = { day: false, night: false };
+          if (!shiftsByDateMachine[key]) {
+            shiftsByDateMachine[key] = { day: false, night: false };
           }
-          if (entry.shift === 'day') {
-            entriesByDateAndMachine[key].day = true;
-          } else if (entry.shift === 'night') {
-            entriesByDateAndMachine[key].night = true;
-          }
+          if (entry.shift === 'day') shiftsByDateMachine[key].day = true;
+          else if (entry.shift === 'night') shiftsByDateMachine[key].night = true;
         });
 
-        // Check if we're missing night shift entries
-        const missingNightShiftKeys = Object.entries(entriesByDateAndMachine)
+        // Create missing night shift entries
+        const missingNightShiftKeys = Object.entries(shiftsByDateMachine)
           .filter(([_, value]) => value.day && !value.night)
           .map(([key]) => key);
 
-        console.log('Entries with missing night shift:', missingNightShiftKeys);
-
-        // Create dummy night shift entries for any missing ones
         if (missingNightShiftKeys.length > 0) {
-          const additionalEntries = [];
-
+          const additionalEntries: any[] = [];
           for (const key of missingNightShiftKeys) {
             const [date, machineNumberStr] = key.split('_');
             const machineNumber = parseInt(machineNumberStr);
@@ -427,13 +409,12 @@ export const asuUnit1Api = {
             );
 
             if (dayEntry) {
-              console.log(`Creating missing night shift entry for ${key}`);
               additionalEntries.push({
                 id: `${dayEntry.id}_night`,
-                machineNumber: machineNumber,
-                date: date,
+                machineNumber,
+                date,
                 shift: 'night',
-                actualProduction: 0, // Default to 0 for missing night shift
+                actualProduction: 0,
                 theoreticalProduction: dayEntry.theoreticalProduction,
                 machine: dayEntry.machine,
                 createdAt: dayEntry.createdAt,
@@ -441,33 +422,20 @@ export const asuUnit1Api = {
               });
             }
           }
-
-          // Add the missing night shift entries to rawEntries
-          if (additionalEntries.length > 0) {
-            console.log(`Adding ${additionalEntries.length} missing night shift entries`);
-            rawEntries = [...rawEntries, ...additionalEntries];
-          }
+          rawEntries = [...rawEntries, ...additionalEntries];
         }
       }
 
-      console.log('Raw entries (including day and night shifts):', rawEntries);
-
-      // Group entries by date and machine
+      // Group entries by date and machine - OPTIMIZED with minimal logging
       rawEntries.forEach((entry: any) => {
         const key = `${entry.date}_${entry.machineNumber}`;
-        console.log('Processing entry:', entry);
-        console.log('Entry keys:', Object.keys(entry));
-        console.log('Entry.actualProduction:', entry.actualProduction);
-        console.log('entry.actualProduction:', entry.actualProduction);
-        console.log('Entry shift:', entry.shift);
 
         if (!entriesByDateAndMachine[key]) {
-          // Initialize the combined entry
           entriesByDateAndMachine[key] = {
-            id: entry.id, // Use the first entry's ID by default
-            originalId: entry.id, // Keep the original backend ID for reference
+            id: entry.id,
+            originalId: entry.id,
             machineId: entry.machineNumber,
-            machineNumber: entry.machineNumber || entry.machine_no, // Ensure machineNumber is present for display
+            machineNumber: entry.machineNumber || entry.machine_no,
             date: entry.date,
             dayShift: 0,
             nightShift: 0,
@@ -475,174 +443,53 @@ export const asuUnit1Api = {
             percentage: 0,
             createdAt: entry.createdAt,
             updatedAt: entry.updatedAt,
-            // Preserve the yarn type from the entry if available
             yarnType: entry.yarnType || entry.machine?.yarnType,
-            // Store the production@100% value from the entry for historical accuracy
             productionAt100: entry.productionAt100,
-            // Make sure we keep a reference to the machine
             machine: entry.machine
           };
         }
 
-        // Get the production value - check multiple possible field names
         const rawProd = entry.actualProduction || entry.production || 0;
-        // Use Number instead of parseFloat to better handle zero values
-        const productionValue = typeof rawProd === 'string' ? Number(rawProd) : Number(rawProd || 0);
+        const productionValue = Number(rawProd) || 0;
 
-        console.log(`Processing production value for ${entry.shift} shift: 
-          - Raw value: ${rawProd}
-          - Type: ${typeof rawProd}
-          - Converted value: ${productionValue}
-          - Converted type: ${typeof productionValue}`);
-
-        // Add the production value to the appropriate shift and store the ID
         if (entry.shift === 'day') {
           entriesByDateAndMachine[key].dayShift = productionValue;
-          entriesByDateAndMachine[key].dayShiftId = entry.id; // Store day shift entry ID
-          console.log(`Set dayShift to ${productionValue} for ${key}`);
-          // If this is the first entry we see for this key, use its ID as the main ID
-          if (!entriesByDateAndMachine[key].id) {
-            entriesByDateAndMachine[key].id = entry.id;
-          }
+          entriesByDateAndMachine[key].dayShiftId = entry.id;
+          if (!entriesByDateAndMachine[key].id) entriesByDateAndMachine[key].id = entry.id;
         } else if (entry.shift === 'night') {
-          // Extra logging for night shift values
-          console.log(`NIGHT SHIFT VALUE PROCESSING - Entry ID ${entry.id}, Date ${entry.date}:`, {
-            rawProd,
-            productionValue,
-            entryActualProduction: entry.actualProduction,
-            entryProduction: entry.production,
-            convertedValue: productionValue,
-            entryObject: entry
-          });
-
-          // Ensure it's a proper number by using parseFloat
-          const nightShiftValue = parseFloat(String(rawProd)) || 0;
-
-          console.log(`SETTING NIGHT SHIFT for ${key}: ${nightShiftValue} (original: ${rawProd})`);
-
-          entriesByDateAndMachine[key].nightShift = nightShiftValue;
-          entriesByDateAndMachine[key].nightShiftId = entry.id; // Store night shift entry ID
-          console.log(`Set nightShift to ${nightShiftValue} for ${key} (type: ${typeof nightShiftValue})`);
-
-          // Log the current state of the entry
-          console.log(`Current entry state for ${key}:`, entriesByDateAndMachine[key]);
-
-          // If this is the first entry we see for this key, use its ID as the main ID
-          if (!entriesByDateAndMachine[key].id) {
-            entriesByDateAndMachine[key].id = entry.id;
-          }
+          entriesByDateAndMachine[key].nightShift = parseFloat(String(rawProd)) || 0;
+          entriesByDateAndMachine[key].nightShiftId = entry.id;
+          if (!entriesByDateAndMachine[key].id) entriesByDateAndMachine[key].id = entry.id;
         }
 
-        // Always update the machine data to ensure we have it
-        if (entry.machine) {
-          // Only update if we don't have machine data yet or if this machine data is more complete
-          if (!entriesByDateAndMachine[key].machine ||
-            (entry.machine.productionAt100 && !entriesByDateAndMachine[key].machine.productionAt100)) {
-            console.log(`Updating machine data for ${key} with:`, entry.machine);
-            entriesByDateAndMachine[key].machine = { ...entry.machine };
-          }
+        // Update machine data if more complete
+        if (entry.machine && (!entriesByDateAndMachine[key].machine ||
+            (entry.machine.productionAt100 && !entriesByDateAndMachine[key].machine.productionAt100))) {
+          entriesByDateAndMachine[key].machine = { ...entry.machine };
         }
       });
 
-      // Now that we've gathered all data, calculate totals and percentages
+      // Calculate totals and percentages - OPTIMIZED
       Object.values(entriesByDateAndMachine).forEach(entry => {
-        // Ensure correct numbers for calculations - convert any string values to numbers
-        // Use Number instead of parseFloat to better handle zero values
-        entry.dayShift = typeof entry.dayShift === 'string' ? Number(entry.dayShift) : Number(entry.dayShift || 0);
-
-        // Special handling for night shift values to ensure they're processed correctly
-        const rawNightShift = entry.nightShift;
-        console.log('Processing night shift value for calculations:', {
-          raw: rawNightShift,
-          type: typeof rawNightShift,
-          date: entry.date,
-          entryId: entry.id
-        });
-
-        // Always ensure night shift is a proper number
-        if (rawNightShift !== undefined && rawNightShift !== null) {
-          entry.nightShift = typeof rawNightShift === 'string' ?
-            Number(rawNightShift) : Number(rawNightShift);
-        } else {
-          entry.nightShift = 0;
-        }
-
-        console.log(`Final night shift value: ${entry.nightShift} (${typeof entry.nightShift})`);
-
-        console.log(`Calculating totals for entry:
-          - Date: ${entry.date}
-          - Day shift: ${entry.dayShift} (${typeof entry.dayShift})
-          - Night shift: ${entry.nightShift} (${typeof entry.nightShift})`);
-
-        // Update the total - explicitly calculate to ensure it's a number
+        entry.dayShift = Number(entry.dayShift) || 0;
+        entry.nightShift = Number(entry.nightShift) || 0;
         entry.total = entry.dayShift + entry.nightShift;
 
-        console.log(`Calculated total: ${entry.total} (${typeof entry.total})`);
-
-        // Calculate percentage using the stored productionAt100 value from the entry first,
-        // then fall back to machine.productionAt100 for older entries
+        // Calculate percentage
         let productionAt100Value = 0;
-
-        // Prioritize the entry's stored productionAt100 value for historical accuracy
-        if (entry.productionAt100 !== undefined && entry.productionAt100 !== null) {
-          productionAt100Value = typeof entry.productionAt100 === 'string'
-            ? parseFloat(entry.productionAt100)
-            : entry.productionAt100;
-        }
-        // Fall back to machine's current productionAt100 for older entries
-        else if (entry.machine && entry.machine.productionAt100) {
-          productionAt100Value = typeof entry.machine.productionAt100 === 'string'
-            ? parseFloat(entry.machine.productionAt100)
-            : entry.machine.productionAt100;
+        if (entry.productionAt100 != null) {
+          productionAt100Value = Number(entry.productionAt100);
+        } else if (entry.machine?.productionAt100) {
+          productionAt100Value = Number(entry.machine.productionAt100);
         }
 
-        if (!isNaN(productionAt100Value) && productionAt100Value > 0) {
-          entry.percentage = (entry.total / productionAt100Value) * 100;
-        } else {
-          // Default to 0 if we can't calculate
-          entry.percentage = 0;
-          console.warn(`No valid productionAt100 value found for entry ${entry.id}. Entry value: ${entry.productionAt100}, Machine value: ${entry.machine?.productionAt100}`);
-        }
-
-        // Debug info
-        console.log(`Entry ${entry.id}: dayShift=${entry.dayShift}, nightShift=${entry.nightShift}, ` +
-          `total=${entry.total}, machine=${entry.machine ? JSON.stringify({
-            id: entry.machine.id,
-            machineNo: entry.machine.machineNo,
-            productionAt100: entry.machine.productionAt100
-          }) : 'missing'}, ` +
-          `percentage=${entry.percentage}`);
+        entry.percentage = productionAt100Value > 0 ? (entry.total / productionAt100Value) * 100 : 0;
       });
 
-      // Convert the grouped entries back to an array
-      const transformedEntries = Object.values(entriesByDateAndMachine);
-
-      // Final verification of night shift values
-      transformedEntries.forEach(entry => {
-        // Ensure night shift is never undefined, null, or NaN
-        if (entry.nightShift === undefined || entry.nightShift === null || isNaN(Number(entry.nightShift))) {
-          console.warn(`Fixing invalid night shift value for entry ${entry.id}, date ${entry.date}: ${entry.nightShift}`);
-          entry.nightShift = 0;
-        }
-
-        // Force the value to be a proper number by using direct parseFloat
-        entry.nightShift = parseFloat(String(entry.nightShift)) || 0;
-
-        // Log the final entry data for debugging
-        console.log(`Final verified entry for date ${entry.date}:`, {
-          id: entry.id,
-          dayShift: entry.dayShift,
-          nightShift: entry.nightShift,
-          nightShiftType: typeof entry.nightShift
-        });
-      });
-
-      // Convert to array and sort
+      // Convert and sort
       const result = Object.values(entriesByDateAndMachine).sort((a, b) =>
         new Date(b.date).getTime() - new Date(a.date).getTime()
       );
-
-      console.log('Transformed production entries (first 3):', result.slice(0, 3));
 
       return {
         items: result as ASUProductionEntry[],
@@ -658,74 +505,43 @@ export const asuUnit1Api = {
 
 
 
-  // Create a new production entry
+  // Create a new production entry - OPTIMIZED
   createProductionEntry: async (
     data: CreateProductionEntryData
   ): Promise<ASUProductionEntry> => {
-    // Get the machine to access its productionAt100
-    const machines = await asuUnit1Api.getAllMachines(); // Use getAllMachines to get both active and inactive machines
+    // Get the machine from cache
+    const machines = await asuUnit1Api.getAllMachines(); // Now uses cache!
     const machine = machines.find(m => m.id === data.machineId);
 
     if (!machine) {
       throw new Error('Machine not found');
     }
 
-    // Log detailed machine info for debugging
-    console.log(`Creating production entry for machine:`, machine);
-    console.log(`Machine details: ID=${machine.id}, machineNo=${machine.machineNo}, machine_number=${machine.machine_number}`);
-    console.log(`Day shift: ${data.dayShift}, Night shift: ${data.nightShift}`);
-
-    // Always use the machine's productionAt100 value for consistency - never use the value from form data
+    // Get productionAt100 value
     let productionAt100Value = getProductionAt100(machine);
-    console.log(`Using machine.productionAt100: ${productionAt100Value} for production entry`);
-
-    // Make sure we have a valid value
     if (productionAt100Value <= 0) {
-      console.warn('No valid productionAt100 value found, falling back to default 400');
-      productionAt100Value = 400; // Fallback to a default value if nothing else works
+      productionAt100Value = 400; // Fallback
     }
 
-    // Get the actual machine number from the machine object using our helper function
-    // This is critical for the foreign key constraint to work
+    // Get machine number
     const machineNumber = getMachineNumber(machine);
-
     if (!machineNumber) {
-      console.error('Machine has no valid machineNo value:', machine);
-      throw new Error('Machine must have a valid machine number. Please check the machine details and ensure it has a valid machine number.');
+      throw new Error('Machine must have a valid machine number.');
     }
 
-    console.log('Using machine number for production entry:', machineNumber);
-
-    // Transform the data to match backend expectations
-    // Make absolutely sure we're using the correct machine number format
     if (typeof machineNumber !== 'number' || isNaN(machineNumber) || machineNumber <= 0) {
-      throw new Error(`Invalid machine number: ${machineNumber}. Please check the machine configuration.`);
+      throw new Error(`Invalid machine number: ${machineNumber}.`);
     }
 
-    // Double check that the machine number exists in the database
-    console.log(`Verifying machine number ${machineNumber} exists in the database`);
-
-    // Convert nightShift to a number and ensure it's properly handled
-    // Use parseFloat for consistency with frontend
     const nightShiftValue = parseFloat(String(data.nightShift)) || 0;
-
-    console.log('Night shift value in API:', {
-      originalValue: data.nightShift,
-      originalType: typeof data.nightShift,
-      parsedValue: nightShiftValue,
-      parsedType: typeof nightShiftValue
-    });
-
-    // Create entries only when there's actual production
-    const entriesToCreate = [];
-
-    // Use the provided yarn type or fall back to the machine's yarn type
     const entryYarnType = data.yarnType || machine.yarnType || 'Cotton';
-    console.log(`Using yarn type for production entry: ${entryYarnType}`);
+
+    // Build entries to create
+    const entriesToCreate: any[] = [];
 
     if (data.dayShift > 0) {
       entriesToCreate.push({
-        machineNumber: machineNumber,
+        machineNumber,
         date: data.date,
         shift: 'day',
         actualProduction: parseFloat(String(data.dayShift)),
@@ -736,7 +552,7 @@ export const asuUnit1Api = {
 
     if (nightShiftValue > 0) {
       entriesToCreate.push({
-        machineNumber: machineNumber,
+        machineNumber,
         date: data.date,
         shift: 'night',
         actualProduction: nightShiftValue,
@@ -745,117 +561,101 @@ export const asuUnit1Api = {
       });
     }
 
-    console.log('Entries to create:', entriesToCreate);
-
     if (entriesToCreate.length === 0) {
-      throw new Error('At least one shift (day or night) must have a production value greater than 0');
+      throw new Error('At least one shift must have a production value greater than 0');
     }
 
     try {
       const responses = [];
-
-      // Create each entry one by one
       for (const entry of entriesToCreate) {
-        console.log(`Creating ${entry.shift} entry:`, entry);
         try {
           const response = await api.post(`${basePath}/production-entries`, entry);
-          console.log(`${entry.shift} entry created successfully:`, response.data);
           responses.push(response);
         } catch (error: any) {
-          console.error(`Error creating ${entry.shift} entry:`, error);
-
-          // If it's a duplicate entry error (409), rethrow it so the outer catch block
-          // can handle it and preserve the specific error message from the backend
-          if (error.response && error.response.status === 409) {
-            throw error;
-          }
-
-          if (error.response) {
-            console.error('Error response:', error.response.data);
-          }
+          if (error.response?.status === 409) throw error;
           throw new Error(`Failed to create ${entry.shift} entry: ${error.response?.data?.error || error.message}`);
         }
       }
-
-      // Return the first successful response
       const firstResponse = responses[0];
       return firstResponse.data.success ? firstResponse.data.data : firstResponse.data;
-    } catch (error) {
-      console.error('Error creating production entry:', error);
-
-      // Better error diagnostic for foreign key violations
-      if (error && typeof error === 'object' && 'response' in error &&
-        error.response && typeof error.response === 'object') {
-
-        // Type assertion for better TypeScript support
-        const errorResponse = error.response as any;
-
-        // Log detailed error information for debugging
-        console.error('API Response Error:', {
-          status: errorResponse.status,
-          statusText: errorResponse.statusText,
-          data: errorResponse.data
-        });
-
-        // Handle specific error types
-        if (errorResponse.status === 409) {
-          // Extract specific error for duplicate entries
-          throw error;
-        } else if (errorResponse.status === 400 || errorResponse.status === 500) {
-          // Check if this is a foreign key violation or missing table error
-          const responseData = errorResponse.data;
-          const errorText = typeof responseData === 'string' ? responseData :
-            (responseData && typeof responseData === 'object' && 'error' in responseData) ?
-              responseData.error : JSON.stringify(responseData);
-
-          // Check for machine_configurations table missing error (should be resolved now)
-          if (typeof errorText === 'string' && errorText.includes('relation "machine_configurations" does not exist')) {
-            // This error should not occur anymore since we created the table
-            console.error('machine_configurations table still missing despite migration. Please check database setup.');
-            throw new Error('Database configuration error: machine_configurations table missing. Please contact system administrator.');
-          }
-
-          // Handle machine_configurations table missing error (should be resolved now)
-          if (typeof errorText === 'string' && errorText.includes('relation "machine_configurations" does not exist')) {
-            // This error should not occur anymore since we created the table
-            console.error('machine_configurations table still missing despite migration. Please check database setup.');
-            throw new Error('Database configuration error: machine_configurations table missing. Please contact system administrator.');
-          }
-
-          // Handle normal foreign key violation errors
-          if (typeof errorText === 'string' &&
-            (errorText.includes('foreign key constraint') ||
-              errorText.includes('asu_production_entries_machine_no_fkey'))) {
-            throw new Error(`Machine number mismatch: The machine number doesn't match any existing machine. Please check the machine configuration or try selecting a different machine.`);
-          }
-        }
-      }
-
-      // Extract error message with proper type handling
-      let errorMessage = 'Failed to create production entry';
-
-      if (error && typeof error === 'object' && 'response' in error) {
-        const errorResponse = error.response as any;
-        if (errorResponse && typeof errorResponse === 'object' && 'data' in errorResponse &&
-          errorResponse.data && typeof errorResponse.data === 'object' && 'error' in errorResponse.data) {
-          const responseError = errorResponse.data.error;
-          errorMessage = typeof responseError === 'string' ? responseError : 'Failed to create production entry';
-        }
-      }
-
+    } catch (error: any) {
+      // Handle specific error types
+      if (error?.response?.status === 409) throw error;
+      
+      const errorMessage = error?.response?.data?.error || error?.message || 'Failed to create production entry';
       throw new Error(errorMessage);
     }
   },
 
-  // Update a production entry
+  // Update a production entry - ULTRA OPTIMIZED with batch endpoint (single API call)
+  // Pass existingEntry to skip the GET call entirely for maximum speed
   updateProductionEntry: async (
+    id: number,
+    data: UpdateProductionEntryData,
+    existingEntry?: { machineNumber?: number; machineId?: number; date: string; dayShift?: number; nightShift?: number; yarnType?: string }
+  ): Promise<ASUProductionEntry> => {
+    try {
+      // If we have existingEntry passed from the hook, use it directly (no GET needed!)
+      let entryData = existingEntry;
+      
+      // Only fetch if we don't have the entry data
+      if (!entryData || (!entryData.machineNumber && !entryData.machineId)) {
+        try {
+          const entryResponse = await api.get(`${basePath}/production-entries/${id}`);
+          if (entryResponse.data.success) {
+            entryData = entryResponse.data.data;
+          }
+        } catch (error: any) {
+          if (error.response?.status === 404) {
+            throw new Error(`Production entry ${id} not found.`);
+          }
+          throw error;
+        }
+      }
+
+      if (!entryData) {
+        throw new Error('Failed to find production entry');
+      }
+
+      // Use machineNumber or machineId (frontend uses machineId, backend uses machineNumber)
+      const machineNumber = entryData.machineNumber || entryData.machineId;
+
+      // Use the optimized batch update endpoint - single API call handles both shifts
+      const batchData = {
+        machineNumber,
+        date: data.date || entryData.date,
+        dayShift: data.dayShift ?? entryData.dayShift ?? 0,
+        nightShift: data.nightShift ?? entryData.nightShift ?? 0,
+        yarnType: data.yarnType || entryData.yarnType
+      };
+
+      const response = await api.put(`${basePath}/production-entries/batch/update`, batchData);
+      
+      if (response.data.success) {
+        // Return the day entry or night entry, whichever exists
+        return response.data.data.day || response.data.data.night;
+      }
+      
+      throw new Error('Batch update failed');
+    } catch (error: any) {
+      // Fallback to old method if batch endpoint fails
+      if (error?.response?.status === 404 && error?.config?.url?.includes('/batch/')) {
+        devWarn('Batch endpoint not available, falling back to sequential updates');
+        return asuUnit1Api.updateProductionEntryLegacy(id, data);
+      }
+      
+      console.error('Error in updateProductionEntry:', error);
+      throw error;
+    }
+  },
+
+  // Legacy update method (fallback if batch endpoint unavailable)
+  updateProductionEntryLegacy: async (
     id: number,
     data: UpdateProductionEntryData
   ): Promise<ASUProductionEntry> => {
     try {
-      console.log(`Updating production entry ${id} with data:`, data);
-
-      // First, get the existing entry to determine its shift and machine details
+      // Get the existing entry
       let existingEntry;
       try {
         const entryResponse = await api.get(`${basePath}/production-entries/${id}`);
@@ -863,14 +663,8 @@ export const asuUnit1Api = {
           existingEntry = entryResponse.data.data;
         }
       } catch (error: any) {
-        if (error.response && error.response.status === 404) {
-          console.warn(`Entry ${id} not found in backend, checking if it's a combined entry issue`);
-          // If not found, it might be because the ID is from a different shift or something
-          // But we can't easily recover without more info.
-          // However, if we have date and machine info in 'data' (we don't have machineId in UpdateProductionEntryData),
-          // we might be stuck.
-          // Let's throw for now, but with a clear message.
-          throw new Error(`Production entry ${id} not found. It may have been deleted.`);
+        if (error.response?.status === 404) {
+          throw new Error(`Production entry ${id} not found.`);
         }
         throw error;
       }
@@ -879,19 +673,14 @@ export const asuUnit1Api = {
         throw new Error('Failed to find production entry');
       }
 
-      const currentShift = existingEntry.shift; // 'day' or 'night'
+      const currentShift = existingEntry.shift;
       const machineNumber = existingEntry.machineNumber;
       const entryDate = existingEntry.date;
 
-      console.log(`Found existing entry: shift=${currentShift}, machine=${machineNumber}, date=${entryDate}`);
-
-      // 1. Update the CURRENT entry (the one matching the ID)
-      let currentShiftValue = 0;
-      if (currentShift === 'day') {
-        currentShiftValue = parseFloat(String(data.dayShift)) || 0;
-      } else { // night shift
-        currentShiftValue = parseFloat(String(data.nightShift)) || 0;
-      }
+      // Update the current entry
+      const currentShiftValue = currentShift === 'day' 
+        ? parseFloat(String(data.dayShift)) || 0 
+        : parseFloat(String(data.nightShift)) || 0;
 
       const updateData = {
         date: data.date || existingEntry.date,
@@ -899,27 +688,21 @@ export const asuUnit1Api = {
         yarnType: data.yarnType || existingEntry.yarnType
       };
 
-      console.log(`Updating current ${currentShift} entry ${id} with:`, updateData);
       const response = await api.put(`${basePath}/production-entries/${id}`, updateData);
       const updatedEntry = response.data.success ? response.data.data : response.data;
 
-      // 2. Handle the OTHER shift (update if exists, create if not)
+      // Handle the other shift
       const otherShift = currentShift === 'day' ? 'night' : 'day';
-      const otherShiftValue = otherShift === 'day' ?
-        (parseFloat(String(data.dayShift)) || 0) :
-        (parseFloat(String(data.nightShift)) || 0);
-
-      console.log(`Handling other shift (${otherShift}) with value: ${otherShiftValue}`);
+      const otherShiftValue = otherShift === 'day' 
+        ? parseFloat(String(data.dayShift)) || 0 
+        : parseFloat(String(data.nightShift)) || 0;
 
       // Find the other shift entry
-      // We need to query by machineNumber, date, and shift
-      // Since we don't have a direct endpoint for finding by criteria without pagination,
-      // we'll use the list endpoint with filters
       const params = new URLSearchParams();
       params.append('machineNumber', machineNumber.toString());
       params.append('dateFrom', entryDate);
       params.append('dateTo', entryDate);
-      params.append('limit', '10'); // Should be enough to find the 2 entries
+      params.append('limit', '10');
 
       const listResponse = await api.get(`${basePath}/production-entries?${params.toString()}`);
 
@@ -928,39 +711,27 @@ export const asuUnit1Api = {
         const otherEntry = entries.find((e: any) => e.shift === otherShift && e.date === entryDate);
 
         if (otherEntry) {
-          console.log(`Found existing ${otherShift} entry ${otherEntry.id}, updating...`);
-          // Update existing other entry
           await api.put(`${basePath}/production-entries/${otherEntry.id}`, {
             date: data.date || otherEntry.date,
             actualProduction: otherShiftValue,
             yarnType: data.yarnType || otherEntry.yarnType
           });
-          console.log(`Updated ${otherShift} entry ${otherEntry.id}`);
         } else if (otherShiftValue > 0) {
-          console.log(`No existing ${otherShift} entry found, creating new one...`);
-          // Create new other entry
-          // We need theoreticalProduction (productionAt100)
-          // We can get it from the existing entry or machine
           let theoreticalProduction = existingEntry.productionAt100 || existingEntry.theoreticalProduction;
-
           if (!theoreticalProduction) {
-            // Try to get from machine if not in entry
-            const machines = await asuUnit1Api.getAllMachines();
+            const machines = await asuUnit1Api.getAllMachines(); // Uses cache
             const machine = machines.find(m => m.machineNo === machineNumber);
             theoreticalProduction = getProductionAt100(machine);
           }
 
           await api.post(`${basePath}/production-entries`, {
-            machineNumber: machineNumber,
+            machineNumber,
             date: data.date || entryDate,
             shift: otherShift,
             actualProduction: otherShiftValue,
             theoreticalProduction: theoreticalProduction || 400,
             yarnType: data.yarnType || existingEntry.yarnType
           });
-          console.log(`Created new ${otherShift} entry`);
-        } else {
-          console.log(`No existing ${otherShift} entry and value is 0, skipping creation`);
         }
       }
 
@@ -968,11 +739,8 @@ export const asuUnit1Api = {
     } catch (error) {
       console.error('Error in updateProductionEntry:', error);
 
-      // Check if this could be a localStorage entry by looking for entries with id matching
-      // the pattern we use for local entries
+      // Check localStorage fallback
       if (typeof id === 'number') {
-        // Try to find this entry in localStorage
-        // We need to check all possible machine IDs
         const allStorageKeys = Object.keys(localStorage).filter(key => key.startsWith('local_production_entries_'));
 
         for (const key of allStorageKeys) {
@@ -980,7 +748,6 @@ export const asuUnit1Api = {
           const entryIndex = localEntries.findIndex((e: any) => e.id === id);
 
           if (entryIndex >= 0) {
-            // Found the entry in localStorage, update it
             const updatedEntry = {
               ...localEntries[entryIndex],
               ...data,

@@ -23,6 +23,8 @@ router.post('/asu-machines/:id/archive', readOnlyForManagers, asuUnit1Controller
 
 // Production Entry routes
 router.get('/production-entries', asuUnit1Controller.getProductionEntries);
+// Batch update must come BEFORE :id routes to avoid matching "batch" as an id
+router.put('/production-entries/batch/update', readOnlyForManagers, asuUnit1Controller.batchUpdateProductionEntry);
 router.get('/production-entries/:id', asuUnit1Controller.getProductionEntry);
 router.post('/production-entries', readOnlyForManagers, asuUnit1Controller.createProductionEntry);
 router.put('/production-entries/:id', readOnlyForManagers, asuUnit1Controller.updateProductionEntry);

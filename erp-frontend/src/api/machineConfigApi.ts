@@ -5,9 +5,11 @@ const api = apiClient; // baseURL already set; endpoints below are root-relative
 export interface MachineConfiguration {
   id: number;
   machineId: number;
+  count: number;
   spindleCount: number;
   yarnType: string;
-  efficiencyAt100Percent: number;
+  speed: number;
+  productionAt100: number;
   startDate: string;
   endDate: string | null;
   createdAt: string;
@@ -15,16 +17,20 @@ export interface MachineConfiguration {
 }
 
 export interface CreateMachineConfigurationData {
+  count?: number;
   spindleCount: number;
   yarnType: string;
+  speed?: number;
   efficiencyAt100Percent: number;
   startDate?: string;
   saveHistory?: boolean; // Flag to indicate if we should save configuration history
 }
 
 export interface UpdateMachineConfigurationData {
+  count?: number;
   spindleCount?: number;
   yarnType?: string;
+  speed?: number;
   efficiencyAt100Percent?: number;
   startDate?: string;
   endDate?: string | null;

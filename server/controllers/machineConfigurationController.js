@@ -48,7 +48,7 @@ const getMachineConfigurations = async (req, res) => {
  */
 const createMachineConfiguration = async (req, res) => {
   const { machineId } = req.params;
-  const { spindleCount, yarnType, efficiencyAt100Percent, startDate, saveHistory } = req.body;
+  const { spindleCount, yarnType, efficiencyAt100Percent, startDate, saveHistory, count, speed } = req.body;
   
   try {
     // Start a transaction to ensure data consistency
@@ -69,7 +69,9 @@ const createMachineConfiguration = async (req, res) => {
       await machine.update({
         spindles: Number(spindleCount || 0),
         yarnType: normalizedYarnType,
-        productionAt100: Number(efficiencyAt100Percent || 0)
+        productionAt100: Number(efficiencyAt100Percent || 0),
+        count: count !== undefined ? Number(count) : machine.count,
+        speed: speed !== undefined ? Number(speed) : machine.speed
       }, { transaction: t });
       
       // Only create a history record if explicitly requested
@@ -97,10 +99,12 @@ const createMachineConfiguration = async (req, res) => {
         if (activeConfig) {
           const isSameSpindleCount = normalizeNumber(activeConfig.spindleCount) === normalizeNumber(spindleCount);
           const isSameYarnType = (activeConfig.yarnType || '').trim() === normalizedYarnType;
-          const isSameEfficiency = normalizeNumber(activeConfig.efficiencyAt100Percent) === normalizeNumber(efficiencyAt100Percent);
+          const isSameEfficiency = normalizeNumber(activeConfig.productionAt100) === normalizeNumber(efficiencyAt100Percent);
+          const isSameCount = normalizeNumber(activeConfig.count) === normalizeNumber(count);
+          const isSameSpeed = normalizeNumber(activeConfig.speed) === normalizeNumber(speed);
           
           // Only proceed if there's a significant change
-          significantChange = !isSameSpindleCount || !isSameYarnType || !isSameEfficiency;
+          significantChange = !isSameSpindleCount || !isSameYarnType || !isSameEfficiency || !isSameCount || !isSameSpeed;
           
           // If there's a significant change, close the active configuration
           if (significantChange) {
@@ -125,9 +129,11 @@ const createMachineConfiguration = async (req, res) => {
           // Create the new configuration history record
           const newConfig = await MachineConfiguration.create({
             machineId: Number(machineId),
+            count: count !== undefined ? Number(count) : 0,
             spindleCount: Number(spindleCount || 0),
             yarnType: normalizedYarnType,
-            efficiencyAt100Percent: Number(efficiencyAt100Percent || 0),
+            speed: speed !== undefined ? Number(speed) : 0,
+            productionAt100: Number(efficiencyAt100Percent || 0),
             startDate: startDate || new Date().toISOString().split('T')[0],
             endDate: null  // This is the new active configuration
           }, { transaction: t });
@@ -161,7 +167,7 @@ const createMachineConfiguration = async (req, res) => {
  */
 const updateMachineConfiguration = async (req, res) => {
   const { configId } = req.params;
-  const { spindleCount, yarnType, efficiencyAt100Percent, startDate, endDate } = req.body;
+  const { spindleCount, yarnType, efficiencyAt100Percent, startDate, endDate, count, speed } = req.body;
   
   try {
     // Find the configuration to update
@@ -177,9 +183,11 @@ const updateMachineConfiguration = async (req, res) => {
     const result = await sequelize.transaction(async (t) => {
       // Update the configuration
       await config.update({
+        count: count !== undefined ? Number(count) : config.count,
         spindleCount: Number(spindleCount || config.spindleCount),
         yarnType: (yarnType || config.yarnType).trim(),
-        efficiencyAt100Percent: Number(efficiencyAt100Percent || config.efficiencyAt100Percent),
+        speed: speed !== undefined ? Number(speed) : config.speed,
+        productionAt100: efficiencyAt100Percent !== undefined ? Number(efficiencyAt100Percent) : config.productionAt100,
         startDate: startDate || config.startDate,
         endDate: endDate !== undefined ? endDate : config.endDate
       }, { transaction: t });
@@ -189,9 +197,11 @@ const updateMachineConfiguration = async (req, res) => {
         const machine = await ASUMachine.findByPk(config.machineId, { transaction: t });
         if (machine) {
           await machine.update({
+            count: count !== undefined ? Number(count) : machine.count,
             spindles: Number(spindleCount || config.spindleCount),
             yarnType: (yarnType || config.yarnType).trim(),
-            productionAt100: Number(efficiencyAt100Percent || config.efficiencyAt100Percent)
+            speed: speed !== undefined ? Number(speed) : machine.speed,
+            productionAt100: efficiencyAt100Percent !== undefined ? Number(efficiencyAt100Percent) : machine.productionAt100
           }, { transaction: t });
         }
       }

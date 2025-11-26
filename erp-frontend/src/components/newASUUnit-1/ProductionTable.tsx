@@ -1,4 +1,4 @@
-import React, { useState, memo } from 'react';
+import React, { useState, memo, useCallback } from 'react';
 import { Edit, Trash2, Save, X } from 'lucide-react';
 import { ASUProductionEntry } from '../../api/asuUnit1Api';
 
@@ -8,27 +8,57 @@ interface ProductionTableProps {
     onDelete: (id: number) => Promise<boolean>;
 }
 
-const TableRow = memo(({ entry, onUpdate, onDelete }: {
+interface TableRowProps {
     entry: ASUProductionEntry;
     onUpdate: (id: number, data: any) => Promise<boolean>;
     onDelete: (id: number) => Promise<boolean>;
-}) => {
+}
+
+// Custom comparison function for TableRow to prevent unnecessary re-renders
+const areRowPropsEqual = (prevProps: TableRowProps, nextProps: TableRowProps): boolean => {
+    const prev = prevProps.entry;
+    const next = nextProps.entry;
+    
+    return (
+        prev.id === next.id &&
+        prev.dayShift === next.dayShift &&
+        prev.nightShift === next.nightShift &&
+        prev.date === next.date &&
+        prev.yarnType === next.yarnType &&
+        prev.productionAt100 === next.productionAt100
+    );
+};
+
+const TableRow = memo(({ entry, onUpdate, onDelete }: TableRowProps) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editData, setEditData] = useState({
         dayShift: entry.dayShift || 0,
         nightShift: entry.nightShift || 0
     });
-    const [loading, setLoading] = useState(false);
 
-    const handleSave = async () => {
-        setLoading(true);
-        const success = await onUpdate(entry.id, {
+    // Memoized handlers - instant close with optimistic update
+    const handleSave = useCallback(() => {
+        // Close edit mode IMMEDIATELY (optimistic)
+        setIsEditing(false);
+        
+        // Fire API in background - don't await
+        onUpdate(entry.id, {
             dayShift: parseFloat(String(editData.dayShift)),
             nightShift: parseFloat(String(editData.nightShift))
         });
-        setLoading(false);
-        if (success) setIsEditing(false);
-    };
+    }, [entry.id, editData.dayShift, editData.nightShift, onUpdate]);
+
+    const handleEdit = useCallback(() => setIsEditing(true), []);
+    const handleCancel = useCallback(() => setIsEditing(false), []);
+    const handleDelete = useCallback(() => onDelete(entry.id), [entry.id, onDelete]);
+
+    const handleDayShiftChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        setEditData(prev => ({ ...prev, dayShift: parseFloat(e.target.value) || 0 }));
+    }, []);
+
+    const handleNightShiftChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        setEditData(prev => ({ ...prev, nightShift: parseFloat(e.target.value) || 0 }));
+    }, []);
 
     const total = (parseFloat(String(entry.dayShift || 0)) + parseFloat(String(entry.nightShift || 0)));
     const efficiency = entry.productionAt100 ? (total / entry.productionAt100) * 100 : 0;
@@ -59,8 +89,8 @@ const TableRow = memo(({ entry, onUpdate, onDelete }: {
                         type="number"
                         step="0.01"
                         value={editData.dayShift}
-                        onChange={(e) => setEditData({ ...editData, dayShift: parseFloat(e.target.value) || 0 })}
-                        className="w-24 px-2 py-1 text-sm border rounded focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        onChange={handleDayShiftChange}
+                        className="w-24 px-3 py-1.5 text-sm border rounded focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                     />
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -68,8 +98,8 @@ const TableRow = memo(({ entry, onUpdate, onDelete }: {
                         type="number"
                         step="0.01"
                         value={editData.nightShift}
-                        onChange={(e) => setEditData({ ...editData, nightShift: parseFloat(e.target.value) || 0 })}
-                        className="w-24 px-2 py-1 text-sm border rounded focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        onChange={handleNightShiftChange}
+                        className="w-24 px-3 py-1.5 text-sm border rounded focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                     />
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
@@ -82,14 +112,12 @@ const TableRow = memo(({ entry, onUpdate, onDelete }: {
                     <div className="flex justify-end gap-2">
                         <button
                             onClick={handleSave}
-                            disabled={loading}
                             className="p-1 text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 bg-green-100 dark:bg-green-900/30 rounded"
                         >
                             <Save className="w-4 h-4" />
                         </button>
                         <button
-                            onClick={() => setIsEditing(false)}
-                            disabled={loading}
+                            onClick={handleCancel}
                             className="p-1 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded"
                         >
                             <X className="w-4 h-4" />
@@ -133,14 +161,14 @@ const TableRow = memo(({ entry, onUpdate, onDelete }: {
             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                 <div className="flex justify-end gap-2">
                     <button
-                        onClick={() => setIsEditing(true)}
+                        onClick={handleEdit}
                         className="p-1.5 text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
                         title="Edit"
                     >
                         <Edit className="w-4 h-4" />
                     </button>
                     <button
-                        onClick={() => onDelete(entry.id)}
+                        onClick={handleDelete}
                         className="p-1.5 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
                         title="Delete"
                     >
@@ -150,7 +178,7 @@ const TableRow = memo(({ entry, onUpdate, onDelete }: {
             </td>
         </tr>
     );
-});
+}, areRowPropsEqual);
 
 TableRow.displayName = 'TableRow';
 

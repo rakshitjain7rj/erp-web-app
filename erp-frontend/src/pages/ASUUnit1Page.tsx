@@ -9,7 +9,9 @@ import { Badge } from '../components/ui/badge';
 import NewDailyProduction from '../components/newASUUnit-1/NewDailyProduction';
 // import DailyProduction from '../components/asuUnit1/DailyProduction';
 import YarnSummary from '../components/asuUnit1/YarnSummary';
-import MachineManager from '../components/asuUnit1/MachineManager';
+// Old MachineManager (replaced by optimized version)
+// import MachineManager from '../components/asuUnit1/MachineManager';
+import { MachineManager } from '../components/newMachineManager';
 import TotalASUUnit1YarnSummary from '../components/dashboard/TotalASUUnit1YarnSummary';
 
 const ASUUnit1Page: React.FC = () => {

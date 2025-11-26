@@ -444,15 +444,112 @@ const updateProductionEntry = async (req, res) => {
   }
 };
 
+// Batch update production entry - handles both day and night shifts in one call
+// This is optimized to reduce frontend API calls from 4 to 1
+const batchUpdateProductionEntry = async (req, res) => {
+  try {
+    const { machineNumber, date, dayShift, nightShift, yarnType } = req.body;
+
+    if (!machineNumber || !date) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'machineNumber and date are required' 
+      });
+    }
+
+    const result = await sequelize.transaction(async (t) => {
+      // Find both day and night entries for this machine/date
+      const entries = await ASUProductionEntry.findAll({
+        where: {
+          machineNumber: parseInt(machineNumber),
+          date: date,
+          unit: 1
+        },
+        transaction: t
+      });
+
+      const dayEntry = entries.find(e => e.shift === 'day');
+      const nightEntry = entries.find(e => e.shift === 'night');
+
+      // Get machine for productionAt100 if needed
+      let productionAt100 = dayEntry?.productionAt100 || nightEntry?.productionAt100;
+      if (!productionAt100) {
+        const machine = await ASUMachine.findOne({
+          where: { machineNo: parseInt(machineNumber), unit: 1 },
+          transaction: t
+        });
+        productionAt100 = machine?.productionAt100 || 400;
+      }
+
+      const results = { day: null, night: null };
+      const dayValue = parseFloat(dayShift) || 0;
+      const nightValue = parseFloat(nightShift) || 0;
+
+      // Update or create day entry
+      if (dayEntry) {
+        const efficiency = productionAt100 > 0 ? parseFloat(((dayValue / productionAt100) * 100).toFixed(2)) : 0;
+        await dayEntry.update({
+          actualProduction: dayValue,
+          efficiency,
+          ...(yarnType && { yarnType })
+        }, { transaction: t });
+        results.day = dayEntry;
+      } else if (dayValue > 0) {
+        const efficiency = productionAt100 > 0 ? parseFloat(((dayValue / productionAt100) * 100).toFixed(2)) : 0;
+        results.day = await ASUProductionEntry.create({
+          unit: 1,
+          machineNumber: parseInt(machineNumber),
+          date,
+          shift: 'day',
+          actualProduction: dayValue,
+          theoreticalProduction: productionAt100,
+          productionAt100,
+          efficiency,
+          yarnType: yarnType || 'Cotton'
+        }, { transaction: t });
+      }
+
+      // Update or create night entry
+      if (nightEntry) {
+        const efficiency = productionAt100 > 0 ? parseFloat(((nightValue / productionAt100) * 100).toFixed(2)) : 0;
+        await nightEntry.update({
+          actualProduction: nightValue,
+          efficiency,
+          ...(yarnType && { yarnType })
+        }, { transaction: t });
+        results.night = nightEntry;
+      } else if (nightValue > 0) {
+        const efficiency = productionAt100 > 0 ? parseFloat(((nightValue / productionAt100) * 100).toFixed(2)) : 0;
+        results.night = await ASUProductionEntry.create({
+          unit: 1,
+          machineNumber: parseInt(machineNumber),
+          date,
+          shift: 'night',
+          actualProduction: nightValue,
+          theoreticalProduction: productionAt100,
+          productionAt100,
+          efficiency,
+          yarnType: yarnType || 'Cotton'
+        }, { transaction: t });
+      }
+
+      return results;
+    });
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error in batch update:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 // Delete production entry
 const deleteProductionEntry = async (req, res) => {
   try {
     const { id } = req.params;
-    console.log('Attempting to delete production entry with ID:', id);
-
-    // Log the entry we're trying to delete
-    const entryToDelete = await ASUProductionEntry.findByPk(id);
-    console.log('Entry to delete:', entryToDelete);
 
     const deleted = await ASUProductionEntry.destroy({
       where: { id }
@@ -471,147 +568,108 @@ const deleteProductionEntry = async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 };
-// Get production statistics
+// Get production statistics - OPTIMIZED with single combined query
 const getProductionStats = async (req, res) => {
   try {
-    // Removed unit parameter - always use unit 1
     const { machineNumber, dateFrom, dateTo } = req.query;
     const { QueryTypes } = require('sequelize');
 
-    // Check if tables exist before querying
-    const tableCheck = await sequelize.query(`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public' 
-      AND table_name IN ('asu_machines', 'asu_production_entries')
-    `, { type: QueryTypes.SELECT });
-
-    if (tableCheck.length < 2) {
-      return res.status(500).json({
-        success: false,
-        error: 'Database tables not found. Please run the ASU Unit 1 migration script first.',
-        missingTables: ['asu_machines', 'asu_production_entries'].filter(
-          table => !tableCheck.find(t => t.table_name === table)
-        )
-      });
-    }
-
-    // Check if unit column exists
-    const columnCheck = await sequelize.query(`
-      SELECT column_name
-      FROM information_schema.columns
-      WHERE table_name = 'asu_production_entries'
-      AND column_name = 'unit'
-    `, { type: QueryTypes.SELECT });
-
-    const unitColumnExists = columnCheck.length > 0;
-
-    // If unit column doesn't exist, add it
-    if (!unitColumnExists) {
-      console.log('Adding unit column to asu_production_entries table');
-      await sequelize.query(`
-        ALTER TABLE asu_production_entries 
-        ADD COLUMN unit INTEGER NOT NULL DEFAULT 1 
-        CHECK (unit IN (1, 2))
-      `);
-      console.log('Added unit column to the table');
-    }
-
-    // Build SQL conditions
-    let conditions = '';
-    if (machineNumber) {
-      conditions += ` AND machine_no = ${parseInt(machineNumber)}`;
-    }
-
-    // Date conditions
-    let defaultDate = '';
+    // Build date conditions
+    let dateCondition = '';
     if (dateFrom && dateTo) {
-      conditions += ` AND date BETWEEN '${dateFrom}' AND '${dateTo}'`;
+      dateCondition = `AND date BETWEEN '${dateFrom}' AND '${dateTo}'`;
     } else {
-      // Default to last 30 days
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      defaultDate = thirtyDaysAgo.toISOString().split('T')[0];
-      conditions += ` AND date >= '${defaultDate}'`;
+      const defaultDate = thirtyDaysAgo.toISOString().split('T')[0];
+      dateCondition = `AND date >= '${defaultDate}'`;
     }
 
-    // Hardcoded to unit 1 only
-    conditions += ` AND unit = 1`;
+    let machineCondition = '';
+    if (machineNumber) {
+      machineCondition = `AND machine_no = ${parseInt(machineNumber)}`;
+    }
 
-    // Get total and active machines count for unit 1 using raw SQL
-    const [machinesResult] = await sequelize.query(`
-      SELECT 
-        COUNT(*) as total_machines,
-        SUM(CASE WHEN is_active = true THEN 1 ELSE 0 END) as active_machines
-      FROM asu_machines
-      WHERE unit = 1
-    `, { type: QueryTypes.SELECT });
-
-    const totalMachines = parseInt(machinesResult.total_machines || 0);
-    const activeMachines = parseInt(machinesResult.active_machines || 0);
-
-    // Get today's entries count for unit 1 using raw SQL
     const today = new Date().toISOString().split('T')[0];
-    const [todayResult] = await sequelize.query(`
-      SELECT COUNT(*) as today_entries 
-      FROM asu_production_entries
-      WHERE date = '${today}' AND unit = 1
-    `, { type: QueryTypes.SELECT });
 
-    const todayEntries = parseInt(todayResult.today_entries || 0);
-
-    // Get aggregated statistics with null checks using raw SQL
-    const [stats] = await sequelize.query(`
+    // Single optimized query combining all stats
+    const [result] = await sequelize.query(`
+      WITH machine_stats AS (
+        SELECT 
+          COUNT(*) as total_machines,
+          SUM(CASE WHEN is_active = true THEN 1 ELSE 0 END) as active_machines
+        FROM asu_machines
+        WHERE unit = 1
+      ),
+      today_stats AS (
+        SELECT COUNT(*) as today_entries 
+        FROM asu_production_entries
+        WHERE date = '${today}' AND unit = 1
+      ),
+      production_stats AS (
+        SELECT 
+          AVG(efficiency) as avg_efficiency,
+          SUM(actual_production) as total_actual_production,
+          SUM(theoretical_production) as total_theoretical_production,
+          COUNT(*) as total_entries
+        FROM asu_production_entries
+        WHERE unit = 1 ${dateCondition} ${machineCondition}
+      ),
+      top_machine AS (
+        SELECT 
+          machine_no,
+          AVG(efficiency) as avg_efficiency,
+          COUNT(*) as entry_count
+        FROM asu_production_entries 
+        WHERE unit = 1 AND efficiency IS NOT NULL ${dateCondition} ${machineCondition}
+        GROUP BY machine_no 
+        HAVING COUNT(*) > 0
+        ORDER BY AVG(efficiency) DESC 
+        LIMIT 1
+      )
       SELECT 
-        AVG(efficiency) as avg_efficiency,
-        SUM(actual_production) as total_actual_production,
-        SUM(theoretical_production) as total_theoretical_production,
-        COUNT(*) as total_entries
-      FROM asu_production_entries
-      WHERE unit = 1 ${conditions}
+        m.total_machines,
+        m.active_machines,
+        t.today_entries,
+        p.avg_efficiency,
+        p.total_actual_production,
+        p.total_theoretical_production,
+        p.total_entries,
+        tm.machine_no as top_machine_no,
+        tm.avg_efficiency as top_machine_efficiency,
+        tm.entry_count as top_machine_entries
+      FROM machine_stats m
+      CROSS JOIN today_stats t
+      CROSS JOIN production_stats p
+      LEFT JOIN top_machine tm ON true
     `, { type: QueryTypes.SELECT });
 
-    // Get top performing machine by average efficiency
-    const [topMachine] = await sequelize.query(`
-      SELECT 
-        machine_no,
-        AVG(efficiency) as avg_efficiency,
-        COUNT(*) as entry_count
-      FROM asu_production_entries 
-      WHERE unit = 1 AND efficiency IS NOT NULL ${conditions}
-      GROUP BY machine_no 
-      HAVING COUNT(*) > 0
-      ORDER BY AVG(efficiency) DESC 
-      LIMIT 1
-    `, { type: QueryTypes.SELECT });
-
-    // Calculate overall efficiency from totals
-    const totalActual = parseFloat(stats?.total_actual_production || 0);
-    const totalTheoretical = parseFloat(stats?.total_theoretical_production || 0);
+    const stats = result || {};
+    const totalActual = parseFloat(stats.total_actual_production || 0);
+    const totalTheoretical = parseFloat(stats.total_theoretical_production || 0);
     const overallEfficiency = totalTheoretical > 0 ? (totalActual / totalTheoretical) * 100 : 0;
 
     res.json({
       success: true,
       data: {
-        totalMachines,
-        activeMachines,
-        todayEntries,
-        averageEfficiency: parseFloat(stats?.avg_efficiency || 0),
+        totalMachines: parseInt(stats.total_machines || 0),
+        activeMachines: parseInt(stats.active_machines || 0),
+        todayEntries: parseInt(stats.today_entries || 0),
+        averageEfficiency: parseFloat(stats.avg_efficiency || 0),
         overallEfficiency: parseFloat(overallEfficiency.toFixed(2)),
         totalActualProduction: totalActual,
         totalTheoreticalProduction: totalTheoretical,
-        totalEntries: parseInt(stats?.total_entries || 0),
-        topPerformingMachine: topMachine ? {
-          machineNumber: parseInt(topMachine.machine_no),
-          avgEfficiency: parseFloat(topMachine.avg_efficiency || 0),
-          entryCount: parseInt(topMachine.entry_count || 0)
+        totalEntries: parseInt(stats.total_entries || 0),
+        topPerformingMachine: stats.top_machine_no ? {
+          machineNumber: parseInt(stats.top_machine_no),
+          avgEfficiency: parseFloat(stats.top_machine_efficiency || 0),
+          entryCount: parseInt(stats.top_machine_entries || 0)
         } : null
       }
     });
   } catch (error) {
     console.error('Error fetching production stats:', error);
-
-    // Provide helpful error message for missing tables
+    
     if (error.message && error.message.includes('does not exist')) {
       return res.status(500).json({
         success: false,
@@ -973,6 +1031,7 @@ module.exports = {
   getProductionEntry,
   createProductionEntry,
   updateProductionEntry,
+  batchUpdateProductionEntry,
   deleteProductionEntry,
   getProductionStats,
   createMachine,

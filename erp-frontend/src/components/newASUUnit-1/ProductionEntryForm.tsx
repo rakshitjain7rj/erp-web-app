@@ -1,5 +1,5 @@
-import React, { useState, useEffect, memo } from 'react';
-import { Plus, Save } from 'lucide-react';
+import React, { useState, useEffect, memo, useMemo } from 'react';
+import { Plus, Save, Settings } from 'lucide-react';
 import { ASUMachine } from '../../api/asuUnit1Api';
 
 interface ProductionEntryFormProps {
@@ -19,17 +19,22 @@ export const ProductionEntryForm = memo(({ machines, onSubmit, loading, selected
         productionAt100: 0
     });
 
+    // Get selected machine details
+    const selectedMachine = useMemo(() => 
+        machines.find(m => m.id === selectedMachineId),
+        [machines, selectedMachineId]
+    );
+
     // Update yarn type when machine changes
     useEffect(() => {
-        const machine = machines.find(m => m.id === selectedMachineId);
-        if (machine) {
+        if (selectedMachine) {
             setFormData(prev => ({
                 ...prev,
-                yarnType: machine.yarnType || 'Cotton',
-                productionAt100: typeof machine.productionAt100 === 'number' ? machine.productionAt100 : 400
+                yarnType: selectedMachine.yarnType || 'Cotton',
+                productionAt100: typeof selectedMachine.productionAt100 === 'number' ? selectedMachine.productionAt100 : 400
             }));
         }
-    }, [selectedMachineId, machines]);
+    }, [selectedMachine]);
 
     const handleMachineSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const id = parseInt(e.target.value);
@@ -78,7 +83,7 @@ export const ProductionEntryForm = memo(({ machines, onSubmit, loading, selected
                         type="date"
                         value={formData.date}
                         onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                        className="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500"
                         required
                     />
                 </div>
@@ -90,13 +95,13 @@ export const ProductionEntryForm = memo(({ machines, onSubmit, loading, selected
                     <select
                         value={selectedMachineId}
                         onChange={handleMachineSelect}
-                        className="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500"
                         required
                     >
                         <option value={0} disabled>Select Machine</option>
                         {machines.map((machine) => (
                             <option key={machine.id} value={machine.id}>
-                                {machine.machineName || `Machine ${machine.machineNo} `} - {machine.yarnType || 'Unknown'}
+                                {machine.machineName || `Machine ${machine.machineNo}`} - {machine.yarnType || 'Unknown'}
                             </option>
                         ))}
                     </select>
@@ -112,7 +117,7 @@ export const ProductionEntryForm = memo(({ machines, onSubmit, loading, selected
                         placeholder="0.00"
                         value={formData.dayShift}
                         onChange={(e) => setFormData({ ...formData, dayShift: e.target.value })}
-                        className="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500"
                     />
                 </div>
 
@@ -127,7 +132,7 @@ export const ProductionEntryForm = memo(({ machines, onSubmit, loading, selected
                             placeholder="0.00"
                             value={formData.nightShift}
                             onChange={(e) => setFormData({ ...formData, nightShift: e.target.value })}
-                            className="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500"
                         />
                         <button
                             type="submit"
@@ -143,6 +148,54 @@ export const ProductionEntryForm = memo(({ machines, onSubmit, loading, selected
                     </div>
                 </div>
             </form>
+
+            {/* Machine Configuration Display */}
+            {selectedMachine && (
+                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center gap-2 mb-3">
+                        <Settings className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Machine Configuration</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+                        <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg px-3 py-2">
+                            <div className="text-xs text-gray-500 dark:text-gray-400">Count</div>
+                            <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                                {selectedMachine.count || 0}
+                            </div>
+                        </div>
+                        <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg px-3 py-2">
+                            <div className="text-xs text-gray-500 dark:text-gray-400">Yarn Type</div>
+                            <div className="text-sm font-semibold text-purple-600 dark:text-purple-400">
+                                {selectedMachine.yarnType || 'Cotton'}
+                            </div>
+                        </div>
+                        <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg px-3 py-2">
+                            <div className="text-xs text-gray-500 dark:text-gray-400">Spindles</div>
+                            <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                                {selectedMachine.spindles || 0}
+                            </div>
+                        </div>
+                        <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg px-3 py-2">
+                            <div className="text-xs text-gray-500 dark:text-gray-400">Speed (RPM)</div>
+                            <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                                {selectedMachine.speed || 0}
+                            </div>
+                        </div>
+                        <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg px-3 py-2">
+                            <div className="text-xs text-blue-600 dark:text-blue-400">Prod @ 100%</div>
+                            <div className="text-sm font-semibold text-blue-700 dark:text-blue-300">
+                                {selectedMachine.productionAt100 ? Number(selectedMachine.productionAt100).toFixed(2) : '0'}
+                            </div>
+                        </div>
+                        <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg px-3 py-2">
+                            <div className="text-xs text-gray-500 dark:text-gray-400">Status</div>
+                            <div className={`text-sm font-semibold ${selectedMachine.isActive ? 'text-green-600 dark:text-green-400' : 'text-gray-500'}`}>
+                                {selectedMachine.isActive ? 'Active' : 'Inactive'}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 });
