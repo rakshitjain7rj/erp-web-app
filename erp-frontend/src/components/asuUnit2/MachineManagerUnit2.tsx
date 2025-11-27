@@ -7,9 +7,9 @@ import { Label } from '../ui/label';
 import { Plus, Edit, Save, Trash2, X, RotateCcw } from 'lucide-react';
 import type { ASUMachine } from '../../api/asuUnit1Api';
 import { asuUnit2Api } from '../../api/asuUnit2Api';
-import MachineFormModal from '../asuUnit1/MachineFormModal';
+import MachineFormModal from './MachineFormModal';
 // Re‑use Unit1 history component & types for consistency
-import { MachineConfigurationHistory, MachineConfiguration } from '../asuUnit1/MachineConfigurationHistory';
+import { MachineConfigurationHistory, MachineConfiguration } from './MachineConfigurationHistory';
 
 interface EditingMachine {
   id: number;

@@ -75,7 +75,7 @@ const getProductionEntries = async (req, res) => {
 // Create new production entry (Unit 2)
 const createProductionEntry = async (req, res) => {
   try {
-    const { machineNumber, date, shift, actualProduction, theoreticalProduction, remarks, yarnType } = req.body;
+    const { machineNumber, date, shift, actualProduction, theoreticalProduction, remarks, yarnType, workerName, mainsReading } = req.body;
 
     if (!machineNumber || !date || !shift) {
       return res.status(400).json({ success: false, error: 'Machine number, date, and shift are required' });
@@ -110,7 +110,9 @@ const createProductionEntry = async (req, res) => {
         theoreticalProduction: finalTheoreticalProduction ? parseFloat(finalTheoreticalProduction) : null,
         productionAt100: finalTheoreticalProduction ? parseFloat(finalTheoreticalProduction) : null,
         efficiency,
-        remarks: remarks || null
+        remarks: remarks || null,
+        workerName: workerName || null,
+        mainsReading: mainsReading !== undefined && mainsReading !== null ? parseFloat(mainsReading) : null
       }, { transaction: t });
 
       return entry;
@@ -127,7 +129,7 @@ const createProductionEntry = async (req, res) => {
 const updateProductionEntry = async (req, res) => {
   try {
     const { id } = req.params;
-    const { actualProduction, theoreticalProduction, remarks, yarnType, date } = req.body;
+    const { actualProduction, theoreticalProduction, remarks, yarnType, date, workerName, mainsReading } = req.body;
 
     const entry = await ASUProductionEntry.findByPk(id);
     if (!entry) return res.status(404).json({ success: false, error: 'Production entry not found' });
@@ -155,6 +157,8 @@ const updateProductionEntry = async (req, res) => {
       if (remarks !== undefined) updateData.remarks = remarks;
       if (date !== undefined) updateData.date = date;
       if (yarnType !== undefined) updateData.yarnType = yarnType;
+      if (workerName !== undefined) updateData.workerName = workerName;
+      if (mainsReading !== undefined) updateData.mainsReading = mainsReading !== null ? parseFloat(mainsReading) : null;
       updateData.efficiency = efficiency;
 
       await entry.update(updateData, { transaction: t });
@@ -398,9 +402,143 @@ const archiveMachine = async (req, res) => {
     if (!machine) return res.status(404).json({ success: false, error: `Machine with ID ${id} not found` });
 
     await machine.update({ isActive: false, archivedAt: new Date(), status: 'ARCHIVED' });
-    return res.status(200).json({ success: true, message: `Machine with ID ${id} has been archived` });
+    res.json({ success: true, message: `Machine with ID ${id} has been archived` });
   } catch (error) {
     console.error('Error archiving ASU Unit 2 machine:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// Batch update production entries (Unit 2)
+const batchUpdateProductionEntry = async (req, res) => {
+  try {
+    const { machineNumber, date, dayShift, nightShift, yarnType, dayShiftWorker, nightShiftWorker, dayMainsReading, nightMainsReading } = req.body;
+
+    if (!machineNumber || !date) {
+      return res.status(400).json({ success: false, error: 'Machine number and date are required' });
+    }
+
+    const result = await sequelize.transaction(async (t) => {
+      // Helper to update or create entry
+      const updateOrCreateShift = async (shift, production, worker, mains) => {
+        let entry = await ASUProductionEntry.findOne({ 
+          where: { unit: UNIT, machineNumber: parseInt(machineNumber), date, shift },
+          transaction: t 
+        });
+
+        if (entry) {
+          // Update existing
+          const updateData = {};
+          if (production !== undefined) updateData.actualProduction = parseFloat(production);
+          if (yarnType !== undefined) updateData.yarnType = yarnType;
+          if (worker !== undefined) updateData.workerName = worker;
+          if (mains !== undefined) updateData.mainsReading = mains !== null ? parseFloat(mains) : null;
+          
+          // Recalculate efficiency
+          let theoretical = entry.productionAt100 || entry.theoreticalProduction;
+          if (!theoretical) {
+             const machine = await ASUMachine.findOne({ where: { machineNo: parseInt(machineNumber), unit: UNIT }, transaction: t });
+             if (machine) theoretical = machine.productionAt100;
+          }
+          
+          if (production !== undefined && theoretical > 0) {
+            updateData.efficiency = parseFloat(((parseFloat(production) / theoretical) * 100).toFixed(2));
+          }
+          
+          await entry.update(updateData, { transaction: t });
+          return entry;
+        } else if (production > 0) {
+          // Create new if production > 0
+          const machine = await ASUMachine.findOne({ where: { machineNo: parseInt(machineNumber), unit: UNIT }, transaction: t });
+          const theoretical = machine ? machine.productionAt100 : 400;
+          
+          const newEntry = await ASUProductionEntry.create({
+            unit: UNIT,
+            machineNumber: parseInt(machineNumber),
+            date,
+            shift,
+            yarnType: yarnType || (machine ? machine.yarnType : 'Cotton'),
+            actualProduction: parseFloat(production),
+            theoreticalProduction: theoretical,
+            productionAt100: theoretical,
+            efficiency: theoretical > 0 ? parseFloat(((parseFloat(production) / theoretical) * 100).toFixed(2)) : 0,
+            workerName: worker || null,
+            mainsReading: mains !== undefined && mains !== null ? parseFloat(mains) : null
+          }, { transaction: t });
+          return newEntry;
+        }
+        return null;
+      };
+
+      const dayEntry = await updateOrCreateShift('day', dayShift, dayShiftWorker, dayMainsReading);
+      const nightEntry = await updateOrCreateShift('night', nightShift, nightShiftWorker, nightMainsReading);
+
+      return { day: dayEntry, night: nightEntry };
+    });
+
+    res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('Error batch updating Unit 2 production entries:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// Batch create production entries (Unit 2)
+const batchCreateProductionEntry = async (req, res) => {
+  try {
+    const { machineNumber, date, dayShift, nightShift, yarnType, dayShiftWorker, nightShiftWorker, dayMainsReading, nightMainsReading, productionAt100 } = req.body;
+
+    if (!machineNumber || !date) {
+      return res.status(400).json({ success: false, error: 'Machine number and date are required' });
+    }
+
+    const result = await sequelize.transaction(async (t) => {
+      let machine = await ASUMachine.findOne({ where: { machineNo: parseInt(machineNumber), unit: UNIT }, transaction: t });
+      if (!machine) throw new Error(`Machine number ${machineNumber} not found`);
+      
+      const theoretical = productionAt100 || machine.productionAt100 || 400;
+      const entryYarnType = yarnType || machine.yarnType || 'Cotton';
+
+      // Check for existing entries
+      const existingDay = await ASUProductionEntry.findOne({ where: { unit: UNIT, machineNumber: parseInt(machineNumber), date, shift: 'day' }, transaction: t });
+      const existingNight = await ASUProductionEntry.findOne({ where: { unit: UNIT, machineNumber: parseInt(machineNumber), date, shift: 'night' }, transaction: t });
+
+      if (existingDay || existingNight) {
+          throw new Error(`Production entries for Machine ${machineNumber} on ${date} already exist.`);
+      }
+
+      const createEntry = async (shift, production, worker, mains) => {
+          if (production !== undefined && production !== null && parseFloat(production) > 0) {
+             return await ASUProductionEntry.create({
+                unit: UNIT,
+                machineNumber: parseInt(machineNumber),
+                date,
+                shift,
+                yarnType: entryYarnType,
+                actualProduction: parseFloat(production),
+                theoreticalProduction: theoretical,
+                productionAt100: theoretical,
+                efficiency: theoretical > 0 ? parseFloat(((parseFloat(production) / theoretical) * 100).toFixed(2)) : 0,
+                workerName: worker || null,
+                mainsReading: mains !== undefined && mains !== null ? parseFloat(mains) : null
+             }, { transaction: t });
+          }
+          return null;
+      };
+
+      const dayEntry = await createEntry('day', dayShift, dayShiftWorker, dayMainsReading);
+      const nightEntry = await createEntry('night', nightShift, nightShiftWorker, nightMainsReading);
+
+      if (!dayEntry && !nightEntry) {
+        throw new Error('At least one shift must have production greater than 0');
+      }
+
+      return { day: dayEntry, night: nightEntry };
+    });
+
+    res.status(201).json({ success: true, data: result });
+  } catch (error) {
+    console.error('Error batch creating Unit 2 production entries:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 };
@@ -417,5 +555,9 @@ module.exports = {
   updateMachine,
   updateMachineYarnTypeAndCount,
   deleteMachine,
-  archiveMachine
+  archiveMachine,
+  batchUpdateProductionEntry,
+  batchCreateProductionEntry
 };
+
+

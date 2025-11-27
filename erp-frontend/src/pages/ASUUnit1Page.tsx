@@ -5,14 +5,10 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Activity, Package, Settings, Gauge } from 'lucide-react';
-import { Badge } from '../components/ui/badge';
 import NewDailyProduction from '../components/newASUUnit-1/NewDailyProduction';
-// import DailyProduction from '../components/asuUnit1/DailyProduction';
 import YarnSummary from '../components/asuUnit1/YarnSummary';
-// Old MachineManager (replaced by optimized version)
-// import MachineManager from '../components/asuUnit1/MachineManager';
 import { MachineManager } from '../components/newMachineManager';
-import TotalASUUnit1YarnSummary from '../components/dashboard/TotalASUUnit1YarnSummary';
+import DashboardLayout from '../components/asuUnit1/dashboard/DashboardLayout';
 
 const ASUUnit1Page: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -102,9 +98,7 @@ const ASUUnit1Page: React.FC = () => {
 
       <div className="space-y-6">
         {activeTab === 'dashboard' && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <TotalASUUnit1YarnSummary days={31} showRefreshButton={true} />
-          </div>
+          <DashboardLayout />
         )}
         {activeTab === 'production' && <NewDailyProduction />}
         {activeTab === 'summary' && <YarnSummary />}

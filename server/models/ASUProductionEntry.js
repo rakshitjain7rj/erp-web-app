@@ -60,6 +60,16 @@ const ASUProductionEntry = sequelize.define('ASUProductionEntry', {
   remarks: {
     type: DataTypes.TEXT,
     allowNull: true
+  },
+  workerName: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    field: 'worker_name'
+  },
+  mainsReading: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: true,
+    field: 'mains_reading'
   }
 }, {
   tableName: 'asu_production_entries',
