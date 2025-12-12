@@ -32,6 +32,11 @@ const getSafeString = (val: any): string => {
   return String(val);
 };
 
+const formatQuantity = (val: number | undefined | null): string => {
+  if (val === undefined || val === null) return "0.00";
+  return Number(val).toFixed(2);
+};
+
 const DyeingOrderRow = React.memo(({
   displayRecord,
   isEditing,
@@ -733,7 +738,7 @@ const DyeingOrders: React.FC = () => {
       acc[key].push(product);
       return acc;
     }, {} as Record<string, CountProduct[]>);
-    
+
     const countDisplayNameFromProducts: Record<string, string> = {};
     filteredCountProducts.forEach((p) => {
       const key = normalizeCount(p.count || 'Standard');
@@ -756,7 +761,7 @@ const DyeingOrders: React.FC = () => {
         // Map records HERE for performance
         const mappedDyeingRecords = dyeingRecords.map(record => ({ ...mapToSimplifiedDisplay(record), type: 'dyeing', originalRecord: record }));
         const mappedCountProducts = countProductsForCount.map(product => ({ ...mapCountProductToSimplifiedDisplay(product), type: 'countProduct', originalRecord: product }));
-        
+
         const allRecordsForDisplay = [...mappedDyeingRecords, ...mappedCountProducts];
         const hasData = allRecordsForDisplay.length > 0;
 
@@ -792,6 +797,42 @@ const DyeingOrders: React.FC = () => {
       default:
         return <span className={`${base} bg-gray-200 text-gray-700`}>{status}</span>;
     }
+  };
+
+
+
+  const handleExportCSV = () => {
+    // Gather all currently filtered/displayed records from completeCountListing
+    const flatList: any[] = [];
+    completeCountListing.forEach(group => {
+      flatList.push(...group.allRecordsForDisplay);
+    });
+
+    if (flatList.length === 0) {
+      toast.error("No records to export");
+      return;
+    }
+
+    const csvData = flatList.map(rec => ({
+      "Type": rec.type === 'countProduct' ? 'Count Product' : 'Dyeing Record',
+      "ID": rec.id,
+      "Customer": rec.customerName,
+      "Party/Middleman": rec.partyNameMiddleman,
+      "Dyeing Firm": rec.dyeingFirm,
+      "Count": rec.count,
+      "Quantity (kg)": rec.quantity,
+      "Sent to Dye": rec.sentToDye,
+      "Sent Date": rec.sentDate ? new Date(rec.sentDate).toLocaleDateString() : '',
+      "Received": rec.received,
+      "Received Date": rec.receivedDate ? new Date(rec.receivedDate).toLocaleDateString() : '',
+      "Dispatch": rec.dispatch,
+      "Dispatch Date": rec.dispatchDate ? new Date(rec.dispatchDate).toLocaleDateString() : '',
+      "Status": rec.type === 'countProduct' ? 'Completed' : (rec.isReprocessing ? 'Reprocessing' : 'Standard'),
+      "Remarks": rec.remarks
+    }));
+
+    exportDataToCSV(csvData, `Dyeing_Orders_Export_${new Date().toISOString().split('T')[0]}`);
+    toast.success("Export started");
   };
 
   const handleEdit = useCallback((record: DyeingRecord) => {

@@ -13,9 +13,9 @@ interface MachineConfigurationHistoryProps {
   onConfigurationUpdated?: () => void;
 }
 
-const MachineConfigurationHistory: React.FC<MachineConfigurationHistoryProps> = ({ 
+const MachineConfigurationHistory: React.FC<MachineConfigurationHistoryProps> = ({
   machine,
-  onConfigurationUpdated 
+  onConfigurationUpdated
 }) => {
   const [configurations, setConfigurations] = useState<MachineConfiguration[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -39,7 +39,7 @@ const MachineConfigurationHistory: React.FC<MachineConfigurationHistoryProps> = 
 
   const fetchConfigurations = async () => {
     if (!machine) return;
-    
+
     try {
       setLoading(true);
       const data = await machineConfigApi.getMachineConfigurations(machine.id);
@@ -54,14 +54,14 @@ const MachineConfigurationHistory: React.FC<MachineConfigurationHistoryProps> = 
 
   const handleOpenAddModal = () => {
     if (!machine) return;
-    
+
     setFormData({
       spindleCount: machine.spindles || 0,
       yarnType: machine.yarnType || 'Cotton',
       efficiencyAt100Percent: Number(machine.productionAt100) || 0,
       startDate: new Date().toISOString().split('T')[0]
     });
-    
+
     setIsAddModalOpen(true);
   };
 
@@ -70,16 +70,16 @@ const MachineConfigurationHistory: React.FC<MachineConfigurationHistoryProps> = 
     setFormData({
       spindleCount: config.spindleCount,
       yarnType: config.yarnType,
-      efficiencyAt100Percent: config.efficiencyAt100Percent,
+      efficiencyAt100Percent: config.productionAt100,
       startDate: config.startDate
     });
-    
+
     setIsEditModalOpen(true);
   };
 
   const handleAddConfiguration = async () => {
     if (!machine) return;
-    
+
     try {
       setLoading(true);
       // Add saveHistory=true to ensure we save this configuration in the history
@@ -102,7 +102,7 @@ const MachineConfigurationHistory: React.FC<MachineConfigurationHistoryProps> = 
 
   const handleUpdateConfiguration = async () => {
     if (!selectedConfig) return;
-    
+
     try {
       setLoading(true);
       await machineConfigApi.updateMachineConfiguration(selectedConfig.id, formData as UpdateMachineConfigurationData);
@@ -140,14 +140,14 @@ const MachineConfigurationHistory: React.FC<MachineConfigurationHistoryProps> = 
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Configuration History</h3>
-        <Button 
+        <Button
           onClick={handleOpenAddModal}
           className="px-3 py-1 text-sm font-medium bg-green-600 hover:bg-green-700 text-white rounded"
         >
           Add New Configuration
         </Button>
       </div>
-      
+
       {loading ? (
         <div className="flex justify-center py-6">
           <div className="w-6 h-6 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin"></div>
@@ -175,10 +175,10 @@ const MachineConfigurationHistory: React.FC<MachineConfigurationHistoryProps> = 
                 const isActive = config.endDate === null;
                 const duration = machineConfigApi.calculateDurationInDays(config.startDate, config.endDate);
                 const formattedDuration = machineConfigApi.formatDuration(duration);
-                
+
                 return (
-                  <tr 
-                    key={config.id} 
+                  <tr
+                    key={config.id}
                     className={`hover:bg-gray-50 dark:hover:bg-gray-700 ${isActive ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
                   >
                     <td className="px-4 py-3 whitespace-nowrap">{new Date(config.startDate).toLocaleDateString()}</td>
@@ -200,9 +200,8 @@ const MachineConfigurationHistory: React.FC<MachineConfigurationHistoryProps> = 
                         <button
                           onClick={() => handleOpenEditModal(config)}
                           disabled={isActive}
-                          className={`p-1 text-xs rounded ${
-                            isActive ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:bg-blue-100 dark:text-blue-400 dark:hover:bg-blue-900/20'
-                          }`}
+                          className={`p-1 text-xs rounded ${isActive ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:bg-blue-100 dark:text-blue-400 dark:hover:bg-blue-900/20'
+                            }`}
                           title={isActive ? "Can't edit active configuration" : "Edit configuration"}
                         >
                           Edit
@@ -210,9 +209,8 @@ const MachineConfigurationHistory: React.FC<MachineConfigurationHistoryProps> = 
                         <button
                           onClick={() => handleDeleteConfiguration(config.id)}
                           disabled={isActive}
-                          className={`p-1 text-xs rounded ${
-                            isActive ? 'text-gray-400 cursor-not-allowed' : 'text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-900/20'
-                          }`}
+                          className={`p-1 text-xs rounded ${isActive ? 'text-gray-400 cursor-not-allowed' : 'text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-900/20'
+                            }`}
                           title={isActive ? "Can't delete active configuration" : "Delete configuration"}
                         >
                           Delete
@@ -243,13 +241,13 @@ const MachineConfigurationHistory: React.FC<MachineConfigurationHistoryProps> = 
                 <X size={20} />
               </button>
             </div>
-            
+
             {/* Body */}
             <div className="p-4">
               <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
                 This will close the current active configuration and create a new one.
               </p>
-              
+
               <div className="space-y-4">
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="startDate" className="text-right text-gray-700 dark:text-gray-300">
@@ -259,7 +257,7 @@ const MachineConfigurationHistory: React.FC<MachineConfigurationHistoryProps> = 
                     id="startDate"
                     type="date"
                     value={formData.startDate || new Date().toISOString().split('T')[0]}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                       setFormData({ ...formData, startDate: e.target.value })}
                     className="col-span-3"
                   />
@@ -272,7 +270,7 @@ const MachineConfigurationHistory: React.FC<MachineConfigurationHistoryProps> = 
                     id="spindleCount"
                     type="number"
                     value={formData.spindleCount}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                       setFormData({ ...formData, spindleCount: parseInt(e.target.value) || 0 })}
                     className="col-span-3"
                   />
@@ -284,7 +282,7 @@ const MachineConfigurationHistory: React.FC<MachineConfigurationHistoryProps> = 
                   <Input
                     id="yarnType"
                     value={formData.yarnType}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                       setFormData({ ...formData, yarnType: e.target.value })}
                     className="col-span-3"
                   />
@@ -298,14 +296,14 @@ const MachineConfigurationHistory: React.FC<MachineConfigurationHistoryProps> = 
                     type="number"
                     step="0.00001"
                     value={formData.efficiencyAt100Percent}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                       setFormData({ ...formData, efficiencyAt100Percent: parseFloat(e.target.value) || 0 })}
                     className="col-span-3"
                   />
                 </div>
               </div>
             </div>
-            
+
             {/* Footer */}
             <div className="flex justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700">
               <Button
@@ -342,13 +340,13 @@ const MachineConfigurationHistory: React.FC<MachineConfigurationHistoryProps> = 
                 <X size={20} />
               </button>
             </div>
-            
+
             {/* Body */}
             <div className="p-4">
               <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
                 Edit historical configuration details.
               </p>
-              
+
               <div className="space-y-4">
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="editStartDate" className="text-right text-gray-700 dark:text-gray-300">
@@ -358,7 +356,7 @@ const MachineConfigurationHistory: React.FC<MachineConfigurationHistoryProps> = 
                     id="editStartDate"
                     type="date"
                     value={formData.startDate}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                       setFormData({ ...formData, startDate: e.target.value })}
                     className="col-span-3"
                   />
@@ -371,7 +369,7 @@ const MachineConfigurationHistory: React.FC<MachineConfigurationHistoryProps> = 
                     id="editSpindleCount"
                     type="number"
                     value={formData.spindleCount}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                       setFormData({ ...formData, spindleCount: parseInt(e.target.value) || 0 })}
                     className="col-span-3"
                   />
@@ -383,7 +381,7 @@ const MachineConfigurationHistory: React.FC<MachineConfigurationHistoryProps> = 
                   <Input
                     id="editYarnType"
                     value={formData.yarnType}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                       setFormData({ ...formData, yarnType: e.target.value })}
                     className="col-span-3"
                   />
@@ -397,14 +395,14 @@ const MachineConfigurationHistory: React.FC<MachineConfigurationHistoryProps> = 
                     type="number"
                     step="0.00001"
                     value={formData.efficiencyAt100Percent}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                       setFormData({ ...formData, efficiencyAt100Percent: parseFloat(e.target.value) || 0 })}
                     className="col-span-3"
                   />
                 </div>
               </div>
             </div>
-            
+
             {/* Footer */}
             <div className="flex justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700">
               <Button

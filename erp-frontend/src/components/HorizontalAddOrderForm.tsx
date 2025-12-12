@@ -73,7 +73,8 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
         partyName: productToEdit.partyName || "",
         middleman: productToEdit.middleman || "", // Add middleman field
         dyeingFirm: productToEdit.dyeingFirm || "",
-        remarks: (productToEdit as any).remarks || "" // populate remarks if present
+        remarks: (productToEdit as any).remarks || "", // populate remarks if present
+        isReprocessing: (productToEdit as any).isReprocessing || false
       };
     }
     return {
@@ -89,7 +90,8 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
       partyName: "",
       middleman: "", // Add middleman field with empty default
       dyeingFirm: "",
-      remarks: ""
+      remarks: "",
+      isReprocessing: false
     };
   };
 
@@ -248,24 +250,8 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
         remarks: (productToEdit as any).remarks || "", // populate remarks if present
         isReprocessing: (productToEdit as any).isReprocessing || false
       };
-    }
-    return {
-      quantity: "",
-      customerName: "",
-      count: "", // Empty by default so users can type directly
-      sentToDye: "",
-      sentDate: new Date().toISOString().split('T')[0],
-      received: "",
-      receivedDate: "",
-      dispatch: "",
-      dispatchDate: "",
-      partyName: "",
-      middleman: "", // Add middleman field with empty default
-      dyeingFirm: "",
-      remarks: "",
-      isReprocessing: false
-    };
-  };
+
+
       console.log('🔄 [HorizontalAddOrderForm] Reset form data:', {
         resetCustomerName: resetFormData.customerName,
         resetPartyName: resetFormData.partyName
@@ -587,7 +573,8 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
           partyName: "",
           middleman: "",
           dyeingFirm: "",
-          remarks: ""
+          remarks: "",
+          isReprocessing: false
         });
         setErrors({});
       }
@@ -606,7 +593,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
 
       if (shouldUseDemoMode) {
         console.log('🔧 API unavailable or database issue, using demo mode');
-      if (editMode && productToEdit) {
+        if (editMode && productToEdit) {
           // Demo mode for update
           const mockUpdatedProduct: CountProduct = {
             ...productToEdit,
@@ -626,7 +613,6 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
             isReprocessing: formData.isReprocessing
           };
 
-          console.log('📞 Calling success callback with demo updated product:', mockUpdatedProduct);
           console.log('📞 Calling success callback with demo updated product:', mockUpdatedProduct);
           console.log('🔍 Demo mode product details:', {
             demoCustomerName: mockUpdatedProduct.customerName,
@@ -656,14 +642,14 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
             sentToDye: true,
             sentDate: formData.sentDate,
             received: formData.received ? parseFloat(formData.received) > 0 : false,
+            receivedDate: formData.receivedDate || "",
+            receivedQuantity: formData.received ? parseFloat(formData.received) : 0,
             dispatch: formData.dispatch ? parseFloat(formData.dispatch) > 0 : false,
             dispatchDate: formData.dispatchDate || "",
             dispatchQuantity: formData.dispatch ? parseFloat(formData.dispatch) : 0,
             middleman: formData.middleman || "Direct", // Fix: Use middleman field instead of partyName
             isReprocessing: formData.isReprocessing
           };
-
-          console.log('📞 Calling success callback with demo product:', mockProduct);
 
           console.log('📞 Calling success callback with demo product:', mockProduct);
           onSuccess(mockProduct);
@@ -689,8 +675,6 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
             remarks: "",
             isReprocessing: false
           });
-          setErrors({});
-        } });
           setErrors({});
         }
       } else {
@@ -721,13 +705,13 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
       received: "",
       receivedDate: "",
       dispatch: "",
+      dispatchDate: "",
+      partyName: "",
       middleman: "",
       dyeingFirm: "",
       remarks: "",
       isReprocessing: false
     });
-    setErrors({});
-  };});
     setErrors({});
   };
 
@@ -793,8 +777,8 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
               value={formData.quantity}
               onChange={(e) => handleInputChange('quantity', e.target.value)}
               className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors ${errors.quantity
-                  ? 'border-red-500 focus:ring-red-500'
-                  : 'border-gray-300 dark:border-gray-600'
+                ? 'border-red-500 focus:ring-red-500'
+                : 'border-gray-300 dark:border-gray-600'
                 }`}
               placeholder="0.00"
             />
@@ -822,10 +806,10 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
                 }
               }}
               className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors ${errors.customerName
-                  ? 'border-red-500 focus:ring-red-500'
-                  : formData.customerName && formData.customerName === formData.partyName
-                    ? 'border-yellow-500 focus:ring-yellow-500' // Warning indicator
-                    : 'border-gray-300 dark:border-gray-600'
+                ? 'border-red-500 focus:ring-red-500'
+                : formData.customerName && formData.customerName === formData.partyName
+                  ? 'border-yellow-500 focus:ring-yellow-500' // Warning indicator
+                  : 'border-gray-300 dark:border-gray-600'
                 }`}
               placeholder="Enter customer name"
             />
@@ -851,8 +835,8 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
               onFocus={() => setShowCountDropdown(true)}
               onBlur={() => setTimeout(() => setShowCountDropdown(false), 180)}
               className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors ${errors.count
-                  ? 'border-red-500 focus:ring-red-500'
-                  : 'border-gray-300 dark:border-gray-600'
+                ? 'border-red-500 focus:ring-red-500'
+                : 'border-gray-300 dark:border-gray-600'
                 }`}
               placeholder="e.g. 20s, 30s, Standard"
             />
@@ -900,8 +884,8 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
               value={formData.sentToDye}
               onChange={(e) => handleInputChange('sentToDye', e.target.value)}
               className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors ${errors.sentToDye
-                  ? 'border-red-500 focus:ring-red-500'
-                  : 'border-gray-300 dark:border-gray-600'
+                ? 'border-red-500 focus:ring-red-500'
+                : 'border-gray-300 dark:border-gray-600'
                 }`}
               placeholder="0.00"
             />
@@ -935,8 +919,8 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
                 value={formData.sentDate}
                 onChange={(e) => handleInputChange('sentDate', e.target.value)}
                 className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors ${errors.sentDate
-                    ? 'border-red-500 focus:ring-red-500'
-                    : 'border-gray-300 dark:border-gray-600'
+                  ? 'border-red-500 focus:ring-red-500'
+                  : 'border-gray-300 dark:border-gray-600'
                   }`}
               />
               <Calendar className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
@@ -1032,8 +1016,8 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
                 onFocus={() => setShowFirmDropdown(true)}
                 onBlur={() => setTimeout(() => setShowFirmDropdown(false), 200)}
                 className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors pr-8 ${errors.dyeingFirm
-                    ? 'border-red-500 focus:ring-red-500'
-                    : 'border-gray-300 dark:border-gray-600'
+                  ? 'border-red-500 focus:ring-red-500'
+                  : 'border-gray-300 dark:border-gray-600'
                   }`}
                 placeholder="Enter or select dyeing firm"
               />

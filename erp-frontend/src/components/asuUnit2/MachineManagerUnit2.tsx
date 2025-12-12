@@ -58,7 +58,9 @@ const MachineManagerUnit2: React.FC = () => {
       let hasEntries = false;
       try {
         const resp = await asuUnit2Api.getProductionEntries({ machineId: selectedMachine.id, limit: 2 } as any);
-        if (Array.isArray(resp)) hasEntries = resp.length > 0; else if (resp?.entries) hasEntries = resp.entries.length > 0; else if (resp?.data) hasEntries = resp.data.length > 0;
+        if (Array.isArray(resp)) hasEntries = resp.length > 0;
+        else if ((resp as any)?.entries) hasEntries = (resp as any).entries.length > 0;
+        else if ((resp as any)?.data) hasEntries = (resp as any).data.length > 0;
       } catch { /* ignore */ }
       setHasProductionEntries(hasEntries);
       const historyKey = `machine_config_history_unit2_${selectedMachine.id}`;
