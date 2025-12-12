@@ -10,6 +10,8 @@ export interface UseMachineDataReturn {
   error: string | null;
   loadMachines: () => Promise<void>;
   updateMachine: (id: number, data: Partial<ASUMachine>) => Promise<boolean>;
+  createMachine: (data: Omit<ASUMachine, 'id'>) => Promise<ASUMachine | null>;
+  deleteMachine: (id: number) => Promise<boolean>;
 }
 
 export const useMachineData = (): UseMachineDataReturn => {
@@ -24,7 +26,7 @@ export const useMachineData = (): UseMachineDataReturn => {
     try {
       const fetchedMachines = await asuUnit1Api.getAllMachines();
       // Sort by machineNo for consistent display
-      const sorted = (fetchedMachines || []).sort((a, b) => 
+      const sorted = (fetchedMachines || []).sort((a, b) =>
         (Number(a.machineNo) || 0) - (Number(b.machineNo) || 0)
       );
       setMachines(sorted);
@@ -81,6 +83,44 @@ export const useMachineData = (): UseMachineDataReturn => {
     }
   }, [machines]);
 
+  const createMachine = useCallback(async (data: Omit<ASUMachine, 'id'>): Promise<ASUMachine | null> => {
+    try {
+      const newMachine = await asuUnit1Api.createMachine(data);
+      setMachines(prev => [...prev, newMachine].sort((a, b) =>
+        (Number(a.machineNo) || 0) - (Number(b.machineNo) || 0)
+      ));
+      toast.success('Machine created successfully');
+      return newMachine;
+    } catch (err: any) {
+      console.error('Error creating machine:', err);
+      toast.error(err.message || 'Failed to create machine');
+      return null;
+    }
+  }, []);
+
+  const deleteMachine = useCallback(async (id: number): Promise<boolean> => {
+    if (!confirm('Are you sure you want to delete this machine? This will also delete all associated production data.')) {
+      return false;
+    }
+
+    // Optimistic update
+    const previousMachines = [...machines];
+    setMachines(prev => prev.filter(m => m.id !== id));
+
+    try {
+      await asuUnit1Api.deleteMachine(id);
+      toast.success('Machine deleted successfully');
+      invalidateMachinesCache();
+      return true;
+    } catch (err: any) {
+      console.error('Error deleting machine:', err);
+      // Rollback
+      setMachines(previousMachines);
+      toast.error(err.message || 'Failed to delete machine');
+      return false;
+    }
+  }, [machines]);
+
   // Initial load
   useEffect(() => {
     loadMachines();
@@ -92,5 +132,7 @@ export const useMachineData = (): UseMachineDataReturn => {
     error,
     loadMachines,
     updateMachine,
+    createMachine,
+    deleteMachine,
   };
 };

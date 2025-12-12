@@ -38,21 +38,21 @@ const ASUProductionEntry = sequelize.define('ASUProductionEntry', {
     field: 'yarn_type'
   },
   actualProduction: {
-    type: DataTypes.DECIMAL(10, 2),
+    type: DataTypes.DECIMAL(15, 2),
     allowNull: true,
     field: 'actual_production'
   },
   theoreticalProduction: {
-    type: DataTypes.DECIMAL(12, 5),
+    type: DataTypes.DECIMAL(15, 5),
     allowNull: true,
     field: 'theoretical_production'
   },
   efficiency: {
-    type: DataTypes.DECIMAL(5, 2),
+    type: DataTypes.DECIMAL(10, 2),
     allowNull: true
   },
   productionAt100: {
-    type: DataTypes.DECIMAL(12, 5),
+    type: DataTypes.DECIMAL(15, 5),
     allowNull: true,
     field: 'production_at_100',
     comment: 'Production@100% value from machine configuration at the time of entry creation'
@@ -67,7 +67,7 @@ const ASUProductionEntry = sequelize.define('ASUProductionEntry', {
     field: 'worker_name'
   },
   mainsReading: {
-    type: DataTypes.DECIMAL(10, 2),
+    type: DataTypes.DECIMAL(20, 2),
     allowNull: true,
     field: 'mains_reading'
   }

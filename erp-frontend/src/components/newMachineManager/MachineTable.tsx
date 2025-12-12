@@ -7,9 +7,10 @@ interface MachineTableProps {
   machines: ASUMachine[];
   loading: boolean;
   onUpdate: (id: number, data: Partial<ASUMachine>) => Promise<boolean>;
+  onDelete: (id: number) => Promise<boolean>;
 }
 
-const MachineTable = memo(({ machines, loading, onUpdate }: MachineTableProps) => {
+const MachineTable = memo(({ machines, loading, onUpdate, onDelete }: MachineTableProps) => {
   const headerClass = "px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider";
 
   return (
@@ -26,7 +27,7 @@ const MachineTable = memo(({ machines, loading, onUpdate }: MachineTableProps) =
               <th className={`${headerClass} w-24`}>Speed (RPM)</th>
               <th className={`${headerClass} w-28`}>Prod @ 100%</th>
               <th className={`${headerClass} w-20`}>Status</th>
-              <th className={`${headerClass} text-right w-16`}>Edit</th>
+              <th className={`${headerClass} text-right w-24`}>Actions</th>
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -42,7 +43,7 @@ const MachineTable = memo(({ machines, loading, onUpdate }: MachineTableProps) =
             ) : machines.length === 0 ? (
               <tr>
                 <td colSpan={9} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
-                  No machines found. Run the seed script to create machines 1-9.
+                  No machines found. Click 'Add Machine' to create one.
                 </td>
               </tr>
             ) : (
@@ -51,6 +52,7 @@ const MachineTable = memo(({ machines, loading, onUpdate }: MachineTableProps) =
                   key={machine.id}
                   machine={machine}
                   onUpdate={onUpdate}
+                  onDelete={onDelete}
                 />
               ))
             )}

@@ -8,6 +8,7 @@ const YARN_TYPES = ['Cotton', 'PC', 'CVC', 'Tencel', 'Polyester', 'Viscose', 'Ra
 interface MachineRowProps {
   machine: ASUMachine;
   onUpdate: (id: number, data: Partial<ASUMachine>) => Promise<boolean>;
+  onDelete: (id: number) => Promise<boolean>;
 }
 
 interface EditData {
@@ -37,8 +38,9 @@ const areEqual = (prev: MachineRowProps, next: MachineRowProps): boolean => {
   );
 };
 
-const MachineRow = memo(({ machine, onUpdate }: MachineRowProps) => {
+const MachineRow = memo(({ machine, onUpdate, onDelete }: MachineRowProps) => {
   const [isEditing, setIsEditing] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [editData, setEditData] = useState<EditData>({
     machineName: machine.machineName || '',
     count: Number(machine.count) || 0,
@@ -61,6 +63,12 @@ const MachineRow = memo(({ machine, onUpdate }: MachineRowProps) => {
     });
     setIsEditing(true);
   }, [machine]);
+
+  const handleDelete = useCallback(async () => {
+    setIsDeleting(true);
+    await onDelete(machine.id);
+    setIsDeleting(false);
+  }, [machine.id, onDelete]);
 
   const handleCancel = useCallback(() => {
     setIsEditing(false);
@@ -202,22 +210,31 @@ const MachineRow = memo(({ machine, onUpdate }: MachineRowProps) => {
         </span>
       </td>
       <td className={cellClass}>
-        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-          machine.isActive
+        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${machine.isActive
             ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
             : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
-        }`}>
+          }`}>
           {machine.isActive ? 'Active' : 'Inactive'}
         </span>
       </td>
       <td className={`${cellClass} text-right`}>
-        <button
-          onClick={handleEdit}
-          className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
-          title="Edit Configuration"
-        >
-          <Edit className="w-4 h-4" />
-        </button>
+        <div className="flex justify-end gap-1">
+          <button
+            onClick={handleEdit}
+            className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+            title="Edit Configuration"
+          >
+            <Edit className="w-4 h-4" />
+          </button>
+          <button
+            onClick={handleDelete}
+            disabled={isDeleting}
+            className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors disabled:opacity-50"
+            title="Delete Machine"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </td>
     </tr>
   );
