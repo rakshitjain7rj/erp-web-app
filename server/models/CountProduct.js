@@ -162,6 +162,11 @@ const CountProduct = sequelize.define('CountProduct', {
     type: DataTypes.STRING,
     allowNull: true,
     defaultValue: 'Direct Supply'
+  },
+  isReprocessing: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false
   }
 }, {
   tableName: 'CountProducts',

@@ -70,9 +70,16 @@ const DyeingOrderRow = React.memo(({
       </td>
       <td className="px-4 py-3">
         <div className="flex flex-col">
-          <span className="font-medium text-gray-900 dark:text-white">
-            {displayRecord.customerName || '[No Customer]'}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-gray-900 dark:text-white">
+              {displayRecord.customerName || '[No Customer]'}
+            </span>
+            {displayRecord.isReprocessing && (
+              <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white bg-red-500 rounded-full">
+                Reprocessing
+              </span>
+            )}
+          </div>
           {isCountProduct && <span className="text-xs text-blue-600 dark:text-blue-400">Count Product</span>}
         </div>
       </td>
@@ -438,7 +445,8 @@ const DyeingOrders: React.FC = () => {
       dispatchDate: trackingInfo.dispatchDate,
       partyNameMiddleman: trackingInfo.partyNameMiddleman,
       dyeingFirm: record.dyeingFirm,
-      remarks: trackingInfo.originalRemarks || record.remarks
+      remarks: trackingInfo.originalRemarks || record.remarks,
+      isReprocessing: record.isReprocessing
     };
 
     return mappedRecord;
@@ -465,7 +473,8 @@ const DyeingOrders: React.FC = () => {
       dispatchDate: countProduct.dispatchDate || undefined,
       partyNameMiddleman: countProduct.middleman || getSafeString(countProduct.partyName), // Use middleman if available, otherwise fall back to partyName
       dyeingFirm: countProduct.dyeingFirm,
-      remarks: countProduct.remarks || ''
+      remarks: countProduct.remarks || '',
+      isReprocessing: countProduct.isReprocessing
     };
 
     console.log('✅ [CountProduct] Mapped with preserved customer name:', countProduct.customerName);

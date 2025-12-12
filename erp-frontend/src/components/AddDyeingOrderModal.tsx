@@ -24,6 +24,7 @@ interface FormData {
     dispatch: number;
     dispatchDate: string;
     partyName: string;
+    isReprocessing: boolean;
 }
 
 interface FormErrors {
@@ -45,7 +46,8 @@ export const AddDyeingOrderModal: React.FC<AddDyeingOrderModalProps> = ({
         receivedDate: "",
         dispatch: 0,
         dispatchDate: "",
-        partyName: ""
+        partyName: "",
+        isReprocessing: false
     });
 
     const [partyOptions, setPartyOptions] = useState<string[]>([]);
@@ -89,7 +91,8 @@ export const AddDyeingOrderModal: React.FC<AddDyeingOrderModalProps> = ({
                 receivedDate: "",
                 dispatch: 0,
                 dispatchDate: "",
-                partyName: ""
+                partyName: "",
+                isReprocessing: false
             });
             setErrors({});
         }
@@ -162,7 +165,8 @@ export const AddDyeingOrderModal: React.FC<AddDyeingOrderModalProps> = ({
                 dispatch: formData.dispatch > 0,
                 dispatchDate: formData.dispatchDate || undefined,
                 dispatchQuantity: formData.dispatch,
-                middleman: formData.partyName || "Direct"
+                middleman: formData.partyName || "Direct",
+                isReprocessing: formData.isReprocessing
             };
 
             const createdProduct = await createCountProduct(newCountProductData);
@@ -343,6 +347,20 @@ export const AddDyeingOrderModal: React.FC<AddDyeingOrderModalProps> = ({
                                 </option>
                             ))}
                         </select>
+                    </div>
+
+                    {/* Row 6: Reprocessing */}
+                    <div className="flex items-center">
+                        <input
+                            type="checkbox"
+                            id="isReprocessing"
+                            checked={formData.isReprocessing}
+                            onChange={(e) => setFormData(prev => ({ ...prev, isReprocessing: e.target.checked }))}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                        />
+                        <label htmlFor="isReprocessing" className="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300">
+                            Mark as Reprocessing
+                        </label>
                     </div>
                 </div>
 

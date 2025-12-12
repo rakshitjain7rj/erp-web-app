@@ -21,7 +21,7 @@ export const getArchivedPartiesSummary = async () => {
 
 export const getPartyDetails = async (partyName: string) => {
   const response = await partyApi.get(`${basePath}/${encodeURIComponent(partyName)}/details`);
-  return response.data;
+  return response.data.data || response.data;
 };
 
 export const getAllPartyNames = async () => {

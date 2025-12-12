@@ -28,6 +28,7 @@ export interface CountProduct {
   dispatchDate: string;
   dispatchQuantity: number;
   middleman: string;
+  isReprocessing?: boolean; // New field for reprocessing
   createdAt?: string;
   updatedAt?: string;
 }
@@ -55,6 +56,7 @@ export interface CreateCountProductRequest {
   dispatchDate?: string;
   dispatchQuantity?: number;
   middleman?: string;
+  isReprocessing?: boolean; // New field for reprocessing
 }
 
 // ==================== COUNT PRODUCT API FUNCTIONS ====================

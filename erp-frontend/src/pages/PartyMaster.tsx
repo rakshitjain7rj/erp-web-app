@@ -1,1133 +1,516 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Users, Package, Clock, RotateCcw, CheckCircle, Search, Edit3, Eye, MoreVertical, Plus, Archive } from 'lucide-react';
+import { Users, Search, Plus, Archive, RotateCw, MoreVertical, Edit3, Trash2, Download, Eye } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getAllPartiesSummary, getPartyStatistics, deleteParty, archiveParty, downloadPartyAsJSON, getAllPartyNames, getPartyDetails } from '../api/partyApi';
-import { getAllCountProducts } from '../api/countProductApi';
 import { getAllDyeingRecords } from '../api/dyeingApi';
+import { deleteParty, archiveParty, downloadPartyAsJSON } from '../api/partyApi';
 import AddPartyForm from '../components/AddPartyForm';
-import PartyFloatingActionDropdown from '../components/PartyFloatingActionDropdown';
 import PartyDetailsModal from '../components/PartyDetailsModal';
 import EditPartyModal from '../components/EditPartyModal';
 import ConfirmationDialog from '../components/ConfirmationDialog';
 
-type PartySummary = {
+// ==================== TYPES ====================
+interface DyeingRecord {
+  id: number;
   partyName: string;
-  totalOrders: number;
-  totalYarn: number;
-  pendingYarn: number;
-  reprocessingYarn: number;
-  arrivedYarn: number;
-  lastOrderDate?: string;
-  firstOrderDate?: string;
-  dyeingFirms?: string[]; // Added: firms associated with this party from pages
-};
-
-type PartyStatistics = {
-  totalParties: number;
-  partiesWithPending: number;
-  partiesWithReprocessing: number;
-  partiesWithCompleted: number;
-};
-
-// Error Boundary Component
-class ErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  { hasError: boolean; error: Error | null }
-> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error };
-  }
-  
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('PartyMaster Error:', error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="flex items-center justify-center min-h-64">
-          <div className="p-6 border border-red-200 rounded-lg bg-red-50 dark:bg-red-900/20 dark:border-red-800">
-            <div className="flex items-center gap-3 text-red-700 dark:text-red-400">
-              <Users className="w-6 h-6" />
-              <div>
-                <h3 className="text-lg font-medium">Error Loading Party Master</h3>
-                <p className="mt-1 text-sm">Please refresh the page or contact support if the issue persists.</p>
-                <button 
-                  onClick={() => window.location.reload()}
-                  className="px-4 py-2 mt-3 text-white bg-red-600 rounded-lg hover:bg-red-700"
-                >
-                  Refresh Page
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    return this.props.children;
-  }
+  dyeingFirm: string;
+  quantity: number;
+  sentDate?: string;
+  arrivalDate?: string;
+  isReprocessing?: boolean;
+  remarks?: string;
 }
 
-const PartyMaster = () => {
-  const navigate = useNavigate();
-  const [summary, setSummary] = useState<PartySummary[]>([]);
-  const [filteredSummary, setFilteredSummary] = useState<PartySummary[]>([]);
-  const [statistics, setStatistics] = useState<PartyStatistics | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortField, setSortField] = useState<keyof PartySummary>('partyName');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newlyAddedParty, setNewlyAddedParty] = useState<string>('');
-  const [refreshing, setRefreshing] = useState(false);
+interface LocalPartySummary {
+  partyName: string;
+  dyeingFirms: string[];
+  totalSent: number;
+  totalReceived: number;
+  pending: number;
+  completed: number;
+  reprocessing: number;
+  orderCount: number;
+}
 
+// ==================== HELPERS ====================
+const normalizeKey = (name: string): string => (name || '').trim().toUpperCase();
+const toTitle = (name: string): string => 
+  name.toLowerCase().split(/\s+/).filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+
+const parseReceivedFromRemarks = (remarks?: string): number => {
+  if (!remarks) return 0;
+  const match = remarks.match(/Received:\s*([\d.]+)\s*kg/i);
+  return match ? parseFloat(match[1]) : 0;
+};
+
+// ==================== MEMOIZED ROW COMPONENT ====================
+const PartyRow = React.memo(({ 
+  party, 
+  onView, 
+  onEdit, 
+  onDelete, 
+  onArchive, 
+  onDownload 
+}: {
+  party: LocalPartySummary;
+  onView: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onArchive: () => void;
+  onDownload: () => void;
+}) => {
+  const [showActions, setShowActions] = useState(false);
+
+  return (
+    <tr className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white text-sm font-semibold">
+            {party.partyName.charAt(0).toUpperCase()}
+          </div>
+          <div>
+            <span className="font-medium text-gray-900 dark:text-white">{party.partyName}</span>
+            <div className="text-xs text-gray-500">{party.orderCount} orders</div>
+          </div>
+        </div>
+      </td>
+      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 max-w-[200px] truncate" title={party.dyeingFirms.join(', ')}>
+        {party.dyeingFirms.length > 0 ? party.dyeingFirms.join(', ') : '-'}
+      </td>
+      <td className="px-4 py-3 text-right">
+        <span className="font-semibold text-gray-900 dark:text-white">{party.totalSent.toFixed(2)}</span>
+        <span className="text-xs text-gray-500 ml-1">kg</span>
+      </td>
+      <td className="px-4 py-3 text-right">
+        <span className="inline-flex px-2 py-1 text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded">
+          {party.pending.toFixed(2)} kg
+        </span>
+      </td>
+      <td className="px-4 py-3 text-right">
+        <span className="inline-flex px-2 py-1 text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded">
+          {party.completed.toFixed(2)} kg
+        </span>
+      </td>
+      <td className="px-4 py-3 text-right">
+        <span className="inline-flex px-2 py-1 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded">
+          -
+        </span>
+      </td>
+      <td className="px-4 py-3 text-center relative">
+        <div className="relative inline-block">
+          <button
+            onClick={() => setShowActions(!showActions)}
+            className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          >
+            <MoreVertical className="w-4 h-4 text-gray-500" />
+          </button>
+          {showActions && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowActions(false)} />
+              <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 py-1">
+                <button onClick={() => { onView(); setShowActions(false); }} className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2">
+                  <Eye className="w-4 h-4" /> View Details
+                </button>
+                <button onClick={() => { onEdit(); setShowActions(false); }} className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2">
+                  <Edit3 className="w-4 h-4" /> Edit
+                </button>
+                <button onClick={() => { onDownload(); setShowActions(false); }} className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2">
+                  <Download className="w-4 h-4" /> Export
+                </button>
+                <button onClick={() => { onArchive(); setShowActions(false); }} className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-orange-600">
+                  <Archive className="w-4 h-4" /> Archive
+                </button>
+                <button onClick={() => { onDelete(); setShowActions(false); }} className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-red-600">
+                  <Trash2 className="w-4 h-4" /> Delete
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+});
+
+// ==================== MAIN COMPONENT ====================
+const PartyMaster: React.FC = () => {
+  const navigate = useNavigate();
+  
+  // Core state
+  const [dyeingRecords, setDyeingRecords] = useState<DyeingRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  
   // Modal states
+  const [showAddModal, setShowAddModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [selectedParty, setSelectedParty] = useState<PartySummary | null>(null);
-  
-  // Confirmation dialog states
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
-  const [partyToDelete, setPartyToDelete] = useState<string>('');
+  
+  // Selected party for actions
+  const [selectedParty, setSelectedParty] = useState<LocalPartySummary | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
 
-  const [debugInfo, setDebugInfo] = useState<string>('Starting...');
-
-  // Normalize a party name for map keys (trim + uppercase)
-  const normalizeKey = (name: string | undefined | null): string => {
-    return (name || '').toString().trim().toUpperCase();
-  };
-
-  // Display format: simple Title Case for readability
-  const toTitle = (name: string): string => {
-    return name
-      .toLowerCase()
-      .split(/\s+/)
-      .filter(Boolean)
-      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(' ');
-  };
-
-  // Helper: normalize and merge party names with summary (fill zeros when missing)
-  const buildNormalizedSummary = (
-    summaryData: any[] | undefined,
-    _partyNamesFromApi: string[] | undefined,
-    unionNamesFromPages: string[] | undefined,
-    firmsByParty?: Map<string, Set<string>>
-  ): PartySummary[] => {
-    const map = new Map<string, PartySummary>();
-    if (Array.isArray(summaryData)) {
-      for (const party of summaryData) {
-        const displayName: string = party.partyName || 'Unknown Party';
-        const key = normalizeKey(displayName);
-        const entry: PartySummary = {
-          partyName: toTitle(displayName),
-          totalOrders: Number(party.totalOrders) || 0,
-          totalYarn: Number(party.totalYarn) || 0,
-          pendingYarn: Number(party.pendingYarn) || 0,
-          reprocessingYarn: Number(party.reprocessingYarn) || 0,
-          arrivedYarn: Number(party.arrivedYarn) || 0,
-          lastOrderDate: party.lastOrderDate,
-          firstOrderDate: party.firstOrderDate,
-          dyeingFirms: undefined,
-        };
-        map.set(key, entry);
-      }
-    }
-    // Only include page-derived union names to restrict listing source
-    const allNames: string[] = [
-      ...(Array.isArray(unionNamesFromPages) ? unionNamesFromPages : []),
-    ];
-    if (allNames.length) {
-      for (const name of allNames) {
-        const key = normalizeKey(name);
-        if (!map.has(key)) {
-          map.set(key, {
-            partyName: toTitle(name),
-            totalOrders: 0,
-            totalYarn: 0,
-            pendingYarn: 0,
-            reprocessingYarn: 0,
-            arrivedYarn: 0,
-            dyeingFirms: undefined,
-          });
-        }
-      }
-    }
-    // Attach dyeing firms if provided
-    if (firmsByParty) {
-      for (const [key, entry] of map.entries()) {
-        const set = firmsByParty.get(key);
-        if (set && set.size) {
-          entry.dyeingFirms = Array.from(set).sort();
-        }
-      }
-    }
-    return Array.from(map.values());
-  };
-
-  // Fallback aggregator using Count Products and Dyeing Orders when summary API is unavailable
-  const aggregateFromPages = async (): Promise<PartySummary[]> => {
+  // ==================== DATA FETCHING ====================
+  const fetchData = useCallback(async (showRefreshToast = false) => {
     try {
-      const [dyeingRecords, countProducts] = await Promise.all([
-        getAllDyeingRecords(),
-        getAllCountProducts(),
-      ]);
-
-  const map = new Map<string, PartySummary & { first?: string; last?: string }>();
-  const firmsByParty = new Map<string, Set<string>>();
-
-      // Aggregate from dyeing records (primary source for statuses)
-      for (const rec of dyeingRecords) {
-        const key = normalizeKey(rec.partyName || 'Unknown Party');
-        if (rec.dyeingFirm) {
-          const set = firmsByParty.get(key) || new Set<string>();
-          set.add(rec.dyeingFirm);
-          firmsByParty.set(key, set);
-        }
-        const cur = map.get(key) || {
-          partyName: toTitle(rec.partyName || 'Unknown Party'),
-          totalOrders: 0,
-          totalYarn: 0,
-          pendingYarn: 0,
-          reprocessingYarn: 0,
-          arrivedYarn: 0,
-        };
-        cur.totalOrders += 1;
-        cur.totalYarn += Number(rec.quantity) || 0;
-        if (rec.arrivalDate) cur.arrivedYarn += Number(rec.quantity) || 0;
-        else if (rec.isReprocessing) cur.reprocessingYarn += Number(rec.quantity) || 0;
-        else cur.pendingYarn += Number(rec.quantity) || 0;
-        // Track date range by sentDate
-        const date = rec.sentDate;
-        cur.first = !cur.first || (date && date < cur.first) ? date : cur.first;
-        cur.last = !cur.last || (date && date > cur.last) ? date : cur.last;
-        map.set(key, cur);
-      }
-
-      // Ensure parties present in Count Product Overview (partyName + middleman) also appear
-      for (const cp of countProducts) {
-        const names = [cp.partyName, cp.middleman].filter(Boolean) as string[];
-        // Collect firms
-        if (cp.dyeingFirm) {
-          for (const nm of names) {
-            const k = normalizeKey(nm);
-            const set = firmsByParty.get(k) || new Set<string>();
-            set.add(cp.dyeingFirm);
-            firmsByParty.set(k, set);
-          }
-        }
-        for (const nm of names) {
-          const k = normalizeKey(nm || 'Unknown Party');
-          if (!map.has(k)) {
-            map.set(k, {
-              partyName: toTitle(nm || 'Unknown Party'),
-              totalOrders: 0,
-              totalYarn: 0,
-              pendingYarn: 0,
-              reprocessingYarn: 0,
-              arrivedYarn: 0,
-            });
-          }
-        }
-      }
-
-      return Array.from(map.values()).map(p => ({
-        ...p,
-        firstOrderDate: (p as any).first,
-        lastOrderDate: (p as any).last,
-        dyeingFirms: (() => {
-          const set = firmsByParty.get(normalizeKey(p.partyName));
-          return set ? Array.from(set).sort() : undefined;
-        })()
-      }));
-    } catch (e) {
-      console.error('Fallback aggregation failed:', e);
-      return [];
+      if (showRefreshToast) setRefreshing(true);
+      
+      const records = await getAllDyeingRecords();
+      setDyeingRecords(records || []);
+      
+      if (showRefreshToast) toast.success('Data refreshed');
+    } catch (error) {
+      console.error('Failed to fetch data:', error);
+      toast.error('Failed to load party data');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-  };
-
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        setDebugInfo('Loading party data...');
-
-  const [summaryData, statsData, dyeingRecords, countProducts] = await Promise.all([
-          getAllPartiesSummary(),
-          getPartyStatistics(),
-          getAllDyeingRecords().catch(() => []),
-          getAllCountProducts().catch(() => []),
-        ]);
-
-        // Build union of names from pages: dyeing party names + count product partyName + middleman
-        const unionNames = Array.from(new Set<string>([
-          ...(Array.isArray(dyeingRecords) ? dyeingRecords.map((r: any) => r.partyName).filter(Boolean) : []),
-          ...(Array.isArray(countProducts) ? countProducts.flatMap((cp: any) => [cp.partyName, cp.middleman]).filter(Boolean) : []),
-        ]));
-
-        // Map: party -> dyeing firms
-        const firmsByParty = new Map<string, Set<string>>();
-        if (Array.isArray(dyeingRecords)) {
-          for (const rec of dyeingRecords) {
-            if (rec?.partyName && rec?.dyeingFirm) {
-              const k = normalizeKey(rec.partyName);
-              const set = firmsByParty.get(k) || new Set<string>();
-              set.add(rec.dyeingFirm);
-              firmsByParty.set(k, set);
-            }
-          }
-        }
-        if (Array.isArray(countProducts)) {
-          for (const cp of countProducts) {
-            const names = [cp?.partyName, cp?.middleman].filter(Boolean) as string[];
-            if (cp?.dyeingFirm) {
-              for (const nm of names) {
-                const k = normalizeKey(nm);
-                const set = firmsByParty.get(k) || new Set<string>();
-                set.add(cp.dyeingFirm);
-                firmsByParty.set(k, set);
-              }
-            }
-          }
-        }
-
-  // Use backend summary as source of truth for which parties to list.
-  // Do not re-add unionNames here, to avoid re-including archived parties filtered by backend.
-  const normalizedData = buildNormalizedSummary(summaryData, [], undefined, firmsByParty);
-        setSummary(normalizedData);
-        setFilteredSummary(normalizedData);
-        setStatistics(statsData);
-        setDebugInfo(`Loaded ${normalizedData.length} parties`);
-        toast.success('Party Master data loaded');
-      } catch (error) {
-        console.warn('Summary API failed, using fallback aggregation from pages...', error);
-        setDebugInfo('Summary API failed; aggregating from pages...');
-
-  const [fallback] = await Promise.all([
-          aggregateFromPages(),
-        ]);
-  const normalizedData = buildNormalizedSummary(fallback, [], [], undefined);
-        setSummary(normalizedData);
-        setFilteredSummary(normalizedData);
-        setStatistics(null);
-        toast.info('Showing aggregated party data');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
   }, []);
 
-  // Filter and sort data
   useEffect(() => {
-    const filtered = summary.filter(party =>
-      party.partyName.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    fetchData();
+  }, [fetchData]);
 
-    // Sort data
-    filtered.sort((a, b) => {
-      const aValue = a[sortField];
-      const bValue = b[sortField];
+  // ==================== COMPUTED PARTY SUMMARIES ====================
+  // Processing = Sent - Received, Completed = Received, Reprocessing = NULL
+  const partySummaries = useMemo((): LocalPartySummary[] => {
+    const partyMap = new Map<string, LocalPartySummary>();
+    
+    for (const record of dyeingRecords) {
+      const key = normalizeKey(record.partyName);
+      if (!key) continue;
       
-      if (typeof aValue === 'string' && typeof bValue === 'string') {
-        return sortDirection === 'asc' 
-          ? aValue.localeCompare(bValue)
-          : bValue.localeCompare(aValue);
+      const existing = partyMap.get(key);
+      const sent = Number(record.quantity) || 0;
+      // If arrivalDate exists, the yarn has been received back
+      const received = record.arrivalDate ? sent : parseReceivedFromRemarks(record.remarks);
+      
+      if (existing) {
+        existing.totalSent += sent;
+        existing.totalReceived += received;
+        existing.pending = existing.totalSent - existing.totalReceived; // Processing = Sent - Received
+        existing.completed = existing.totalReceived; // Completed = Received
+        existing.orderCount += 1;
+        if (record.dyeingFirm && !existing.dyeingFirms.includes(record.dyeingFirm)) {
+          existing.dyeingFirms.push(record.dyeingFirm);
+        }
+      } else {
+        partyMap.set(key, {
+          partyName: toTitle(record.partyName),
+          dyeingFirms: record.dyeingFirm ? [record.dyeingFirm] : [],
+          totalSent: sent,
+          totalReceived: received,
+          pending: sent - received, // Processing = Sent - Received
+          completed: received, // Completed = Received
+          reprocessing: 0, // NULL for now
+          orderCount: 1,
+        });
       }
-      
-      return sortDirection === 'asc' 
-        ? (aValue as number) - (bValue as number)
-        : (bValue as number) - (aValue as number);
-    });
-
-    setFilteredSummary(filtered);
-  }, [summary, searchTerm, sortField, sortDirection]);
-
-  const handleSort = (field: keyof PartySummary) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
     }
-  };
+    
+    return Array.from(partyMap.values()).sort((a, b) => a.partyName.localeCompare(b.partyName));
+  }, [dyeingRecords]);
 
-  // Calculate totals with safe number handling
-  const totals = summary.reduce((acc, party) => ({
-    totalOrders: acc.totalOrders + (party.totalOrders || 0),
-    totalYarn: acc.totalYarn + (party.totalYarn || 0),
-    pendingYarn: acc.pendingYarn + (party.pendingYarn || 0),
-    reprocessingYarn: acc.reprocessingYarn + (party.reprocessingYarn || 0),
-    arrivedYarn: acc.arrivedYarn + (party.arrivedYarn || 0),
-  }), {
-    totalOrders: 0,
-    totalYarn: 0,
-    pendingYarn: 0,
-    reprocessingYarn: 0,
-    arrivedYarn: 0,
-  });
+  // ==================== FILTERED SUMMARIES ====================
+  const filteredSummaries = useMemo(() => {
+    if (!searchQuery.trim()) return partySummaries;
+    const query = searchQuery.toLowerCase();
+    return partySummaries.filter(p => 
+      p.partyName.toLowerCase().includes(query) ||
+      p.dyeingFirms.some(f => f.toLowerCase().includes(query))
+    );
+  }, [partySummaries, searchQuery]);
 
-  // Safe number formatting function
-  const formatNumber = (value: number | undefined): string => {
-    if (value === undefined || value === null || isNaN(value)) {
-      return "0.00";
-    }
-    return value.toFixed(2);
-  };
+  // ==================== TOTALS ====================
+  const totals = useMemo(() => {
+    return filteredSummaries.reduce((acc, p) => ({
+      totalSent: acc.totalSent + p.totalSent,
+      pending: acc.pending + p.pending,
+      completed: acc.completed + p.completed,
+      orderCount: acc.orderCount + p.orderCount,
+    }), { totalSent: 0, pending: 0, completed: 0, orderCount: 0 });
+  }, [filteredSummaries]);
 
-  const getSortIcon = (field: keyof PartySummary) => {
-    if (sortField !== field) return '↕️';
-    return sortDirection === 'asc' ? '↑' : '↓';
-  };
-
-  // Party action handlers
-  const handleViewDetails = (party: PartySummary) => {
+  // ==================== HANDLERS ====================
+  const handleView = useCallback((party: LocalPartySummary) => {
     setSelectedParty(party);
     setShowDetailsModal(true);
-  };
+  }, []);
 
-  const handleEditParty = (party: PartySummary) => {
+  const handleEdit = useCallback((party: LocalPartySummary) => {
     setSelectedParty(party);
     setShowEditModal(true);
-  };
+  }, []);
 
-  const handleDeleteParty = (partyName: string) => {
-    setPartyToDelete(partyName);
+  const handleDeleteClick = useCallback((party: LocalPartySummary) => {
+    setSelectedParty(party);
     setShowDeleteConfirm(true);
-  };
+  }, []);
 
-  const confirmDeleteParty = async () => {
-    if (isDeleting) return; // Prevent double clicks
-    
-    setIsDeleting(true);
-    try {
-      await deleteParty(partyToDelete);
-      
-      // Remove party from local state immediately for instant UI update
-      setSummary(prev => prev.filter(party => party.partyName !== partyToDelete));
-      setFilteredSummary(prev => prev.filter(party => party.partyName !== partyToDelete));
-      
-      toast.success('Party deleted successfully!', {
-        description: `${partyToDelete} has been permanently removed from the system.`,
-        duration: 4000,
-      });
-      
-      setShowDeleteConfirm(false);
-      setPartyToDelete('');
-    } catch (error: any) {
-      console.error('Error deleting party:', error);
-      toast.error('Failed to delete party', {
-        description: error.response?.data?.message || 'Please try again later.',
-        duration: 5000,
-      });
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  const handleArchiveParty = (partyName: string) => {
-    setPartyToDelete(partyName); // Reuse the same state
+  const handleArchiveClick = useCallback((party: LocalPartySummary) => {
+    setSelectedParty(party);
     setShowArchiveConfirm(true);
-  };
+  }, []);
 
-  const confirmArchiveParty = async () => {
-    if (isArchiving) return; // Prevent double clicks
-    
-    setIsArchiving(true);
+  const handleDownload = useCallback(async (party: LocalPartySummary) => {
     try {
-      console.log('🔄 Archiving party:', partyToDelete);
-      
-      // Professional archive implementation with comprehensive data refresh
-      let archiveSuccess = false;
-      let archiveError = null;
-      
-      try {
-        console.log('🌐 Attempting backend archive...');
-        const response = await archiveParty(partyToDelete);
-        console.log('✅ Backend archive successful:', response);
-        archiveSuccess = true;
-        
-        // 🚀 CRITICAL: Refresh all data from backend to ensure accuracy
-        console.log('🔄 Refreshing all party data after successful archive...');
-        await refreshData();
-        
-      } catch (error: any) {
-        console.warn('⚠️ Backend archive failed, implementing professional fallback:', error.message);
-        archiveError = error;
-        
-        // Professional fallback: Store in localStorage for demonstration
-        const archivedParties = JSON.parse(localStorage.getItem('archivedParties') || '[]');
-        const partyToArchive = summary.find(p => p.partyName === partyToDelete);
-        
-        if (partyToArchive) {
-          const archivedParty = {
-            ...partyToArchive,
-            archivedAt: new Date().toISOString(),
-            archivedBy: 'User',
-            archiveReason: 'Manual archive via UI'
-          };
-          archivedParties.push(archivedParty);
-          localStorage.setItem('archivedParties', JSON.stringify(archivedParties));
-          console.log('✅ Party stored in local archive:', archivedParty);
-          archiveSuccess = true;
-          
-          // Remove from local state as fallback
-          setSummary(prev => prev.filter(party => party.partyName !== partyToDelete));
-          setFilteredSummary(prev => prev.filter(party => party.partyName !== partyToDelete));
-        }
-      }
-      
-      if (archiveSuccess) {
-        // Professional success notification
-        toast.success('Party archived successfully!', {
-          description: `${partyToDelete} has been moved to archived parties and is no longer visible in the main list.`,
-          action: {
-            label: 'View Archived',
-            onClick: () => navigate('/archived-parties')
-          },
-          duration: 6000,
-        });
-        
-        // Close modal and reset state
-        setShowArchiveConfirm(false);
-        setPartyToDelete('');
-        
-        console.log('✅ Archive operation completed successfully');
-      } else {
-        throw new Error('Archive operation failed');
-      }
-    } catch (error: any) {
-      console.error('❌ Critical archive error:', error);
-      toast.error('Failed to archive party', {
-        description: 'The party could not be archived. Please try again or contact support.',
-        duration: 5000,
-      });
-    } finally {
-      setIsArchiving(false);
-    }
-  };
-
-  const handleDownloadJSON = async (partyName: string) => {
-    try {
-      const blob = await downloadPartyAsJSON(partyName);
-      
-      // Create download link
+      const blob = await downloadPartyAsJSON(party.partyName);
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${partyName}_data.json`;
+      link.download = `${party.partyName}_data.json`;
       document.body.appendChild(link);
       link.click();
-      
-      // Cleanup
       window.URL.revokeObjectURL(url);
       document.body.removeChild(link);
-      
-      toast.success('Party data downloaded!', {
-        description: `${partyName} data has been exported to JSON.`
-      });
-    } catch (error: any) {
-      console.error('Error downloading party data:', error);
-      toast.error('Failed to download party data', {
-        description: error.response?.data?.message || 'Please try again later.'
-      });
-    }
-  };
-
-  const refreshData = async () => {
-    setRefreshing(true);
-    try {
-      const [summaryData, statsData, dyeingRecords, countProducts] = await Promise.all([
-        getAllPartiesSummary(),
-        getPartyStatistics(),
-        getAllDyeingRecords().catch(() => []),
-        getAllCountProducts().catch(() => []),
-      ]);
-
-      const unionNames = Array.from(new Set<string>([
-        ...(Array.isArray(dyeingRecords) ? dyeingRecords.map((r: any) => r.partyName).filter(Boolean) : []),
-        ...(Array.isArray(countProducts) ? countProducts.flatMap((cp: any) => [cp.partyName, cp.middleman]).filter(Boolean) : []),
-      ]));
-
-      // Map: party -> dyeing firms
-      const firmsByParty = new Map<string, Set<string>>();
-      if (Array.isArray(dyeingRecords)) {
-        for (const rec of dyeingRecords) {
-          if (rec?.partyName && rec?.dyeingFirm) {
-            const k = normalizeKey(rec.partyName);
-            const set = firmsByParty.get(k) || new Set<string>();
-            set.add(rec.dyeingFirm);
-            firmsByParty.set(k, set);
-          }
-        }
-      }
-      if (Array.isArray(countProducts)) {
-        for (const cp of countProducts) {
-          const names = [cp?.partyName, cp?.middleman].filter(Boolean) as string[];
-          if (cp?.dyeingFirm) {
-            for (const nm of names) {
-              const k = normalizeKey(nm);
-              const set = firmsByParty.get(k) || new Set<string>();
-              set.add(cp.dyeingFirm);
-              firmsByParty.set(k, set);
-            }
-          }
-        }
-      }
-
-  // Respect backend filtering (e.g., exclude archived) and only attach dyeing firms
-  const normalizedData = buildNormalizedSummary(summaryData, [], undefined, firmsByParty);
-  setSummary(normalizedData);
-  setFilteredSummary(normalizedData);
-      setStatistics(statsData);
+      toast.success('Party data exported');
     } catch (error) {
-      console.error('Error refreshing data:', error);
-      try {
-        // Fallback refresh using on-page aggregation
-  const [fallback] = await Promise.all([
-          aggregateFromPages(),
-        ]);
-  const normalizedData = buildNormalizedSummary(fallback, [], [], undefined);
-        setSummary(normalizedData);
-        setFilteredSummary(normalizedData);
-        setStatistics(null);
-        toast.info('Refreshed with aggregated data');
-      } catch {
-        toast.error('Failed to refresh data');
-      }
-    } finally {
-      setRefreshing(false);
+      toast.error('Failed to export party data');
     }
-  };
+  }, []);
 
+  const confirmDelete = useCallback(async () => {
+    if (!selectedParty || isDeleting) return;
+    setIsDeleting(true);
+    try {
+      await deleteParty(selectedParty.partyName);
+      toast.success(`${selectedParty.partyName} deleted`);
+      setShowDeleteConfirm(false);
+      setSelectedParty(null);
+      fetchData();
+    } catch (error) {
+      toast.error('Failed to delete party');
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [selectedParty, isDeleting, fetchData]);
+
+  const confirmArchive = useCallback(async () => {
+    if (!selectedParty || isArchiving) return;
+    setIsArchiving(true);
+    try {
+      await archiveParty(selectedParty.partyName);
+      toast.success(`${selectedParty.partyName} archived`);
+      setShowArchiveConfirm(false);
+      setSelectedParty(null);
+      fetchData();
+    } catch (error) {
+      toast.error('Failed to archive party');
+    } finally {
+      setIsArchiving(false);
+    }
+  }, [selectedParty, isArchiving, fetchData]);
+
+  const handleAddSuccess = useCallback(async (newPartyName?: string) => {
+    setShowAddModal(false);
+    await fetchData(true);
+    if (newPartyName) {
+      toast.success(`${newPartyName} added successfully`);
+    }
+  }, [fetchData]);
+
+  // ==================== LOADING STATE ====================
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-64">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
-          <div className="w-8 h-8 border-b-2 border-purple-500 rounded-full animate-spin"></div>
+          <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
           <span className="text-lg">Loading Party Master...</span>
         </div>
       </div>
     );
   }
 
+  // ==================== RENDER ====================
   return (
-    <div className="min-h-screen p-4 transition-colors duration-200 bg-gray-50 dark:bg-gray-900 sm:p-6">
-      <div className="mx-auto max-w-7xl">
-        {/* Debug Info */}
-          {showAddModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-            <div className="w-full max-w-lg mx-4 transform transition-all duration-300 ease-out">
-              <AddPartyForm
-                existingParties={summary.map(party => party.partyName)}
-                onSuccess={async (newPartyName?: string) => {
-                  console.log('🔄 Party added successfully, refreshing data...');
-                  setShowAddModal(false);
-                  setRefreshing(true);
-                  
-                  // Set the newly added party for highlighting
-                  if (newPartyName) {
-                    setNewlyAddedParty(newPartyName);
-                    // Clear highlight after 5 seconds
-                    setTimeout(() => setNewlyAddedParty(''), 5000);
-                  }
-                  
-                  // Re-fetch all data
-                  try {
-                    const [summaryData, statsData] = await Promise.all([
-                      getAllPartiesSummary(),
-                      getPartyStatistics()
-                    ]);
-                    
-                    // Keep backend as source of truth; don't add union names here.
-                    const normalizedData = Array.isArray(summaryData) ? summaryData.map(party => ({
-                      partyName: party.partyName || 'Unknown Party',
-                      totalOrders: Number(party.totalOrders) || 0,
-                      totalYarn: Number(party.totalYarn) || 0,
-                      pendingYarn: Number(party.pendingYarn) || 0,
-                      reprocessingYarn: Number(party.reprocessingYarn) || 0,
-                      arrivedYarn: Number(party.arrivedYarn) || 0,
-                      lastOrderDate: party.lastOrderDate,
-                      firstOrderDate: party.firstOrderDate,
-                    })) : [];
-                    
-                    setSummary(normalizedData);
-                    setFilteredSummary(normalizedData);
-                    setStatistics(statsData);
-                    
-                    console.log('✅ Data refreshed successfully');
-                    
-                    // Show success feedback
-                    toast.success('Party List Updated!', {
-                      description: `${newPartyName || 'New party'} is now visible in the list.`,
-                      duration: 3000,
-                    });
-                  } catch (error) {
-                    console.error('❌ Error refreshing data:', error);
-                    toast.error("Failed to refresh data", {
-                      description: "Please refresh the page manually.",
-                    });
-                  } finally {
-                    setRefreshing(false);
-                  }
-                }}
-                onClose={() => setShowAddModal(false)}
-              />
+    <div className="min-h-screen p-6 bg-gray-50 dark:bg-gray-900">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+          <Users className="w-7 h-7 text-purple-600" />
+          Party Master
+        </h1>
+        <div className="flex items-center gap-2">
+          {refreshing && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 rounded text-blue-600 dark:text-blue-400 text-sm">
+              <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              <span>Refreshing...</span>
             </div>
-          </div>
-        )}
-
-        {/* Header Section */}
-        <div className="relative mb-8 overflow-hidden bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-700 rounded-2xl">
-          <div className="absolute inset-0 bg-black/20"></div>
-          <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent"></div>
-          <div className="relative px-6 py-8 sm:px-8 sm:py-12">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-3 shadow-lg bg-white/20 backdrop-blur-sm rounded-xl">
-                  <Users className="w-8 h-8 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-3xl font-bold text-white sm:text-4xl">Party Master</h1>
-                  <p className="mt-2 text-lg text-purple-100">Comprehensive party management and records system</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="px-4 py-2 rounded-lg shadow-md bg-white/20 backdrop-blur-sm">
-                  <span className="text-sm font-medium text-white">Active Parties: {summary.length}</span>
-                </div>
-                <button
-                  onClick={() => navigate('/archived-parties')}
-                  className="flex items-center gap-2 px-4 py-2 text-white transition-all duration-200 border rounded-lg shadow-md bg-transparent backdrop-blur-sm border-white/30 hover:bg-white/20 hover:border-white/50"
-                  title="View Archived Parties"
-                >
-                  <Archive className="w-4 h-4" />
-                  <span className="hidden sm:inline">Archived</span>
-                </button>
-                <button
-                  onClick={() => setShowAddModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 text-white transition-all duration-200 border rounded-lg shadow-md bg-white/20 backdrop-blur-sm border-white/30 hover:bg-white/30"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span className="hidden sm:inline">Add Party</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        {/* Quick Stats Bar */}
-        <div className="p-4 mb-8 bg-white border border-gray-200 shadow-sm dark:bg-gray-800 rounded-xl dark:border-gray-700">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-6">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">{summary.length}</div>
-                <div className="text-xs tracking-wide text-gray-500 uppercase dark:text-gray-400">Total Parties</div>
-              </div>
-              <div className="w-px h-8 bg-gray-300 dark:bg-gray-600"></div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{summary.filter(p => p.totalOrders > 0).length}</div>
-                <div className="text-xs tracking-wide text-gray-500 uppercase dark:text-gray-400">Active</div>
-              </div>
-              <div className="w-px h-8 bg-gray-300 dark:bg-gray-600"></div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{summary.filter(p => p.pendingYarn > 0).length}</div>
-                <div className="text-xs tracking-wide text-gray-500 uppercase dark:text-gray-400">With Pending</div>
-              </div>
-              <div className="w-px h-8 bg-gray-300 dark:bg-gray-600"></div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">{summary.filter(p => p.reprocessingYarn > 0).length}</div>
-                <div className="text-xs tracking-wide text-gray-500 uppercase dark:text-gray-400">Reprocessing</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                <span className="text-xs text-gray-600 dark:text-gray-400">Completed</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
-                <span className="text-xs text-gray-600 dark:text-gray-400">Pending</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 bg-orange-400 rounded-full"></div>
-                <span className="text-xs text-gray-600 dark:text-gray-400">Reprocessing</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Enhanced Summary Cards */}
-        <div className="grid grid-cols-1 gap-6 mb-8 sm:grid-cols-2 lg:grid-cols-5">
-          <div className="relative p-6 overflow-hidden transition-all duration-300 bg-white border-0 shadow-lg rounded-2xl dark:bg-gray-800 group hover:shadow-xl">
-            <div className="absolute top-0 right-0 w-20 h-20 -mt-10 -mr-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 opacity-10"></div>
-            <div className="relative flex items-center gap-4">
-              <div className="p-3 shadow-lg bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl">
-                <Users className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold tracking-wide text-blue-600 uppercase dark:text-blue-400">Total Parties</p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white">{summary.length}</p>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Active partners</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="relative p-6 overflow-hidden transition-all duration-300 bg-white border-0 shadow-lg rounded-2xl dark:bg-gray-800 group hover:shadow-xl">
-            <div className="absolute top-0 right-0 w-20 h-20 -mt-10 -mr-10 rounded-full bg-gradient-to-br from-green-400 to-green-600 opacity-10"></div>
-            <div className="relative flex items-center gap-4">
-              <div className="p-3 shadow-lg bg-gradient-to-br from-green-500 to-green-600 rounded-xl">
-                <Package className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold tracking-wide text-green-600 uppercase dark:text-green-400">Total Orders</p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white">{totals.totalOrders}</p>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">All orders combined</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="relative p-6 overflow-hidden transition-all duration-300 bg-white border-0 shadow-lg rounded-2xl dark:bg-gray-800 group hover:shadow-xl">
-            <div className="absolute top-0 right-0 w-20 h-20 -mt-10 -mr-10 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 opacity-10"></div>
-            <div className="relative flex items-center gap-4">
-              <div className="p-3 shadow-lg bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-xl">
-                <Clock className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold tracking-wide text-yellow-600 uppercase dark:text-yellow-400">Pending Yarn</p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white">{formatNumber(totals.pendingYarn)}</p>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Kg awaiting process</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="relative p-6 overflow-hidden transition-all duration-300 bg-white border-0 shadow-lg rounded-2xl dark:bg-gray-800 group hover:shadow-xl">
-            <div className="absolute top-0 right-0 w-20 h-20 -mt-10 -mr-10 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 opacity-10"></div>
-            <div className="relative flex items-center gap-4">
-              <div className="p-3 shadow-lg bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl">
-                <RotateCcw className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold tracking-wide text-orange-600 uppercase dark:text-orange-400">Reprocessing</p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white">{formatNumber(totals.reprocessingYarn)}</p>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Kg in reprocessing</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="relative p-6 overflow-hidden transition-all duration-300 bg-white border-0 shadow-lg rounded-2xl dark:bg-gray-800 group hover:shadow-xl">
-            <div className="absolute top-0 right-0 w-20 h-20 -mt-10 -mr-10 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 opacity-10"></div>
-            <div className="relative flex items-center gap-4">
-              <div className="p-3 shadow-lg bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl">
-                <CheckCircle className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold tracking-wide uppercase text-emerald-600 dark:text-emerald-400">Completed</p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white">{formatNumber(totals.arrivedYarn)}</p>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Kg completed</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Enhanced Search and Filter Section */}
-        <div className="mb-8 overflow-hidden bg-white border-0 shadow-lg rounded-2xl dark:bg-gray-800">
-          <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 dark:border-gray-700">
-            <h3 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
-              <Search className="w-5 h-5 text-purple-600" />
-              Party Search & Management
-            </h3>
-          </div>
-          <div className="p-6">
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute text-gray-400 transform -translate-y-1/2 left-4 top-1/2" size={20} />
-                <input
-                  type="text"
-                  placeholder="Search parties by name..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full py-3 pl-12 pr-4 text-lg transition-all duration-200 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400"
-                />
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-100 to-blue-100 dark:from-purple-900/30 dark:to-blue-900/30">
-                  <span className="text-sm font-medium text-purple-700 dark:text-purple-300">
-                    Showing {filteredSummary.length} of {summary.length} parties
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Table */}
-        <div className="overflow-hidden bg-white border border-gray-200 shadow-sm rounded-xl dark:bg-gray-800 dark:border-gray-700">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-700">
-                <tr>
-                  <th 
-                    onClick={() => handleSort('partyName')}
-                    className="px-6 py-4 text-xs font-medium tracking-wider text-left text-gray-500 uppercase cursor-pointer hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600"
-                  >
-                    <div className="flex items-center gap-2">
-                      Party Name
-                      <span className="text-xs">{getSortIcon('partyName')}</span>
-                    </div>
-                  </th>
-                  <th className="px-4 py-4 text-xs font-medium tracking-wider text-left text-gray-500 uppercase dark:text-gray-300 whitespace-nowrap">
-                    Dyeing Firm
-                  </th>
-                  <th 
-                    onClick={() => handleSort('totalOrders')}
-                    className="px-6 py-4 text-xs font-medium tracking-wider text-center text-gray-500 uppercase cursor-pointer hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600"
-                  >
-                    <div className="flex items-center justify-center gap-2">
-                      Total Orders
-                      <span className="text-xs">{getSortIcon('totalOrders')}</span>
-                    </div>
-                  </th>
-                  <th 
-                    onClick={() => handleSort('totalYarn')}
-                    className="px-6 py-4 text-xs font-medium tracking-wider text-center text-gray-500 uppercase cursor-pointer hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600"
-                  >
-                    <div className="flex items-center justify-center gap-2">
-                      Total Yarn
-                      <span className="text-xs">{getSortIcon('totalYarn')}</span>
-                    </div>
-                  </th>
-                  <th className="px-6 py-4 text-xs font-medium tracking-wider text-center text-gray-500 uppercase dark:text-gray-300">
-                    Pending
-                  </th>
-                  <th className="px-6 py-4 text-xs font-medium tracking-wider text-center text-gray-500 uppercase dark:text-gray-300">
-                    Reprocessing
-                  </th>
-                  <th className="px-6 py-4 text-xs font-medium tracking-wider text-center text-gray-500 uppercase dark:text-gray-300">
-                    Completed
-                  </th>
-                  <th className="px-6 py-4 text-xs font-medium tracking-wider text-center text-gray-500 uppercase dark:text-gray-300">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-  <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-800 dark:divide-gray-700">
-    {filteredSummary.length === 0 ? (
-          loading ? (
-                    <tr>
-            <td colSpan={8} className="px-6 py-12 text-center">
-                        <div className="flex items-center justify-center gap-3">
-                          <div className="w-8 h-8 border-b-2 border-blue-500 rounded-full animate-spin"></div>
-                          <span className="text-lg">Loading parties...</span>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    <tr>
-            <td colSpan={8} className="px-6 py-12 text-center">
-                        <div className="flex flex-col items-center gap-3">
-                          <div className="p-4 rounded-full bg-gradient-to-br from-purple-100 to-blue-100 dark:from-purple-900/30 dark:to-blue-900/30">
-                            <Users className="w-12 h-12 text-purple-600 dark:text-purple-400" />
-                          </div>
-                          <div className="text-center">
-                            <p className="text-lg font-medium text-gray-900 dark:text-white">No parties found</p>
-                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                              {searchTerm ? "Try adjusting your search terms" : "No parties have been registered yet"}
-                            </p>
-                            <p className="mt-2 text-xs text-gray-400">
-                              Debug: {debugInfo}
-                            </p>
-                            {!searchTerm && (
-                              <button 
-                                onClick={() => {
-                                  toast.info("Add Party feature", {
-                                    description: "Party registration feature coming soon!"
-                                  });
-                                }}
-                                className="px-4 py-2 mt-4 text-white transition-all duration-200 rounded-lg shadow-md bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                              >
-                                Add First Party
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                ) : (
-                  filteredSummary.map((party) => {
-                    const isNewlyAdded = newlyAddedParty === party.partyName;
-                    return (
-                      <tr 
-                        key={party.partyName} 
-                        className={`transition-all duration-500 hover:bg-gray-50 dark:hover:bg-gray-700/50 ${
-                          isNewlyAdded 
-                            ? 'bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 animate-pulse' 
-                            : ''
-                        }`}
-                      >
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center justify-center w-10 h-10 rounded-full shadow-sm bg-gradient-to-r from-purple-100 to-blue-100 dark:from-purple-900/30 dark:to-blue-900/30">
-                            <span className="text-sm font-semibold text-purple-600 dark:text-purple-400">
-                              {party.partyName.charAt(0).toUpperCase()}
-                            </span>
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                {party.partyName}
-                              </div>
-                              {party.totalOrders > 0 && (
-                                <div className={`w-2 h-2 rounded-full ${
-                                  party.pendingYarn > 0 ? 'bg-yellow-400' :
-                                  party.reprocessingYarn > 0 ? 'bg-orange-400' :
-                                  'bg-green-400'
-                                }`} title={
-                                  party.pendingYarn > 0 ? 'Has pending orders' :
-                                  party.reprocessingYarn > 0 ? 'Has reprocessing orders' :
-                                  'All orders completed'
-                                }></div>
-                              )}
-                            </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">
-                              {party.totalOrders > 0 ? `${party.totalOrders} active orders` : 'No active orders'}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 text-xs max-w-[180px]">
-                        <div className="text-gray-700 dark:text-gray-300 truncate" title={(party.dyeingFirms || []).join(', ')}>
-                          {party.dyeingFirms && party.dyeingFirms.length > 0 ? party.dyeingFirms.join(', ') : '-'}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-center">
-                        <span className="inline-flex items-center px-3 py-1 text-xs font-medium text-blue-800 bg-blue-100 rounded-full dark:bg-blue-900/30 dark:text-blue-400">
-                          {party.totalOrders}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm font-medium text-center text-gray-900 dark:text-white">
-                        {formatNumber(party.totalYarn)} kg
-                      </td>
-                      <td className="px-6 py-4 text-sm text-center">
-                        <span className="inline-flex items-center px-3 py-1 text-xs font-medium text-yellow-800 bg-yellow-100 rounded-full dark:bg-yellow-900/30 dark:text-yellow-400">
-                          {formatNumber(party.pendingYarn)} kg
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-center">
-                        <span className="inline-flex items-center px-3 py-1 text-xs font-medium text-orange-800 bg-orange-100 rounded-full dark:bg-orange-900/30 dark:text-orange-400">
-                          {formatNumber(party.reprocessingYarn)} kg
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-center">
-                        <span className="inline-flex items-center px-3 py-1 text-xs font-medium text-green-800 bg-green-100 rounded-full dark:bg-green-900/30 dark:text-green-400">
-                          {formatNumber(party.arrivedYarn)} kg
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-center">
-                        <PartyFloatingActionDropdown
-                          onView={() => handleViewDetails(party)}
-                          onEdit={() => handleEditParty(party)}
-                          onDelete={() => handleDeleteParty(party.partyName)}
-                          onArchive={() => handleArchiveParty(party.partyName)}
-                          onDownload={() => handleDownloadJSON(party.partyName)}
-                        />
-                      </td>
-                    </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+          )}
+          <button
+            onClick={() => fetchData(true)}
+            className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
+          >
+            <RotateCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+          <button
+            onClick={() => navigate('/archived-parties')}
+            className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
+          >
+            <Archive className="w-4 h-4" />
+            Archived
+          </button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="px-4 py-2 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Add Party
+          </button>
         </div>
       </div>
 
-      {/* Party Details Modal */}
+      {/* Quick Stats */}
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+          <div className="text-2xl font-bold text-purple-600">{filteredSummaries.length}</div>
+          <div className="text-xs text-gray-500 uppercase tracking-wide">Total Parties</div>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+          <div className="text-2xl font-bold text-blue-600">{totals.totalSent.toFixed(0)} kg</div>
+          <div className="text-xs text-gray-500 uppercase tracking-wide">Total Sent</div>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+          <div className="text-2xl font-bold text-yellow-600">{totals.pending.toFixed(0)} kg</div>
+          <div className="text-xs text-gray-500 uppercase tracking-wide">Processing</div>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+          <div className="text-2xl font-bold text-green-600">{totals.completed.toFixed(0)} kg</div>
+          <div className="text-xs text-gray-500 uppercase tracking-wide">Completed</div>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="mb-4 flex gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by party name or dyeing firm..."
+            className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+          />
+        </div>
+        <div className="px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm text-gray-600 dark:text-gray-300">
+          Showing {filteredSummaries.length} of {partySummaries.length} parties
+        </div>
+      </div>
+
+      {/* Main Table */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-100 dark:bg-gray-800 border-b-2 border-gray-200 dark:border-gray-700">
+            <tr>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Party</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Dyeing Firms</th>
+              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Total Sent</th>
+              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Processing</th>
+              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Completed</th>
+              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Reprocessing</th>
+              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider w-20">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+            {filteredSummaries.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                  <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                  <p className="font-medium">No parties found</p>
+                  <p className="text-sm mt-1">{searchQuery ? 'Try adjusting your search' : 'Add a new party to get started'}</p>
+                </td>
+              </tr>
+            ) : (
+              filteredSummaries.map((party) => (
+                <PartyRow
+                  key={party.partyName}
+                  party={party}
+                  onView={() => handleView(party)}
+                  onEdit={() => handleEdit(party)}
+                  onDelete={() => handleDeleteClick(party)}
+                  onArchive={() => handleArchiveClick(party)}
+                  onDownload={() => handleDownload(party)}
+                />
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Add Party Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg mx-4">
+            <AddPartyForm
+              existingParties={partySummaries.map(p => p.partyName)}
+              onSuccess={handleAddSuccess}
+              onClose={() => setShowAddModal(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Details Modal */}
       {selectedParty && (
         <PartyDetailsModal
           isOpen={showDetailsModal}
-          onClose={() => {
-            setShowDetailsModal(false);
-            setSelectedParty(null);
-          }}
+          onClose={() => { setShowDetailsModal(false); setSelectedParty(null); }}
           partyName={selectedParty.partyName}
-          partySummary={selectedParty}
+          partySummary={{
+            partyName: selectedParty.partyName,
+            totalOrders: selectedParty.orderCount,
+            totalYarn: selectedParty.totalSent,
+            pendingYarn: selectedParty.pending,
+            reprocessingYarn: selectedParty.reprocessing,
+            arrivedYarn: selectedParty.completed,
+          }}
         />
       )}
 
-      {/* Edit Party Modal */}
+      {/* Edit Modal */}
       {selectedParty && (
         <EditPartyModal
           isOpen={showEditModal}
-          onClose={() => {
-            setShowEditModal(false);
-            setSelectedParty(null);
-          }}
+          onClose={() => { setShowEditModal(false); setSelectedParty(null); }}
           partyName={selectedParty.partyName}
           dyeingFirms={selectedParty.dyeingFirms}
-          onSuccess={() => {
-            setShowEditModal(false);
-            setSelectedParty(null);
-            refreshData();
-          }}
+          onSuccess={() => { setShowEditModal(false); setSelectedParty(null); fetchData(true); }}
         />
       )}
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Confirmation */}
       <ConfirmationDialog
         isOpen={showDeleteConfirm}
         title="Delete Party"
-        message={`Are you sure you want to delete "${partyToDelete}"? This action cannot be undone and will remove all associated data permanently.`}
-        confirmText={isDeleting ? "Deleting..." : "Delete Party"}
+        message={`Are you sure you want to delete "${selectedParty?.partyName}"? This cannot be undone.`}
+        confirmText={isDeleting ? "Deleting..." : "Delete"}
         cancelText="Cancel"
         variant="danger"
         isLoading={isDeleting}
-        onConfirm={confirmDeleteParty}
-        onCancel={() => {
-          if (!isDeleting) {
-            setShowDeleteConfirm(false);
-            setPartyToDelete('');
-          }
-        }}
+        onConfirm={confirmDelete}
+        onCancel={() => { if (!isDeleting) { setShowDeleteConfirm(false); setSelectedParty(null); } }}
       />
 
-      {/* Archive Confirmation Dialog */}
+      {/* Archive Confirmation */}
       <ConfirmationDialog
         isOpen={showArchiveConfirm}
         title="Archive Party"
-        message={`Are you sure you want to archive "${partyToDelete}"? The party will be moved to archived parties and won't appear in the main list. You can restore it later if needed.`}
-        confirmText={isArchiving ? "Archiving..." : "Archive Party"}
+        message={`Archive "${selectedParty?.partyName}"? You can restore it later.`}
+        confirmText={isArchiving ? "Archiving..." : "Archive"}
         cancelText="Cancel"
         variant="warning"
         isLoading={isArchiving}
-        onConfirm={confirmArchiveParty}
-        onCancel={() => {
-          if (!isArchiving) {
-            setShowArchiveConfirm(false);
-            setPartyToDelete('');
-          }
-        }}
+        onConfirm={confirmArchive}
+        onCancel={() => { if (!isArchiving) { setShowArchiveConfirm(false); setSelectedParty(null); } }}
       />
     </div>
   );
 };
 
-const PartyMasterWithErrorBoundary = () => (
-  <ErrorBoundary>
-    <PartyMaster />
-  </ErrorBoundary>
-);
-
-export default PartyMasterWithErrorBoundary;
+export default PartyMaster;

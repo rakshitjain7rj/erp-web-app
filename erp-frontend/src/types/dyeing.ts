@@ -54,6 +54,7 @@ export interface SimplifiedDyeingDisplayRecord {
   partyNameMiddleman: string; // Party/Middleman handling the order
   dyeingFirm: string;        // Dyeing firm name
   remarks?: string;          // Additional notes
+  isReprocessing?: boolean;  // Reprocessing flag
 }
 
 // ================= CREATE/UPDATE REQUEST =================

@@ -27,6 +27,7 @@ import Product from "./pages/Product";
 // Removed: Users
 // Removed: Settings
 import SimplifiedPartyMaster from "./pages/SimplifiedPartyMaster";
+import PartyMasterNew from "./pages/PartyMasterNew";
 import ArchivedParties from "./pages/ArchivedParties";
 import ASUUnit1Page from "./pages/ASUUnit1Page";
 import SimplifiedCountProductOverview from "./pages/SimplifiedCountProductOverview";
@@ -146,7 +147,7 @@ const App = () => {
                   path="/party-master"
                   element={
                     <PrivateRoute roles={["superadmin", "admin"]}>
-                      <SimplifiedPartyMaster />
+                      <PartyMasterNew />
                     </PrivateRoute>
                   }
                 />

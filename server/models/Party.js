@@ -21,9 +21,7 @@ const Party = sequelize.define('Party', {
     type: DataTypes.STRING,
     allowNull: true,
     set(value) {
-      if (value) {
-        this.setDataValue('address', value.trim());
-      }
+      this.setDataValue('address', value ? value.trim() : null);
     },
   },
   contact: {
@@ -36,18 +34,14 @@ const Party = sequelize.define('Party', {
       },
     },
     set(value) {
-      if (value) {
-        this.setDataValue('contact', value.trim());
-      }
+      this.setDataValue('contact', value ? value.trim() : null);
     },
   },
   dyeingFirm: {
     type: DataTypes.STRING,
     allowNull: true,
     set(value) {
-      if (value) {
-        this.setDataValue('dyeingFirm', value.trim());
-      }
+      this.setDataValue('dyeingFirm', value ? value.trim() : null);
     },
   },
   // Editable metrics (optional overrides)

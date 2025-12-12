@@ -64,6 +64,24 @@ const getAllPartiesSummary = asyncHandler(async (req, res) => {
       ${whereClause}
       GROUP BY INITCAP(TRIM(dr."partyName"))
     ),
+    cp_stats AS (
+      SELECT
+        INITCAP(TRIM(cp."partyName")) AS "partyName",
+        COUNT(*) AS "totalOrders",
+        SUM(CASE WHEN cp."received" = false AND cp."isReprocessing" = false THEN 1 ELSE 0 END) AS "pendingOrders",
+        SUM(cp."quantity") AS "totalYarn",
+        SUM(CASE 
+          WHEN cp."received" = false AND cp."isReprocessing" = false THEN cp."quantity"
+          ELSE 0 
+        END) AS "pendingYarn",
+        SUM(CASE WHEN cp."isReprocessing" = true THEN cp."quantity" ELSE 0 END) AS "reprocessingYarn",
+        SUM(CASE WHEN cp."received" = true AND cp."isReprocessing" = false THEN cp."quantity" ELSE 0 END) AS "arrivedYarn",
+        MAX(cp."sentDate") AS "lastOrderDate",
+        MIN(cp."sentDate") AS "firstOrderDate"
+      FROM "CountProducts" cp
+      ${countWhere}
+      GROUP BY INITCAP(TRIM(cp."partyName"))
+    ),
     u AS (
       SELECT DISTINCT INITCAP(TRIM(dr."partyName")) AS "partyName"
       FROM "DyeingRecords" dr
@@ -75,16 +93,17 @@ const getAllPartiesSummary = asyncHandler(async (req, res) => {
     )
     SELECT
       u."partyName",
-      COALESCE(NULLIF(p."totalOrders", 0), s."totalOrders", 0) AS "totalOrders",
-      COALESCE(s."pendingOrders", 0) AS "pendingOrders",
-      COALESCE(NULLIF(p."totalYarn", 0), s."totalYarn", 0) AS "totalYarn",
-      COALESCE(NULLIF(p."pendingYarn", 0), s."pendingYarn", 0) AS "pendingYarn",
-      COALESCE(NULLIF(p."reprocessingYarn", 0), s."reprocessingYarn", 0) AS "reprocessingYarn",
-      COALESCE(NULLIF(p."arrivedYarn", 0), s."arrivedYarn", 0) AS "arrivedYarn",
-      s."lastOrderDate",
-      s."firstOrderDate"
+      COALESCE(NULLIF(p."totalOrders", 0), COALESCE(s."totalOrders", 0) + COALESCE(cp_stats."totalOrders", 0), 0) AS "totalOrders",
+      COALESCE(s."pendingOrders", 0) + COALESCE(cp_stats."pendingOrders", 0) AS "pendingOrders",
+      COALESCE(NULLIF(p."totalYarn", 0), COALESCE(s."totalYarn", 0) + COALESCE(cp_stats."totalYarn", 0), 0) AS "totalYarn",
+      COALESCE(NULLIF(p."pendingYarn", 0), COALESCE(s."pendingYarn", 0) + COALESCE(cp_stats."pendingYarn", 0), 0) AS "pendingYarn",
+      COALESCE(NULLIF(p."reprocessingYarn", 0), COALESCE(s."reprocessingYarn", 0) + COALESCE(cp_stats."reprocessingYarn", 0), 0) AS "reprocessingYarn",
+      COALESCE(NULLIF(p."arrivedYarn", 0), COALESCE(s."arrivedYarn", 0) + COALESCE(cp_stats."arrivedYarn", 0), 0) AS "arrivedYarn",
+      GREATEST(s."lastOrderDate", cp_stats."lastOrderDate") AS "lastOrderDate",
+      LEAST(s."firstOrderDate", cp_stats."firstOrderDate") AS "firstOrderDate"
     FROM u
     LEFT JOIN s ON u."partyName" = s."partyName"
+    LEFT JOIN cp_stats ON u."partyName" = cp_stats."partyName"
     LEFT JOIN "Parties" p
       ON UPPER(TRIM(p."name")) = UPPER(TRIM(u."partyName")) AND (p."isArchived" = false OR p."isArchived" IS NULL)
     WHERE UPPER(TRIM(u."partyName")) NOT IN (
@@ -306,9 +325,15 @@ const getPartyDetails = asyncHandler(async (req, res) => {
 // ✅ Get all unique party names
 const getAllPartyNames = asyncHandler(async (req, res) => {
   const [results] = await sequelize.query(`
-    SELECT DISTINCT INITCAP(TRIM("partyName")) AS "partyName"
-    FROM "DyeingRecords"
-    WHERE "partyName" IS NOT NULL AND "partyName" != ''
+    SELECT DISTINCT "partyName" FROM (
+      SELECT INITCAP(TRIM("partyName")) AS "partyName"
+      FROM "DyeingRecords"
+      WHERE "partyName" IS NOT NULL AND "partyName" != ''
+      UNION
+      SELECT INITCAP(TRIM("name")) AS "partyName"
+      FROM "Parties"
+      WHERE "name" IS NOT NULL AND "name" != '' AND ("isArchived" = false OR "isArchived" IS NULL)
+    ) AS combined_parties
     ORDER BY "partyName";
   `);
 
@@ -339,6 +364,8 @@ const createParty = asyncHandler(async (req, res) => {
     dyeingFirm, // optional
   } = req.body;
 
+  console.log('📝 Create Party Request:', { name, address, contact, dyeingFirm });
+
   if (!name) {
     res.status(400);
     throw new Error("Party name is required");
@@ -350,6 +377,8 @@ const createParty = asyncHandler(async (req, res) => {
     contact,
     dyeingFirm: dyeingFirm?.trim() || null,
   });
+
+  console.log('✅ Party Created:', newParty.toJSON());
 
   if (dyeingFirm) {
     await DyeingRecord.create({
@@ -386,6 +415,8 @@ const updateParty = asyncHandler(async (req, res) => {
   arrivedYarn,
   } = req.body;
 
+  console.log('📝 Update Party Request:', { partyName, body: req.body });
+
   if (!partyName) {
     res.status(400);
     throw new Error("Party name is required");
@@ -401,6 +432,7 @@ const updateParty = asyncHandler(async (req, res) => {
 
   if (!existingParty) {
     // Create if missing
+    console.log('⚠️ Party not found, creating new:', partyName);
     const created = await Party.create({
       name: (name || partyName).trim(),
       address: address?.trim() || null,
@@ -412,14 +444,15 @@ const updateParty = asyncHandler(async (req, res) => {
       reprocessingYarn: typeof reprocessingYarn === 'number' ? reprocessingYarn : null,
       arrivedYarn: typeof arrivedYarn === 'number' ? arrivedYarn : null,
     });
+    console.log('✅ Party Created (via Update):', created.toJSON());
     return res.status(200).json({ message: 'Party updated successfully', party: created });
   }
 
   const updatedParty = await existingParty.update({
-    name: name?.trim() || existingParty.name,
-    address: address?.trim() || existingParty.address,
-    contact: contact?.trim() || existingParty.contact,
-    dyeingFirm: dyeingFirm?.trim() || existingParty.dyeingFirm,
+    name: name ? name.trim() : existingParty.name,
+    address: address !== undefined ? address : existingParty.address,
+    contact: contact !== undefined ? contact : existingParty.contact,
+    dyeingFirm: dyeingFirm !== undefined ? dyeingFirm : existingParty.dyeingFirm,
     // Optional editable totals; use provided values if not undefined/null
     totalOrders: typeof totalOrders === 'number' ? totalOrders : existingParty.totalOrders,
     totalYarn: typeof totalYarn === 'number' ? totalYarn : existingParty.totalYarn,
@@ -427,6 +460,8 @@ const updateParty = asyncHandler(async (req, res) => {
     reprocessingYarn: typeof reprocessingYarn === 'number' ? reprocessingYarn : existingParty.reprocessingYarn,
     arrivedYarn: typeof arrivedYarn === 'number' ? arrivedYarn : existingParty.arrivedYarn,
   });
+
+  console.log('✅ Party Updated:', updatedParty.toJSON());
 
   res.status(200).json({
     message: "Party updated successfully",

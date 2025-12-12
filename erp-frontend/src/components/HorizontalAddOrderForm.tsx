@@ -43,6 +43,7 @@ interface FormData {
   middleman: string; // Add middleman field to FormData interface
   dyeingFirm: string;
   remarks: string; // new
+  isReprocessing: boolean;
 }
 
 interface FormErrors {
@@ -244,8 +245,27 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
         partyName: productToEdit.partyName || "",
         middleman: productToEdit.middleman || "", // Add middleman field to form data
         dyeingFirm: productToEdit.dyeingFirm || "",
-        remarks: (productToEdit as any).remarks || "" // populate remarks if present
+        remarks: (productToEdit as any).remarks || "", // populate remarks if present
+        isReprocessing: (productToEdit as any).isReprocessing || false
       };
+    }
+    return {
+      quantity: "",
+      customerName: "",
+      count: "", // Empty by default so users can type directly
+      sentToDye: "",
+      sentDate: new Date().toISOString().split('T')[0],
+      received: "",
+      receivedDate: "",
+      dispatch: "",
+      dispatchDate: "",
+      partyName: "",
+      middleman: "", // Add middleman field with empty default
+      dyeingFirm: "",
+      remarks: "",
+      isReprocessing: false
+    };
+  };
       console.log('🔄 [HorizontalAddOrderForm] Reset form data:', {
         resetCustomerName: resetFormData.customerName,
         resetPartyName: resetFormData.partyName
@@ -463,7 +483,8 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
           dispatch: formData.dispatch ? parseFloat(formData.dispatch) > 0 : false,
           dispatchDate: formData.dispatchDate || undefined,
           middleman: formData.middleman || "Direct", // Fix: Use middleman field instead of partyName
-          remarks: formData.remarks?.trim() || ''
+          remarks: formData.remarks?.trim() || '',
+          isReprocessing: formData.isReprocessing
         };
 
         console.log('\n🔥 PREPARING UPDATE DATA');
@@ -527,12 +548,13 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
           received: formData.received ? parseFloat(formData.received) > 0 : false,
           receivedDate: formData.receivedDate || undefined,
           receivedQuantity: formData.received ? parseFloat(formData.received) : 0,
-          dispatch: formData.dispatch ? parseFloat(formData.dispatch) > 0 : false,
           dispatchDate: formData.dispatchDate || undefined,
           dispatchQuantity: formData.dispatch ? parseFloat(formData.dispatch) : 0,
-          middleman: formData.middleman || "Direct" // Fix: Use middleman field instead of partyName
+          middleman: formData.middleman || "Direct", // Fix: Use middleman field instead of partyName
+          isReprocessing: formData.isReprocessing
         };
 
+        console.log('📦 Creating count product with data:', newCountProductData);
         console.log('📦 Creating count product with data:', newCountProductData);
 
         const createdProduct = await createCountProduct(newCountProductData);
@@ -584,8 +606,7 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
 
       if (shouldUseDemoMode) {
         console.log('🔧 API unavailable or database issue, using demo mode');
-
-        if (editMode && productToEdit) {
+      if (editMode && productToEdit) {
           // Demo mode for update
           const mockUpdatedProduct: CountProduct = {
             ...productToEdit,
@@ -601,9 +622,11 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
             dispatch: formData.dispatch ? parseFloat(formData.dispatch) > 0 : false,
             dispatchDate: formData.dispatchDate || "",
             middleman: formData.middleman || "Direct", // Fix: Use middleman field instead of partyName
-            remarks: formData.remarks?.trim() || ''
+            remarks: formData.remarks?.trim() || '',
+            isReprocessing: formData.isReprocessing
           };
 
+          console.log('📞 Calling success callback with demo updated product:', mockUpdatedProduct);
           console.log('📞 Calling success callback with demo updated product:', mockUpdatedProduct);
           console.log('🔍 Demo mode product details:', {
             demoCustomerName: mockUpdatedProduct.customerName,
@@ -633,13 +656,14 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
             sentToDye: true,
             sentDate: formData.sentDate,
             received: formData.received ? parseFloat(formData.received) > 0 : false,
-            receivedDate: formData.receivedDate || "",
-            receivedQuantity: formData.received ? parseFloat(formData.received) : 0,
             dispatch: formData.dispatch ? parseFloat(formData.dispatch) > 0 : false,
             dispatchDate: formData.dispatchDate || "",
             dispatchQuantity: formData.dispatch ? parseFloat(formData.dispatch) : 0,
-            middleman: formData.middleman || "Direct" // Fix: Use middleman field instead of partyName
+            middleman: formData.middleman || "Direct", // Fix: Use middleman field instead of partyName
+            isReprocessing: formData.isReprocessing
           };
+
+          console.log('📞 Calling success callback with demo product:', mockProduct);
 
           console.log('📞 Calling success callback with demo product:', mockProduct);
           onSuccess(mockProduct);
@@ -648,7 +672,6 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
           console.log('🎉 Demo mode submission completed successfully');
         }
 
-        // Reset form data only if not in edit mode
         if (!editMode) {
           setFormData({
             quantity: "",
@@ -663,8 +686,11 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
             partyName: "",
             middleman: "",
             dyeingFirm: "",
-            remarks: ""
+            remarks: "",
+            isReprocessing: false
           });
+          setErrors({});
+        } });
           setErrors({});
         }
       } else {
@@ -695,12 +721,13 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
       received: "",
       receivedDate: "",
       dispatch: "",
-      dispatchDate: "",
-      partyName: "",
       middleman: "",
       dyeingFirm: "",
-      remarks: ""
+      remarks: "",
+      isReprocessing: false
     });
+    setErrors({});
+  };});
     setErrors({});
   };
 
@@ -881,6 +908,20 @@ export const HorizontalAddOrderForm: React.FC<HorizontalAddOrderFormProps> = ({
             {errors.sentToDye && (
               <p className="text-xs text-red-500">{errors.sentToDye}</p>
             )}
+          </div>
+
+          {/* Reprocessing Checkbox */}
+          <div className="space-y-1 flex items-center pt-6">
+            <input
+              type="checkbox"
+              id="isReprocessing"
+              checked={formData.isReprocessing}
+              onChange={(e) => setFormData(prev => ({ ...prev, isReprocessing: e.target.checked }))}
+              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+            />
+            <label htmlFor="isReprocessing" className="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300">
+              Reprocessing
+            </label>
           </div>
 
           {/* Sent Date */}
